@@ -255,6 +255,69 @@ export async function markCommissionPaid(commissionId: string, paidDate: string)
 }
 
 /**
+ * Revert a commission to an earlier status (undo an accidental approve/pay).
+ * Allowed transitions: paid -> approved, paid -> pending, approved -> pending.
+ * Clears paid_at/paid_by whenever the commission leaves the 'paid' status, since
+ * those columns should only be set for commissions that are currently paid.
+ * Does not conflict with the order-delivery commission trigger
+ * (create_commission_on_delivery), which only INSERTs a new commission row and
+ * skips entirely if one already exists for the order — it never touches status.
+ * Only callable by admin or management.
+ */
+export async function revertCommissionStatus(
+  commissionId: string,
+  targetStatus: 'pending' | 'approved'
+): Promise<{ error?: never } | { error: string }> {
+  const auth = await requireRole(['admin', 'management'])
+  if (!auth.authorized) return { error: auth.reason }
+
+  const db = await createServiceClient()
+
+  const { data: current, error: fetchError } = await db
+    .from('commissions')
+    .select('status')
+    .eq('id', commissionId)
+    .single()
+
+  if (fetchError || !current) {
+    console.error('[commissions] revertCommissionStatus fetch error:', fetchError)
+    return { error: 'Commission not found' }
+  }
+
+  const validTransitions: Record<string, string[]> = {
+    paid: ['approved', 'pending'],
+    approved: ['pending'],
+  }
+
+  if (!validTransitions[current.status]?.includes(targetStatus)) {
+    return { error: `Cannot revert commission from '${current.status}' to '${targetStatus}'` }
+  }
+
+  const update: Record<string, unknown> = {
+    status: targetStatus,
+    updated_at: new Date().toISOString(),
+  }
+
+  // Clear payment info whenever we leave the 'paid' status
+  if (current.status === 'paid') {
+    update.paid_at = null
+    update.paid_by = null
+  }
+
+  const { error } = await db
+    .from('commissions')
+    .update(update)
+    .eq('id', commissionId)
+
+  if (error) {
+    console.error('[commissions] revertCommissionStatus error:', error)
+    return { error: 'Failed to revert commission status' }
+  }
+
+  return {}
+}
+
+/**
  * Save or update the notes field on a commission.
  * Only callable by admin or management.
  */
