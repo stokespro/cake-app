@@ -22,6 +22,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet'
+import {
   Search,
   RefreshCw,
   Package,
@@ -31,8 +38,19 @@ import {
   ArrowUpDown,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
+  FlaskConical,
+  Loader2,
 } from 'lucide-react'
 import { getInventoryData, type InventorySku, type InventoryStrain, type InventoryProductType, type InventoryRecord, type InventoryPackage } from '@/actions/inventory'
+import { getActiveBatchesForStrain } from '@/actions/vault'
+import type { Batch } from '@/types/vault'
+
+// Formats an optional lab-testing percentage value; renders "—" when missing
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return `${value.toFixed(2)}%`
+}
 
 // Low stock threshold (in cases)
 const LOW_STOCK_THRESHOLD = 5
@@ -73,6 +91,12 @@ export default function InventoryPage() {
   const [sortField, setSortField] = useState<SortField>('sku')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const { user } = useAuth()
+
+  // Strain batch drill-down (click a card/row to view active batches + test results)
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false)
+  const [selectedStrain, setSelectedStrain] = useState<{ id: string; name: string } | null>(null)
+  const [strainBatches, setStrainBatches] = useState<Batch[]>([])
+  const [strainBatchesLoading, setStrainBatchesLoading] = useState(false)
 
   useEffect(() => {
     fetchAllData()
@@ -115,6 +139,21 @@ export default function InventoryPage() {
     setRefreshing(true)
     await fetchAllData()
     setRefreshing(false)
+  }
+
+  const handleViewStrainBatches = async (row: InventoryRow) => {
+    setSelectedStrain({ id: row.strainId, name: row.strainName })
+    setBatchSheetOpen(true)
+    setStrainBatchesLoading(true)
+    try {
+      const result = await getActiveBatchesForStrain(row.strainId)
+      setStrainBatches(result.success && result.batches ? result.batches : [])
+    } catch (error) {
+      console.error('Error fetching active batches for strain:', error)
+      setStrainBatches([])
+    } finally {
+      setStrainBatchesLoading(false)
+    }
   }
 
   // Calculate vault grams by strain and product type
@@ -307,7 +346,16 @@ export default function InventoryPage() {
   // Mobile card component for inventory items
   const InventoryCard = ({ row }: { row: InventoryRow }) => (
     <div
-      className={`p-4 border-b last:border-b-0 ${
+      role="button"
+      tabIndex={0}
+      onClick={() => handleViewStrainBatches(row)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleViewStrainBatches(row)
+        }
+      }}
+      className={`p-4 border-b last:border-b-0 cursor-pointer transition-colors hover:bg-muted/40 active:bg-muted/60 ${
         row.isLowStock ? 'bg-amber-50 dark:bg-amber-950/20' : row.available <= 0 ? 'bg-red-50 dark:bg-red-950/20' : ''
       }`}
     >
@@ -318,13 +366,16 @@ export default function InventoryPage() {
             <span className="font-semibold text-base">{row.skuCode}</span>
             {getTypeBadge(row.productTypeName)}
           </div>
-          <p className="text-sm text-muted-foreground mt-0.5 truncate">{row.skuName}</p>
+          <p className="text-sm text-muted-foreground mt-0.5 truncate">{row.skuName} &middot; {row.strainName}</p>
         </div>
-        <div className="text-right flex-shrink-0">
-          <div className="text-xs text-muted-foreground uppercase tracking-wide">Available</div>
-          <div className="text-xl font-bold">
-            {getAvailableDisplay(row.available, row.isLowStock)}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="text-right">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">Available</div>
+            <div className="text-xl font-bold">
+              {getAvailableDisplay(row.available, row.isLowStock)}
+            </div>
           </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </div>
       </div>
 
@@ -355,6 +406,11 @@ export default function InventoryPage() {
           <span>{row.pendingOrders} pending orders</span>
         </div>
       )}
+
+      <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
+        <FlaskConical className="h-3 w-3" />
+        <span>Tap to view batches &amp; test results</span>
+      </div>
     </div>
   )
 
@@ -618,18 +674,20 @@ export default function InventoryPage() {
                           <SortIcon field="available" />
                         </button>
                       </TableHead>
+                      <TableHead className="w-[40px]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredAndSortedRows.map((row) => (
                       <TableRow
                         key={row.skuId}
-                        className={row.isLowStock ? 'bg-amber-50 dark:bg-amber-950/20' : row.available <= 0 ? 'bg-red-50 dark:bg-red-950/20' : ''}
+                        onClick={() => handleViewStrainBatches(row)}
+                        className={`cursor-pointer hover:bg-muted/40 ${row.isLowStock ? 'bg-amber-50 dark:bg-amber-950/20' : row.available <= 0 ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
                       >
                         <TableCell>
                           <div>
                             <span className="font-medium">{row.skuCode}</span>
-                            <p className="text-sm text-muted-foreground">{row.skuName}</p>
+                            <p className="text-sm text-muted-foreground">{row.skuName} &middot; {row.strainName}</p>
                           </div>
                         </TableCell>
                         <TableCell>{getTypeBadge(row.productTypeName)}</TableCell>
@@ -654,6 +712,9 @@ export default function InventoryPage() {
                         <TableCell className="text-right">
                           {getAvailableDisplay(row.available, row.isLowStock)}
                         </TableCell>
+                        <TableCell>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -663,6 +724,56 @@ export default function InventoryPage() {
           </Card>
         </>
       )}
+
+      {/* Active batches & test results for the selected strain */}
+      <Sheet open={batchSheetOpen} onOpenChange={setBatchSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md flex flex-col">
+          <SheetHeader>
+            <SheetTitle>{selectedStrain?.name || 'Strain'} — Active Batches</SheetTitle>
+            <SheetDescription>
+              Active batches for this strain, with lab test results.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-4 flex-1 overflow-y-auto space-y-3">
+            {strainBatchesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : strainBatches.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                <FlaskConical className="h-8 w-8 mb-2 opacity-50" />
+                <p className="text-sm">No active batches with test results for this strain.</p>
+              </div>
+            ) : (
+              strainBatches.map((batch) => (
+                <div key={batch.id} className="rounded-lg border p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold">{batch.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(batch.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-muted/50 rounded-md py-2 px-1">
+                      <div className="text-xs text-muted-foreground">THC</div>
+                      <div className="font-semibold text-sm">{formatPercent(batch.thc_percentage)}</div>
+                    </div>
+                    <div className="bg-muted/50 rounded-md py-2 px-1">
+                      <div className="text-xs text-muted-foreground">Terpenes</div>
+                      <div className="font-semibold text-sm">{formatPercent(batch.terpenes_percentage)}</div>
+                    </div>
+                    <div className="bg-muted/50 rounded-md py-2 px-1">
+                      <div className="text-xs text-muted-foreground">Total Cannabinoids</div>
+                      <div className="font-semibold text-sm">{formatPercent(batch.total_cannabinoids_percentage)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

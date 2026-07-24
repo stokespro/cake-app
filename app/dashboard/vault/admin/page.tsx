@@ -61,6 +61,12 @@ import {
 } from '@/actions/vault'
 import type { Strain, Batch, ProductType, VaultPackage } from '@/types/vault'
 
+// Formats an optional lab-testing percentage value; renders "—" when missing
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return `${value.toFixed(2)}%`
+}
+
 export default function VaultAdminPage() {
   const [activeTab, setActiveTab] = useState('strains')
 
@@ -93,7 +99,7 @@ export default function VaultAdminPage() {
   const [batchStatusFilter, setBatchStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [batchStrainFilter, setBatchStrainFilter] = useState('all')
   const [batchSortColumn, setBatchSortColumn] = useState<
-    'name' | 'strain' | 'status' | 'created_at' | null
+    'name' | 'strain' | 'thc' | 'terpenes' | 'cannabinoids' | 'status' | 'created_at' | null
   >(null)
   const [batchSortDirection, setBatchSortDirection] = useState<'asc' | 'desc'>('asc')
   const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(new Set())
@@ -312,6 +318,18 @@ export default function VaultAdminPage() {
           aVal = a.strain?.name || ''
           bVal = b.strain?.name || ''
           break
+        case 'thc':
+          aVal = a.thc_percentage ?? -1
+          bVal = b.thc_percentage ?? -1
+          break
+        case 'terpenes':
+          aVal = a.terpenes_percentage ?? -1
+          bVal = b.terpenes_percentage ?? -1
+          break
+        case 'cannabinoids':
+          aVal = a.total_cannabinoids_percentage ?? -1
+          bVal = b.total_cannabinoids_percentage ?? -1
+          break
         case 'status':
           aVal = a.is_active ? 1 : 0
           bVal = b.is_active ? 1 : 0
@@ -449,7 +467,7 @@ export default function VaultAdminPage() {
     setTogglingBatchId(null)
   }
 
-  function handleBatchSort(column: 'name' | 'strain' | 'status' | 'created_at') {
+  function handleBatchSort(column: 'name' | 'strain' | 'thc' | 'terpenes' | 'cannabinoids' | 'status' | 'created_at') {
     if (batchSortColumn === column) {
       setBatchSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))
     } else {
@@ -754,6 +772,60 @@ export default function VaultAdminPage() {
                           <button
                             type="button"
                             className="flex items-center gap-1 hover:text-foreground"
+                            onClick={() => handleBatchSort('thc')}
+                          >
+                            THC %
+                            {batchSortColumn === 'thc' ? (
+                              batchSortDirection === 'asc' ? (
+                                <ArrowUp className="h-3 w-3" />
+                              ) : (
+                                <ArrowDown className="h-3 w-3" />
+                              )
+                            ) : (
+                              <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="hidden sm:table-cell">
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 hover:text-foreground"
+                            onClick={() => handleBatchSort('terpenes')}
+                          >
+                            Terpenes %
+                            {batchSortColumn === 'terpenes' ? (
+                              batchSortDirection === 'asc' ? (
+                                <ArrowUp className="h-3 w-3" />
+                              ) : (
+                                <ArrowDown className="h-3 w-3" />
+                              )
+                            ) : (
+                              <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="hidden md:table-cell">
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 hover:text-foreground"
+                            onClick={() => handleBatchSort('cannabinoids')}
+                          >
+                            Total Cannabinoids %
+                            {batchSortColumn === 'cannabinoids' ? (
+                              batchSortDirection === 'asc' ? (
+                                <ArrowUp className="h-3 w-3" />
+                              ) : (
+                                <ArrowDown className="h-3 w-3" />
+                              )
+                            ) : (
+                              <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead>
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 hover:text-foreground"
                             onClick={() => handleBatchSort('status')}
                           >
                             Status
@@ -792,7 +864,7 @@ export default function VaultAdminPage() {
                     <TableBody>
                       {filteredBatches.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center text-muted-foreground">
+                          <TableCell colSpan={9} className="text-center text-muted-foreground">
                             {batches.length === 0 ? 'No batches found' : 'No batches match your filters'}
                           </TableCell>
                         </TableRow>
@@ -808,6 +880,9 @@ export default function VaultAdminPage() {
                             </TableCell>
                             <TableCell className="font-medium">{batch.name}</TableCell>
                             <TableCell>{batch.strain?.name || '-'}</TableCell>
+                            <TableCell>{formatPercent(batch.thc_percentage)}</TableCell>
+                            <TableCell className="hidden sm:table-cell">{formatPercent(batch.terpenes_percentage)}</TableCell>
+                            <TableCell className="hidden md:table-cell">{formatPercent(batch.total_cannabinoids_percentage)}</TableCell>
                             <TableCell>
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                 batch.is_active

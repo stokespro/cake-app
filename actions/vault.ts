@@ -922,6 +922,39 @@ export async function deleteBatch(id: string): Promise<{ success: boolean; error
   return { success: true }
 }
 
+// Get active batches (with lab-testing fields) for a given strain — used by
+// the inventory page to show COA/test results when a user drills into a card.
+export async function getActiveBatchesForStrain(strainId: string): Promise<{
+  success: boolean
+  batches?: Batch[]
+  error?: string
+}> {
+  const auth = await requireRole(INVENTORY_READ_ROLES)
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  if (!strainId) {
+    return { success: false, error: 'Strain is required' }
+  }
+
+  const db = await createServiceClient()
+
+  const { data, error } = await db
+    .from('batches')
+    .select(`
+      *,
+      strain:strains(*)
+    `)
+    .eq('strain_id', strainId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, batches: data as Batch[] }
+}
+
 // ============================================================================
 // PRODUCT TYPE CRUD OPERATIONS
 // ============================================================================
