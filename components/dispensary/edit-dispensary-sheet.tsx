@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { DispensaryProfile } from '@/types/database'
+import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,6 +35,7 @@ interface FormData {
   omma_license: string
   ob_license: string
   is_active: boolean
+  commission_exempt: boolean
 }
 
 export function EditDispensarySheet({
@@ -42,6 +44,9 @@ export function EditDispensarySheet({
   dispensary,
   onSuccess
 }: EditDispensarySheetProps) {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
   const [formData, setFormData] = useState<FormData>({
     business_name: dispensary?.business_name || '',
     license_name: dispensary?.license_name || '',
@@ -50,7 +55,8 @@ export function EditDispensarySheet({
     email: dispensary?.email || '',
     omma_license: dispensary?.omma_license || '',
     ob_license: dispensary?.ob_license || '',
-    is_active: dispensary?.is_active !== false
+    is_active: dispensary?.is_active !== false,
+    commission_exempt: dispensary?.commission_exempt === true
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Partial<FormData>>({})
@@ -65,7 +71,8 @@ export function EditDispensarySheet({
       email: dispensary?.email || '',
       omma_license: dispensary?.omma_license || '',
       ob_license: dispensary?.ob_license || '',
-      is_active: dispensary?.is_active !== false
+      is_active: dispensary?.is_active !== false,
+      commission_exempt: dispensary?.commission_exempt === true
     })
     setErrors({})
   }
@@ -128,6 +135,7 @@ export function EditDispensarySheet({
       omma_license: formData.omma_license,
       ob_license: formData.ob_license,
       is_active: formData.is_active,
+      commission_exempt: formData.commission_exempt,
     })
 
     setLoading(false)
@@ -271,6 +279,24 @@ export function EditDispensarySheet({
                 disabled={loading}
               />
             </div>
+
+            {/* Commission Exempt (admin only) */}
+            {isAdmin && (
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="commission_exempt" className="text-sm font-medium">Commission Exempt</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Exempt this dispensary from all sales commission calculations. Delivered orders will not generate commissions for the assigned sales rep.
+                  </p>
+                </div>
+                <Switch
+                  id="commission_exempt"
+                  checked={formData.commission_exempt}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, commission_exempt: checked }))}
+                  disabled={loading}
+                />
+              </div>
+            )}
           </div>
 
           <SheetFooter className="gap-3">

@@ -573,6 +573,7 @@ export interface UpdateCustomerInput {
   omma_license?: string
   ob_license?: string
   is_active?: boolean
+  commission_exempt?: boolean
 }
 
 export async function updateCustomer(
@@ -588,19 +589,28 @@ export async function updateCustomer(
 
   const db = await createServiceClient()
 
+  const updateData: Record<string, unknown> = {
+    business_name: input.business_name.trim(),
+    license_name: input.license_name?.trim() || null,
+    address: input.address?.trim() || null,
+    phone_number: input.phone_number?.trim() || null,
+    email: input.email?.trim() || null,
+    omma_license: input.omma_license?.trim() || null,
+    ob_license: input.ob_license?.trim() || null,
+    is_active: input.is_active,
+    updated_at: new Date().toISOString(),
+  }
+
+  // Defense-in-depth: only admins may change commission_exempt, even though
+  // this action is otherwise reachable by management. The UI switch only
+  // renders for admins, but we guard here too in case of direct calls.
+  if (input.commission_exempt !== undefined && auth.session.role === 'admin') {
+    updateData.commission_exempt = input.commission_exempt
+  }
+
   const { error } = await db
     .from('customers')
-    .update({
-      business_name: input.business_name.trim(),
-      license_name: input.license_name?.trim() || null,
-      address: input.address?.trim() || null,
-      phone_number: input.phone_number?.trim() || null,
-      email: input.email?.trim() || null,
-      omma_license: input.omma_license?.trim() || null,
-      ob_license: input.ob_license?.trim() || null,
-      is_active: input.is_active,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq('id', customerId)
 
   if (error) {

@@ -3231,6 +3231,7 @@ export interface Customer {
   omma_license?: string
   ob_license?: string
   is_active?: boolean
+  commission_exempt?: boolean | null
   assigned_sales_id?: string
   has_orders?: boolean
   first_order_date?: string
