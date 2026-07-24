@@ -70,6 +70,7 @@ import {
   Filter,
   Edit2,
   Loader2,
+  RotateCcw,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn, parseLocalDate } from '@/lib/utils'
@@ -82,6 +83,7 @@ import {
   markCommissionPaid,
   saveCommissionNote,
   bulkMarkCommissionsPaid,
+  revertCommissionStatus,
   type CommissionRow,
   type SalespersonOption,
   type OrderDetail,
@@ -133,6 +135,12 @@ export default function CommissionsPage() {
   const [bulkPayDialogOpen, setBulkPayDialogOpen] = useState(false)
   const [bulkPaidDate, setBulkPaidDate] = useState<Date | undefined>(new Date())
   const [bulkSaving, setBulkSaving] = useState(false)
+
+  // Revert status dialog (undo an accidental approve/pay)
+  const [revertDialogOpen, setRevertDialogOpen] = useState(false)
+  const [revertCommission, setRevertCommission] = useState<CommissionRow | null>(null)
+  const [revertTarget, setRevertTarget] = useState<'pending' | 'approved'>('pending')
+  const [reverting, setReverting] = useState(false)
 
   const userRole = user?.role || 'standard'
   const canManage = userRole === 'admin' || userRole === 'management'
@@ -318,6 +326,41 @@ export default function CommissionsPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Revert status handlers
+  const performRevert = async (commission: CommissionRow, targetStatus: 'pending' | 'approved') => {
+    setReverting(true)
+    try {
+      const result = await revertCommissionStatus(commission.id, targetStatus)
+      if (result.error) throw new Error(result.error)
+      toast.success(`Commission reverted to ${targetStatus}`)
+      setRevertDialogOpen(false)
+      setRevertCommission(null)
+      fetchData()
+    } catch (error) {
+      console.error('Error reverting commission:', error)
+      toast.error('Failed to revert commission')
+    } finally {
+      setReverting(false)
+    }
+  }
+
+  const handleRevertClick = (commission: CommissionRow, targetStatus: 'pending' | 'approved') => {
+    // Reverting a PAID commission is the most consequential action — confirm first.
+    // Approved -> pending is lower stakes and doesn't touch payment info.
+    if (commission.status === 'paid') {
+      setRevertCommission(commission)
+      setRevertTarget(targetStatus)
+      setRevertDialogOpen(true)
+    } else {
+      performRevert(commission, targetStatus)
+    }
+  }
+
+  const handleConfirmRevert = () => {
+    if (!revertCommission) return
+    performRevert(revertCommission, revertTarget)
   }
 
   // Bulk pay handler
@@ -661,6 +704,21 @@ export default function CommissionsPage() {
                                 Mark as Paid
                               </DropdownMenuItem>
                             )}
+                            {commission.status === 'paid' && (
+                              <DropdownMenuItem onClick={() => handleRevertClick(commission, 'approved')}>
+                                <RotateCcw className="h-4 w-4 mr-2" />
+                                Revert to Approved
+                              </DropdownMenuItem>
+                            )}
+                            {(commission.status === 'paid' || commission.status === 'approved') && (
+                              <DropdownMenuItem
+                                onClick={() => handleRevertClick(commission, 'pending')}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <RotateCcw className="h-4 w-4 mr-2" />
+                                Revert to Pending
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => openActionSheet(commission, 'note')}>
                               <FileText className="h-4 w-4 mr-2" />
                               {commission.notes ? 'Edit Note' : 'Add Note'}
@@ -955,6 +1013,37 @@ export default function CommissionsPage() {
               disabled={bulkSaving || !bulkPaidDate}
             >
               {bulkSaving ? 'Saving...' : 'Mark as Paid'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Revert Paid Commission Confirmation */}
+      <AlertDialog open={revertDialogOpen} onOpenChange={(open) => { if (!reverting) setRevertDialogOpen(open) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert Paid Commission?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {revertCommission && (
+                <>
+                  Order #{revertCommission.order?.order_number} — ${revertCommission.commission_amount.toFixed(2)} for{' '}
+                  {revertCommission.salesperson?.full_name} is currently marked as paid
+                  {revertCommission.paid_at && ` (${format(parseLocalDate(revertCommission.paid_at), 'MMM d, yyyy')})`}.
+                  {' '}Reverting to &quot;{revertTarget === 'pending' ? 'Pending' : 'Approved'}&quot; will clear the payment
+                  date and payer. This cannot be undone automatically — you&apos;ll need to re-mark it as paid later if
+                  needed.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reverting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmRevert}
+              disabled={reverting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {reverting ? 'Reverting...' : `Revert to ${revertTarget === 'pending' ? 'Pending' : 'Approved'}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
