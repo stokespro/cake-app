@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-07-23",
+  "lastUpdated": "2026-07-25",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-07-23",
+    "lastVerified": "2026-07-25",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -45,8 +45,8 @@
         ]
       }
     ],
-    "expeditedWindow": "JULY 23 UPDATE: No D.C. Circuit stay ruling issued as of July 23, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). JULY 22: Bipartisan Lawful Hemp Protection Act introduced with White House backing — would replace November 12 hemp ban; bill has NOT passed. Senate Farm Bill markup still blocked: Agriculture Committee faces 11-11 split due to McConnell hospitalization; no markup date set. JULY 21 UPDATE: No D.C. Circuit stay ruling issued as of July 21, 2026; court can rule at any time; stay motion remains fully briefed. Senate Farm Bill markup did NOT open the week of July 21 — Senate Agriculture Committee unable to advance without McConnell's return.",
-    "caution": "JULY 23 UPDATE: No D.C. Circuit stay ruling issued as of July 23, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). Lawful Hemp Protection Act (Barr/Craig) introduced July 22 with White House backing — bill would replace November 12 hemp ban but has NOT passed; November 12 deadline remains legally in effect. Alabama State Committee of Public Health held July 22 hearing on whether to adopt federal Schedule III; decision expected after August 5 written comment deadline — state health officer indicated Alabama 'fully intends' to follow federal change. ALJ post-hearing briefs due August 17, 2026 — no ALJ ruling timeline announced. OBNDD enforcement grace period runs to January 1, 2027 for Oklahoma manufacturers/distributors.",
+    "expeditedWindow": "JULY 25 UPDATE: No D.C. Circuit stay ruling issued as of July 25, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). White House support for Lawful Hemp Protection Act (Barr/Craig) disputed — administration declines to formally endorse bill; reported objections to inhalable hemp provisions (Marijuana Moment, July 24); no Senate companion; no committee hearing scheduled; November 12 hemp deadline remains law. Senate Farm Bill markup blocked; Agriculture Committee faces 11-11 split with McConnell hospitalized; Senate approaching August recess with no markup date set. JULY 23: Lawful Hemp Protection Act (Barr/Craig) formally introduced in House. JULY 22: White House backing initially reported for hemp bill; administration subsequently declined to formally endorse specific bill (July 24). JULY 21 UPDATE: No D.C. Circuit stay ruling issued as of July 21, 2026; court can rule at any time; stay motion remains fully briefed. Senate Farm Bill markup did NOT open the week of July 21 — Senate Agriculture Committee unable to advance without McConnell's return.",
+    "caution": "JULY 25 UPDATE: No D.C. Circuit stay ruling issued as of July 25, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). White House support for Lawful Hemp Protection Act (Barr/Craig) disputed — administration declines to formally endorse bill; reported objections to inhalable hemp product provisions (Marijuana Moment, July 24); no Senate companion; no committee hearing; November 12 hemp ban deadline remains legally in effect. Senate Farm Bill markup blocked by 11-11 committee deadlock (McConnell hospitalized); Senate approaching August recess. Oklahoma HB 4454 packaging rules: industry groups warn up to 90% of edibles packaging may not comply with November 1 deadline — OMMA has not issued implementing guidance. Alabama ADPH held July 22 hearing on Schedule III adoption; decision expected after August 5 written comment deadline. ALJ post-hearing briefs due August 17, 2026 — official DEA.gov transcript not expected until late August/September at earliest. IRS 280E formal guidance still not published as of July 25, 2026. OBNDD enforcement grace period runs to January 1, 2027 for Oklahoma manufacturers/distributors.",
     "officialSources": [
       {
         "name": "DEA — Marijuana Rescheduling Regulatory Actions",
@@ -111,6 +111,57 @@
     }
   ],
   "items": [
+    {
+      "id": "white-house-hemp-bill-support-disputed-july24",
+      "headline": "White House Support for Barr/Craig Hemp Bill Disputed — Administration Declines to Endorse Inhalable Hemp Provisions; November 12 Deadline Unchanged",
+      "date": "2026-07-24",
+      "summary": "One day after Rep. Andy Barr (R-KY) publicly claimed White House backing for the Lawful Hemp Protection Act he introduced July 23, 2026, Marijuana Moment reported July 24 that 'an administration official declined to back the specific legislation' and that sources indicate the White House has specific objections to provisions covering inhalable hemp products. The reported concern centers on the bill's 50mg per serving default potency cap for inhalable hemp products that would take effect if HHS failed to act. While the White House has expressed general support for reversing the November 12, 2026 federal hemp THC product ban — reflected in OMB Director Vought's June 24 letter to Speaker Johnson — the administration has not formally endorsed the Barr/Craig bill as written. No Senate companion bill exists and no committee hearing or vote has been scheduled.",
+      "whyItMatters": "Oklahoma dispensaries and hemp operators who read July 22-23 coverage headlining 'White House backs bill' should note that administration support is more qualified than initially reported. The reported inhalables objection is significant because hemp-derived inhalable products — THCA cartridges, delta-8 vapes, hemp cigarettes, hemp flower for smoking — represent a major market category that would face the greatest legal exposure if the bill were modified to exclude them from a regulatory safe harbor. Oklahoma operators selling or procuring hemp-derived inhalables should not treat the Barr/Craig bill as a reliable compliance solution for that product category, even if a modified version passes. The November 12, 2026 effective date for the federal hemp ban (Section 781 of P.L. 119-37) remains unchanged. Plan for 0.3% total-THC compliance across all hemp products, including inhalables. The Senate Farm Bill path for a hemp delay has effectively collapsed due to McConnell hospitalization.",
+      "tags": ["federal", "dispensary", "deadline"],
+      "source": {
+        "name": "Marijuana Moment — GOP Lawmaker Claims White House Backs His Hemp Bill, But Administration Has Problems With Inhalable Product Provisions, Sources Say (July 24, 2026)",
+        "url": "https://www.marijuanamoment.net/gop-lawmaker-claims-white-house-backs-his-hemp-bill-but-administration-has-problems-with-inhalable-product-provisions-sources-say/"
+      },
+      "secondarySource": {
+        "name": "Cannabis Business Times — House Lawmakers File Trump-Backed Bill to Loosen Hemp THC Product Ban (July 23, 2026)",
+        "url": "https://www.cannabisbusinesstimes.com/hemp/news/15830678/house-lawmakers-file-trumpbacked-bill-to-loosen-hemp-thc-product-ban"
+      },
+      "pinned": false
+    },
+    {
+      "id": "ok-hb4454-packaging-90pct-alarm-july21",
+      "headline": "Industry Alert: Up to 90% of Oklahoma Edibles Packaging May Not Comply with HB 4454 Rules — Operators Report Confusing Standards Ahead of November 1 Deadline",
+      "date": "2026-07-21",
+      "summary": "KGOU (NPR Oklahoma) and MJBizDaily reported July 21, 2026 that Oklahoma cannabis operators and patient advocates are raising compliance alarms about the November 1, 2026 effective date for HB 4454 edibles restrictions (signed Governor Stitt, May 7, 2026). Industry sources warn that as many as 90% of currently-circulating edibles packaging in the Oklahoma market may not comply with the law's bans on shapes resembling humans, animals, cartoons, or commercially available candy, and marketing that 'appeals to minors.' Operators describe the packaging rules as 'confusing and unclear,' citing ambiguity about which specific imagery constitutes prohibited cartoon-like or animal shapes, how the shape restrictions apply to abstract graphic design elements, and how OMMA intends to enforce the packaging bans on existing inventory. OMMA had not issued formal implementing guidance or enforcement FAQs for HB 4454 packaging requirements as of July 21, 2026.",
+      "whyItMatters": "CAKE supplies cannabis products wholesale to Oklahoma dispensaries, many of whom carry edibles from third-party processors. Dispensaries carrying non-compliant edibles packaging after November 1, 2026 face OMMA administrative enforcement — and OMMA's current posture (300+ enforcement cases in 2026, emergency suspensions for correctable violations per FOX23 reporting July 18) makes this a real operational risk. If 90% of market packaging is non-compliant, virtually every dispensary customer and processor in CAKE's wholesale network is at risk without remediation. Action items: (1) dispensaries should audit all edibles inventory against HB 4454 packaging criteria now; (2) processors manufacturing edibles for Oklahoma must prioritize repackaging before October 2026; (3) watch oklahoma.gov/omma for implementing guidance and enforcement FAQs. The per-serving (10mg) and per-package (100mg) THC limits are separately enforceable from the packaging shape rules — both must be addressed before November 1.",
+      "tags": ["oklahoma", "dispensary", "deadline"],
+      "source": {
+        "name": "KGOU NPR Oklahoma — Oklahoma Medical Marijuana Advocates Criticize New Packaging Laws Meant to Protect Children (July 21, 2026)",
+        "url": "https://www.kgou.org/politics-and-government/2026-07-21/oklahoma-medical-marijuana-advocates-criticize-new-packaging-laws-meant-to-protect-children"
+      },
+      "secondarySource": {
+        "name": "MJBizDaily — Oklahoma Cannabis Operators Say New Child-Safe Edibles Rules Are Confusing, Unclear",
+        "url": "https://mjbizdaily.com/news/oklahoma-cannabis-operators-say-new-child-safe-edibles-rules-are-confusing-unclear/617036/"
+      },
+      "pinned": false
+    },
+    {
+      "id": "octf-woodward-illegal-grow-raid-july2026",
+      "headline": "Oklahoma AG Organized Crime Task Force Shuts Down 5 Illegal Grow Operations in Woodward County — 30,000+ Plants Seized, Six Deported",
+      "date": "2026-07-10",
+      "summary": "Oklahoma Attorney General Gentner Drummond's Organized Crime Task Force (OCTF) conducted an enforcement operation in Woodward County in early July 2026, shutting down five illegal marijuana grow operations. Investigators seized more than 30,000 cannabis plants and over 200 pounds of processed marijuana. Six individuals without legal authorization to remain in the country were turned over to Immigration and Customs Enforcement and deported; one individual was arrested on state criminal charges. The Woodward operation followed a separate OCTF action in northeast Oklahoma on July 9, 2026 (Dank Dispensary in Bristow, Ontrac Express convenience store, and Black Purple Kush Dispensary in Tulsa), where investigators seized fentanyl, heroin, and marijuana sold without valid OMMA patient verification — a distinct enforcement action targeting nominally licensed locations.",
+      "whyItMatters": "The Woodward and Bristow/Tulsa raids illustrate a two-front OCTF enforcement posture in July 2026: criminal prosecution of unlicensed grow operations flooding the market with untaxed, untracked supply, and enforcement action at licensed but non-compliant dispensaries. For CAKE as an OMMA-licensed cultivator and processor, both fronts matter: (1) removal of illegal supply reduces oversupply pressure on wholesale prices (currently approximately $1,100/lb, down 63% from peak); (2) OMMA embedded investigators participating in criminal raids confirms that a business's licensed status does not insulate it from criminal-law scrutiny if inventory discrepancies arise. Full Metrc seed-to-sale compliance and supply-chain due diligence with wholesale dispensary customers remain the primary risk-management tools.",
+      "tags": ["oklahoma", "cultivation"],
+      "source": {
+        "name": "Oklahoma Office of the Attorney General — OCTF Shuts Down 5 Illegal Marijuana Operations in Woodward (July 2026)",
+        "url": "https://oklahoma.gov/oag/news/newsroom/2026/july/organized-crime-task-force-shuts-down-5-illegal-marijuana-operations-in-woodward.html"
+      },
+      "secondarySource": {
+        "name": "News9 — Organized Crime Task Force Shuts Down Illegal Grows in Woodward (July 2026)",
+        "url": "https://www.news9.com/crime/woodward-illegal-marijuana-grow-raids-july-2026"
+      },
+      "pinned": false
+    },
     {
       "id": "lawful-hemp-protection-act-barr-craig-july22",
       "headline": "Bipartisan Lawful Hemp Protection Act Introduced July 22 — White House Backs Bill to Replace November Hemp Ban with Regulatory Framework",
@@ -1439,6 +1490,28 @@
     }
   ],
   "discourse": [
+    {
+      "id": "watch-white-house-hemp-backing-qualified",
+      "headline": "'White House backs Barr/Craig hemp bill' — July 23 coverage overstated administration support; July 24 reports show WH objects to inhalable provisions",
+      "claim": "Coverage on July 22-23 headlining 'White House backs bill to keep hemp THC products legal' circulated widely in hemp and dispensary operator channels, with many operators interpreting it as near-certain White House endorsement of the Barr/Craig Lawful Hemp Protection Act and treating it as further evidence the November 12 ban will not take effect. Some posts frame it as: 'White House is on board — this is basically settled.'",
+      "caution": "Marijuana Moment reported July 24 that 'an administration official declined to back the specific legislation' and sources indicate the White House has specific objections to provisions covering inhalable hemp products. Rep. Barr's claim of White House support reflects a general administration desire to reverse the hemp ban — not formal endorsement of this bill's specific text, particularly the inhalables provisions. No Senate companion bill exists; no committee hearing is scheduled. Until Congress passes and the President signs legislation, the November 12, 2026 effective date stands. Oklahoma operators should not slow or stop compliance preparations based on July 23 White House 'backing' coverage.",
+      "source": {
+        "name": "Marijuana Moment — Does White House Actually Support New Hemp Bill? (Newsletter: July 24, 2026)",
+        "url": "https://www.marijuanamoment.net/does-white-house-actually-support-new-hemp-bill-newsletter-july-24-2026/"
+      },
+      "date": "2026-07"
+    },
+    {
+      "id": "watch-irs-280e-guidance-delay-dc-circuit-speculation",
+      "headline": "'IRS is withholding 280E guidance until D.C. Circuit rules' — attorney speculation about intentional IRS delay circulating as confirmed policy",
+      "claim": "Cannabis tax attorneys and commentators (including Marc Hauser's Cannabis Musings newsletter, July 23, 2026) are circulating the view that the IRS may be intentionally delaying formal 280E guidance pending the D.C. Circuit stay motion outcome — reasoning that issuing guidance before a potential stay ruling could require reversals. The speculation is circulating in cannabis CPA and legal communities as the explanatory framework for the 90-day-plus gap since Treasury's April 23 announcement.",
+      "caution": "The delay rationale is attorney speculation, not confirmed IRS policy. The IRS has not stated a reason for the delay. Formal guidance could be delayed for many reasons beyond D.C. Circuit strategy (workload, interagency review, Treasury policy questions about treatment of mixed-use operators). Oklahoma operators should not treat speculation about a D.C. Circuit-triggered guidance release as a planning assumption — guidance could come before, after, or independent of any court ruling. The operative fact is unchanged: no revenue ruling, IRS notice, or proposed regulation has been published as of July 25, 2026. Do not file retroactive amended returns without specialized federal tax counsel current on IRS enforcement posture.",
+      "source": {
+        "name": "Cannabis Musings (Marc Hauser) — July 23, 2026",
+        "url": "https://cannabismusings.substack.com/p/cannabis-musings-july-23-2026"
+      },
+      "date": "2026-07"
+    },
     {
       "id": "watch-lawful-hemp-act-ban-effectively-dead",
       "headline": "'White House backed the hemp bill — the November ban is effectively cancelled' — premature conclusion operators should not act on",
