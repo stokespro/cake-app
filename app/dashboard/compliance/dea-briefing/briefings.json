@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-07-25",
+  "lastUpdated": "2026-07-26",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-07-25",
+    "lastVerified": "2026-07-26",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -45,8 +45,8 @@
         ]
       }
     ],
-    "expeditedWindow": "JULY 25 UPDATE: No D.C. Circuit stay ruling issued as of July 25, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). White House support for Lawful Hemp Protection Act (Barr/Craig) disputed — administration declines to formally endorse bill; reported objections to inhalable hemp provisions (Marijuana Moment, July 24); no Senate companion; no committee hearing scheduled; November 12 hemp deadline remains law. Senate Farm Bill markup blocked; Agriculture Committee faces 11-11 split with McConnell hospitalized; Senate approaching August recess with no markup date set. JULY 23: Lawful Hemp Protection Act (Barr/Craig) formally introduced in House. JULY 22: White House backing initially reported for hemp bill; administration subsequently declined to formally endorse specific bill (July 24). JULY 21 UPDATE: No D.C. Circuit stay ruling issued as of July 21, 2026; court can rule at any time; stay motion remains fully briefed. Senate Farm Bill markup did NOT open the week of July 21 — Senate Agriculture Committee unable to advance without McConnell's return.",
-    "caution": "JULY 25 UPDATE: No D.C. Circuit stay ruling issued as of July 25, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). White House support for Lawful Hemp Protection Act (Barr/Craig) disputed — administration declines to formally endorse bill; reported objections to inhalable hemp product provisions (Marijuana Moment, July 24); no Senate companion; no committee hearing; November 12 hemp ban deadline remains legally in effect. Senate Farm Bill markup blocked by 11-11 committee deadlock (McConnell hospitalized); Senate approaching August recess. Oklahoma HB 4454 packaging rules: industry groups warn up to 90% of edibles packaging may not comply with November 1 deadline — OMMA has not issued implementing guidance. Alabama ADPH held July 22 hearing on Schedule III adoption; decision expected after August 5 written comment deadline. ALJ post-hearing briefs due August 17, 2026 — official DEA.gov transcript not expected until late August/September at earliest. IRS 280E formal guidance still not published as of July 25, 2026. OBNDD enforcement grace period runs to January 1, 2027 for Oklahoma manufacturers/distributors.",
+    "expeditedWindow": "JULY 26 UPDATE: No D.C. Circuit stay ruling issued as of July 26, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). Senate entering final days before August recess (~August 4) — Farm Bill markup blocked by 11-11 committee deadlock with McConnell hospitalized; no hemp ban legislative path before recess; November 12 hemp ban deadline now near-certain to take effect on schedule. FEC filings (July 20) confirm $11.5M cannabis MSO donations to Trump-linked PAC in June 2026 — cited in D.C. Circuit challengers' 'solely political' litigation framing. JULY 25 UPDATE: No D.C. Circuit stay ruling issued as of July 25, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). White House support for Lawful Hemp Protection Act (Barr/Craig) disputed — administration declines to formally endorse bill; reported objections to inhalable hemp provisions (Marijuana Moment, July 24); no Senate companion; no committee hearing scheduled; November 12 hemp deadline remains law. Senate Farm Bill markup blocked; Agriculture Committee faces 11-11 split with McConnell hospitalized; Senate approaching August recess with no markup date set. JULY 23: Lawful Hemp Protection Act (Barr/Craig) formally introduced in House. JULY 22: White House backing initially reported for hemp bill; administration subsequently declined to formally endorse specific bill (July 24). JULY 21 UPDATE: No D.C. Circuit stay ruling issued as of July 21, 2026; court can rule at any time; stay motion remains fully briefed. Senate Farm Bill markup did NOT open the week of July 21 — Senate Agriculture Committee unable to advance without McConnell's return.",
+    "caution": "JULY 26 UPDATE: No D.C. Circuit stay ruling issued as of July 26, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). Senate entering final days before August recess (~August 4); Farm Bill markup blocked by 11-11 committee deadlock (McConnell hospitalized) — November 12 hemp ban now near-certain to take effect; plan for 0.3% total-THC compliance. FEC filings (July 20) confirm $11.5M cannabis MSO donations to Trump-linked PAC in June 2026 — feeding D.C. Circuit challengers' 'solely political' argument; no current compliance impact but increases scrutiny risk for April 28 order. JULY 25 UPDATE: No D.C. Circuit stay ruling issued as of July 25, 2026; court can rule at any time; stay motion remains fully briefed as of July 17 (petitioners' reply in). White House support for Lawful Hemp Protection Act (Barr/Craig) disputed — administration declines to formally endorse bill; reported objections to inhalable hemp product provisions (Marijuana Moment, July 24); no Senate companion; no committee hearing; November 12 hemp ban deadline remains legally in effect. Senate Farm Bill markup blocked by 11-11 committee deadlock (McConnell hospitalized); Senate approaching August recess. Oklahoma HB 4454 packaging rules: industry groups warn up to 90% of edibles packaging may not comply with November 1 deadline — OMMA has not issued implementing guidance. Alabama ADPH held July 22 hearing on Schedule III adoption; decision expected after August 5 written comment deadline. ALJ post-hearing briefs due August 17, 2026 — official DEA.gov transcript not expected until late August/September at earliest. IRS 280E formal guidance still not published as of July 26, 2026. OBNDD enforcement grace period runs to January 1, 2027 for Oklahoma manufacturers/distributors.",
     "officialSources": [
       {
         "name": "DEA — Marijuana Rescheduling Regulatory Actions",
@@ -142,6 +142,23 @@
       "secondarySource": {
         "name": "MJBizDaily — Oklahoma Cannabis Operators Say New Child-Safe Edibles Rules Are Confusing, Unclear",
         "url": "https://mjbizdaily.com/news/oklahoma-cannabis-operators-say-new-child-safe-edibles-rules-are-confusing-unclear/617036/"
+      },
+      "pinned": false
+    },
+    {
+      "id": "cannabis-mso-trump-pac-donations-june-july2026",
+      "headline": "FEC Filings: Major Cannabis MSOs Donated $11.5M to Trump-Linked PAC in June 2026 — Fuels D.C. Circuit 'Solely Political' Litigation Argument",
+      "date": "2026-07-20",
+      "summary": "Federal Election Commission filings reported by Marijuana Moment on July 20, 2026 confirm that four major U.S. cannabis multistate operators — Trulieve, Curaleaf, Verano, and Vision Management Services (a Green Thumb Industries subsidiary) — each donated $2.5 million to America First Agriculture Action Inc. in June 2026. Ascend Wellness contributed $500,000 and Arboretum Bidco (AYR Wellness subsidiary) $1 million, totaling $11.5 million. America First Agriculture Action Inc. shares its treasurer, Charles Gantt, with MAGA Inc. (President Trump's own super PAC). These June 2026 donations came weeks after Acting AG Todd Blanche issued the April 28 rescheduling order. Combined with a prior $1.05 million industry PAC contribution to Trump's super PAC earlier in 2026, total documented cannabis industry donations to Trump-linked PACs exceed $15 million. Salon reported July 25, 2026 that the donations reflect a broader pattern of the cannabis industry 'cozying up to the GOP.'",
+      "whyItMatters": "The FEC-documented donations are the factual basis for SAM CEO Kevin Sabet's characterization of the April 28 rescheduling order as 'solely political' at the ALJ hearing (Day 1, June 29). D.C. Circuit challengers in Cases 26-1106/1130/1136 are using this political-payment narrative to argue the order lacks a proper scientific and procedural foundation — an argument that, if credited, could support APA 'arbitrary and capricious' grounds for vacatur alongside the CAMU methodology and notice-and-comment bypass arguments. Oklahoma OMMA operators' compliance obligations (DEA registration, OBNDD grace period, 280E treatment) are unchanged — these are political-legal context, not new regulatory requirements. However, compliance directors should understand that this documented donation pattern is now part of the public record being used by rescheduling opponents in active litigation and is feeding the 'solely political' narrative in mainstream media (Salon, Washington Examiner). Courts evaluate APA challenges on the administrative record, not political donations — but the donations increase the political salience of the D.C. Circuit challenge and may influence how judges perceive the challengers' credibility.",
+      "tags": ["federal"],
+      "source": {
+        "name": "Marijuana Moment — Marijuana Companies Donated $11.5 Million To Trump-Linked PAC Last Month, New Campaign Finance Records Show (July 20, 2026)",
+        "url": "https://www.marijuanamoment.net/marijuana-companies-donated-11-5-million-to-trump-linked-pac-last-month-new-campaign-finance-records-show"
+      },
+      "secondarySource": {
+        "name": "Salon — Big cannabis has cozied up to the GOP (July 25, 2026)",
+        "url": "https://www.salon.com/2026/07/25/big-cannabis-has-cozied-up-to-the-gop/"
       },
       "pinned": false
     },
@@ -1883,6 +1900,17 @@
       "source": {
         "name": "Senate Judiciary Committee — AG Confirmation Hearing proceedings (July 15, 2026)",
         "url": "https://www.judiciary.senate.gov/hearings"
+      },
+      "date": "2026-07"
+    },
+    {
+      "id": "watch-pac-donations-rescheduling-was-bought",
+      "headline": "'Cannabis companies bought the rescheduling order' — $11.5M FEC filing narrative circulating as proof D.C. Circuit will vacate April 28 order",
+      "claim": "Following Marijuana Moment's July 20, 2026 FEC filing report showing $11.5 million in cannabis MSO donations to a Trump-linked PAC in June 2026 — weeks after Acting AG Blanche issued the April 28 Schedule III order — social media, anti-rescheduling accounts, and some commentators are framing this as definitive proof the order was 'purchased' by the cannabis industry and that D.C. Circuit courts will vacate it as corrupt agency action. Some posts cite Kevin Sabet's 'solely political' characterization at the ALJ hearing (Day 1, June 29) as confirmation. The narrative is circulating on LinkedIn, X/Twitter, and mainstream media outlets (Salon, Washington Examiner).",
+      "caution": "While the FEC filings are verified public record, the legal mechanism — donations = corrupt agency action = judicial vacatur — does not work automatically under APA review. APA courts evaluate whether an agency's decision was arbitrary and capricious based on the administrative record before the agency; they do not apply a criminal bribery standard to invalidate agency orders based on political donations to unrelated PACs. The D.C. Circuit challengers' actual legal arguments center on APA notice-and-comment bypass, treaty-authority scope, and CAMU methodology switch — not on proving the donations caused the order. The donation narrative gives anti-rescheduling media and litigation commentators politically resonant framing but does not change the four-factor stay standard the court must apply. Oklahoma operators: no compliance obligation changes. The OBNDD enforcement grace period (January 1, 2027) and DEA registration status remain in effect regardless of this political narrative. Do not adjust compliance posture based on PAC donation media coverage.",
+      "source": {
+        "name": "Marijuana Moment — Marijuana Companies Donated $11.5 Million To Trump-Linked PAC Last Month (July 20, 2026)",
+        "url": "https://www.marijuanamoment.net/marijuana-companies-donated-11-5-million-to-trump-linked-pac-last-month-new-campaign-finance-records-show"
       },
       "date": "2026-07"
     }
