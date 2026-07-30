@@ -317,9 +317,12 @@ mcp__supabase__generate_typescript_types
 
 ## Deployment
 
-- **Production URL:** Not explicitly documented in repo (needs to be added). Note the raw
-  `*.vercel.app` deployment URLs sit behind Vercel Deployment Protection (SSO) and 302 any
-  unauthenticated request to `vercel.com/sso-api` — smoke-test prod via the custom domain.
+- **Production URL:** https://app.cakeoklahoma.com — use this to smoke-test prod. The raw
+  `*.vercel.app` deployment URLs (`cake-crm.vercel.app`, `cake-app-*.vercel.app`, and the
+  per-deployment ones) sit behind Vercel Deployment Protection (SSO) and 302 any unauthenticated
+  request to `vercel.com/sso-api`, so they are useless for verifying live behaviour.
+- **Vercel project:** `cake-app` under team `joshua-stokes-projects`
+  (`prj_ZOlJNcxkrz14B0sOmmiQERhIgi14`)
 - **Deploy:** **automatic on merge/push to `main`** via Vercel's Git integration. No CLI step,
   no GitHub Actions. `vercel --prod` is only for an out-of-band deploy from a working copy.
 - **Packaging TV display** (separate app): https://process.cakeoklahoma.com
