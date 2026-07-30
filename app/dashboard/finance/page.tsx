@@ -55,9 +55,11 @@ import {
   dismissReconciliationMatch,
   getUntrackedBankTransactions,
   getProposedTransactions,
+  getMatchCandidates,
+  assignReconciliationMatch,
 } from './_actions/bank'
 import type { MonthSummary, WeeklySummary, BillReviewDetail } from '@/actions/finance'
-import type { ReconciliationLogRow, BankTransaction, ProposedTransaction } from './_actions/bank'
+import type { ReconciliationLogRow, BankTransaction, ProposedTransaction, MatchCandidate } from './_actions/bank'
 import {
   Sheet,
   SheetContent,
@@ -250,6 +252,13 @@ function ReconMatchBadge({ matchType }: { matchType: ReconciliationLogRow['match
         <Badge variant="outline" className="text-xs text-green-700 border-green-400">
           <CheckCircle className="h-3 w-3 mr-1" />
           Paid — link only
+        </Badge>
+      )
+    case 'manual_override':
+      return (
+        <Badge variant="outline" className="text-xs text-purple-700 border-purple-400">
+          <LinkIcon className="h-3 w-3 mr-1" />
+          Manually matched
         </Badge>
       )
     default:
@@ -487,6 +496,7 @@ function matchTypeLabel(matchType: ReconciliationLogRow['match_type']): string {
     case 'amount_only':           return 'Matched on amount only — verify carefully'
     case 'already_paid_non_check': return 'Bill already marked paid — link to confirm'
     case 'untracked':             return 'No bill match found'
+    case 'manual_override':       return 'Manually matched by a user'
     default:                      return matchType
   }
 }
@@ -501,6 +511,7 @@ interface BillReviewSheetProps {
   row: ReconciliationLogRow | null
   onConfirm: (logId: string) => Promise<void>
   onDismiss: (logId: string) => Promise<void>
+  onAssigned: () => Promise<void>
   confirmingId: string | null
   dismissingId: string | null
 }
@@ -511,12 +522,21 @@ function BillReviewSheet({
   row,
   onConfirm,
   onDismiss,
+  onAssigned,
   confirmingId,
   dismissingId,
 }: BillReviewSheetProps) {
   const [detail, setDetail] = useState<BillReviewDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // "Not the right bill?" candidate search state
+  const [candidatesOpen, setCandidatesOpen] = useState(false)
+  const [candidates, setCandidates] = useState<MatchCandidate[]>([])
+  const [candidatesLoading, setCandidatesLoading] = useState(false)
+  const [candidatesError, setCandidatesError] = useState<string | null>(null)
+  const [candidateSearch, setCandidateSearch] = useState('')
+  const [assigningId, setAssigningId] = useState<string | null>(null)
 
   // Load bill detail whenever a new row is selected
   useEffect(() => {
@@ -537,6 +557,65 @@ function BillReviewSheet({
     })
   }, [open, row?.bill_id])
 
+  // Reset the candidate-search section whenever a new row is selected or the
+  // sheet closes — it should never carry stale state between bank transactions.
+  useEffect(() => {
+    setCandidatesOpen(false)
+    setCandidates([])
+    setCandidatesLoading(false)
+    setCandidatesError(null)
+    setCandidateSearch('')
+  }, [open, row?.id])
+
+  // Lazy-load candidates only once the section is expanded, then re-query
+  // (debounced) whenever the search term changes.
+  //
+  // `cancelled` guards against two stale-response races:
+  //   1. Across transactions: open txn A, expand, close before A's response
+  //      lands, open txn B — A's late response must not overwrite B's list
+  //      (or worse, let "Use this match" apply A's bill id against B's txn).
+  //   2. Within one transaction's search box: "acme" resolving after "acme
+  //      power" (a later, more specific search) must not clobber it.
+  // Every request this effect fires is either superseded by a later run of
+  // this same effect (new deps → cleanup sets cancelled=true) or by the
+  // section collapsing/closing (same cleanup path).
+  useEffect(() => {
+    if (!open || !row?.id || !candidatesOpen) {
+      setCandidatesLoading(false)
+      return
+    }
+    const logId = row.id
+    const term = candidateSearch.trim()
+    let cancelled = false
+    setCandidatesLoading(true)
+    setCandidatesError(null)
+    const timer = setTimeout(() => {
+      getMatchCandidates(logId, term ? { search: term } : undefined)
+        .then((res) => {
+          if (cancelled) return
+          if (res.success) {
+            setCandidates(res.data ?? [])
+          } else {
+            setCandidatesError(res.error ?? 'Failed to load candidates')
+            toast.error(res.error ?? 'Failed to load match candidates')
+          }
+        })
+        .catch((err) => {
+          if (cancelled) return
+          console.error('getMatchCandidates error:', err)
+          setCandidatesError('Failed to load candidates')
+          toast.error('Failed to load match candidates')
+        })
+        .finally(() => {
+          if (!cancelled) setCandidatesLoading(false)
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [open, row?.id, candidatesOpen, candidateSearch])
+
   if (!row) return null
 
   const isLinkOnly = row.match_type === 'already_paid_non_check'
@@ -552,6 +631,51 @@ function BillReviewSheet({
 
   const bill = detail?.bill ?? null
   const siblings = detail?.siblings ?? []
+
+  const handleAssign = async (candidateId: string) => {
+    setAssigningId(candidateId)
+    try {
+      const result = await assignReconciliationMatch(row.id, candidateId)
+      if (!result.success) {
+        toast.error(result.error ?? 'Failed to assign match')
+        // BUG-3 fix: 'auto_applied_conflict' and 'bank_txn_spent' both mean
+        // our view is stale — someone else (a cron run or another user)
+        // already reconciled this bill or this bank transaction between page
+        // load and this click. Refresh the underlying list and close rather
+        // than leaving the user staring at data that's now wrong.
+        // NEW-1 addition: 'not_pending' joins this list too — the RPC's
+        // lock-ordering fix (advisory lock before row lock, to eliminate a
+        // real deadlock under concurrent assigns) means the LOSER of a race
+        // between two concurrent assigns on the same bank transaction now
+        // surfaces as 'not_pending' (the winner's both-sides dismissal flips
+        // the loser's row status before the loser re-reads it), not
+        // 'bank_txn_spent'. Same stale-view situation, same handling.
+        if (
+          result.errorCode === 'auto_applied_conflict' ||
+          result.errorCode === 'bank_txn_spent' ||
+          result.errorCode === 'not_pending'
+        ) {
+          await onAssigned()
+          onOpenChange(false)
+        }
+        return
+      }
+      toast.success('Match assigned')
+      await onAssigned()
+      onOpenChange(false)
+    } catch (err) {
+      console.error('Assign match error:', err)
+      toast.error('Failed to assign match')
+    } finally {
+      setAssigningId(null)
+    }
+  }
+
+  function daysFromTxnLabel(days: number): string {
+    if (days === 0) return 'due same day'
+    if (days > 0) return `due ${days} day${days !== 1 ? 's' : ''} after`
+    return `due ${Math.abs(days)} day${Math.abs(days) !== 1 ? 's' : ''} before`
+  }
 
   function DetailRow({ label, value }: { label: string; value: ReactNode }) {
     if (!value && value !== 0) return null
@@ -721,7 +845,115 @@ function BillReviewSheet({
                 )
               )}
 
-              {/* ---- Duplicate warning ---- */}
+              <Separator />
+
+              {/* ---- Not the right bill? — pick a different bill to match ---- */}
+              <Collapsible
+                open={candidatesOpen}
+                onOpenChange={(nextOpen) => {
+                  // Don't let the section collapse mid-assignment — that would
+                  // unmount the row the user just tapped while its request is
+                  // still in flight.
+                  if (assigningId !== null) return
+                  setCandidatesOpen(nextOpen)
+                }}
+              >
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={assigningId !== null}
+                    className="flex items-center justify-between w-full min-h-11 py-2 text-sm font-medium disabled:opacity-60"
+                  >
+                    <span>Not the right bill?</span>
+                    {candidatesOpen ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    Search all bills, or pick from bills that match this transaction&apos;s amount and are due within 45 days.
+                  </p>
+                  <Input
+                    placeholder="Search all bills by name or vendor..."
+                    value={candidateSearch}
+                    onChange={(e) => setCandidateSearch(e.target.value)}
+                    disabled={assigningId !== null}
+                  />
+                  {candidateSearch.trim() && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      Searching all bills — outside the safe amount/date window. Double-check before assigning.
+                    </p>
+                  )}
+
+                  {candidatesLoading && (
+                    <div className="py-4 text-center text-xs text-muted-foreground">
+                      Searching...
+                    </div>
+                  )}
+
+                  {!candidatesLoading && candidatesError && (
+                    <div className="py-2 text-xs text-destructive">{candidatesError}</div>
+                  )}
+
+                  {!candidatesLoading && !candidatesError && candidates.length === 0 && (
+                    <div className="py-4 text-center text-xs text-muted-foreground">
+                      {candidateSearch.trim()
+                        ? 'No bills match that search.'
+                        : 'No other bills match this amount and date range — try searching all bills.'}
+                    </div>
+                  )}
+
+                  {!candidatesLoading && !candidatesError && candidates.length > 0 && (
+                    <div className="rounded-md border divide-y">
+                      {candidates.map((c) => (
+                        <div key={c.id} className="px-3 py-2 flex items-start justify-between gap-2">
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="text-sm font-medium truncate">{c.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {c.vendor_name && <span>{c.vendor_name} &middot; </span>}
+                              Due {format(parseISO(c.due_date), 'MMM d, yyyy')} ({daysFromTxnLabel(c.days_from_txn)})
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-xs font-mono ${c.amount_matches ? 'text-green-700' : ''}`}>
+                                {formatMoney(c.amount)}
+                              </span>
+                              {c.amount_matches && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 text-green-700 border-green-300">
+                                  Amount matches
+                                </Badge>
+                              )}
+                              {c.status === 'paid' ? (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 text-blue-700 border-blue-300">
+                                  Paid — link only, no new payment
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 capitalize">
+                                  {c.status}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs shrink-0"
+                            disabled={assigningId !== null}
+                            onClick={() => handleAssign(c.id)}
+                          >
+                            {assigningId === c.id ? 'Assigning...' : 'Use this match'}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* ---- Duplicate warning (read-only — NOT a match picker; use
+                     "Not the right bill?" above to actually reassign) ---- */}
               {siblings.length > 0 && (
                 <>
                   <Separator />
@@ -729,8 +961,9 @@ function BillReviewSheet({
                     <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
                       <span className="text-sm font-medium">
-                        {siblings.length} other bill{siblings.length !== 1 ? 's' : ''} also{' '}
-                        {bill ? formatMoney(bill.amount) : ''} — possible duplicate
+                        Duplicate check — {siblings.length} other bill{siblings.length !== 1 ? 's' : ''} in the system also
+                        total{siblings.length === 1 ? 's' : ''} {bill ? formatMoney(bill.amount) : ''}. These are not match
+                        suggestions.
                       </span>
                     </div>
                     <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 divide-y divide-amber-100 dark:divide-amber-900">
@@ -1152,6 +1385,7 @@ function ReconciliationPanel() {
         row={reviewRow}
         onConfirm={handleConfirm}
         onDismiss={handleDismiss}
+        onAssigned={fetchLog}
         confirmingId={confirmingId}
         dismissingId={dismissingId}
       />
