@@ -63,6 +63,7 @@ import {
 import { format, parseISO } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
 import { StatusBadgeDropdown } from '@/components/orders/status-badge-dropdown'
+import { ErrorState } from '@/components/ui/error-state'
 import type { Order, OrderStatus } from '@/types/database'
 
 // Use server-action types for data fetched via actions
@@ -102,6 +103,7 @@ export default function OrdersPage() {
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
   const [skus, setSkus] = useState<SKU[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterDeliveryFrom, setFilterDeliveryFrom] = useState('')
@@ -124,7 +126,7 @@ export default function OrdersPage() {
   const [markPaidOrderId, setMarkPaidOrderId] = useState<string | null>(null)
   const [markPaidDate, setMarkPaidDate] = useState<string>('')
   const [markingPaid, setMarkingPaid] = useState(false)
-  const { user } = useAuth()
+  const { user, handleSessionError } = useAuth()
 
   // Get user role from auth context
   const userRole = user?.role || 'standard'
@@ -148,15 +150,22 @@ export default function OrdersPage() {
     const result = await getOrderSkus()
     if (result.error) {
       console.error('Error fetching SKUs:', result.error)
+      if (handleSessionError(result.error)) return
+      toast.error("Couldn't load SKUs. Try again.")
+      setSkus([])
       return
     }
     setSkus(result.data!)
   }
 
   const fetchOrders = async () => {
+    setError(null)
     const result = await getOrders()
     if (result.error) {
       console.error('Error fetching orders:', result.error)
+      if (handleSessionError(result.error)) return
+      setError("Couldn't load orders. Try again.")
+      setOrders([])
       setLoading(false)
       return
     }
@@ -169,6 +178,9 @@ export default function OrdersPage() {
     const result = await getOrderCommissions()
     if (result.error) {
       console.error('Error fetching commissions:', result.error)
+      if (handleSessionError(result.error)) return
+      toast.error("Couldn't load commissions. Try again.")
+      setCommissions([])
       return
     }
     setCommissions(result.data!)
@@ -731,7 +743,9 @@ export default function OrdersPage() {
       })()}
 
       {/* Orders List */}
-      {filteredOrders.length === 0 ? (
+      {error ? (
+        <ErrorState title="Unable to load orders" message={error} onRetry={fetchOrders} />
+      ) : filteredOrders.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

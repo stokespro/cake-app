@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
@@ -173,6 +173,7 @@ function AppSidebar() {
   const router = useRouter()
   const { user, logout } = useAuth()
   const { setOpenMobile, isMobile } = useSidebar()
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   // Close mobile sidebar when navigating
   const handleNavClick = () => {
@@ -193,9 +194,17 @@ function AppSidebar() {
     })
   }
 
-  const handleSignOut = () => {
-    logout()
-    router.push('/login')
+  // logout() itself can never hang or throw (see lib/auth-context.tsx), but
+  // we still redirect from a `finally` here so the sign-out flow always
+  // completes and lands on /login on both the success and failure paths.
+  const handleSignOut = async () => {
+    if (isSigningOut) return
+    setIsSigningOut(true)
+    try {
+      await logout()
+    } finally {
+      router.replace('/login')
+    }
   }
 
   const navigation = getNavigationItems()
@@ -357,11 +366,12 @@ function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={handleSignOut}
-              tooltip="Sign Out"
-              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+              disabled={isSigningOut}
+              tooltip={isSigningOut ? 'Signing out…' : 'Sign Out'}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-50"
             >
               <LogOut className="h-4 w-4" />
-              <span>Sign Out</span>
+              <span>{isSigningOut ? 'Signing out…' : 'Sign Out'}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -381,14 +391,35 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, sessionExpired } = useAuth()
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated. `replace` (not `push`) so
+  // /dashboard doesn't stay in history — otherwise back-navigation could
+  // return a logged-out user straight to a page that will just redirect
+  // them right back here. Append the session_expired reason so the login
+  // page can show a clear notice instead of a silent bounce, and preserve
+  // `next` (the page the user was actually on) so they land back where they
+  // were after logging in again — this used to be dropped, silently losing
+  // deep links on this client-side redirect path.
+  //
+  // This is a second line of defence behind lib/supabase/middleware.ts,
+  // which now only redirects real document navigations. This client-side
+  // redirect covers what the middleware structurally cannot: sessions that
+  // die (or client-side/RSC navigations that reveal a dead session) after
+  // the document already loaded, with no further full navigation to
+  // intercept. The two don't fight — middleware redirecting a document nav
+  // never reaches this component at all (a fresh document navigation to
+  // /login happens first), and this effect only fires client-side, so there
+  // is no double-redirect.
   useEffect(() => {
     if (!isLoading && !user) {
-      router.push('/login')
+      const next = `${window.location.pathname}${window.location.search}`
+      const params = new URLSearchParams()
+      params.set('next', next)
+      if (sessionExpired) params.set('reason', 'session_expired')
+      router.replace(`/login?${params.toString()}`)
     }
-  }, [user, isLoading, router])
+  }, [user, isLoading, sessionExpired, router])
 
   // Show nothing while checking auth
   if (isLoading || !user) {

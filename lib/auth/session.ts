@@ -6,13 +6,15 @@
 import { cookies } from 'next/headers';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { createServiceClient } from '@/lib/supabase/server';
+import { NO_SESSION_REASON } from '@/lib/auth/session-errors';
+import { SESSION_COOKIE, SESSION_TTL_SECONDS, buildSessionCookieOptions } from '@/lib/auth/session-constants';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-export const SESSION_COOKIE = 'crm-session';
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+// Re-exported for existing importers (many call sites do
+// `import { SESSION_COOKIE } from '@/lib/auth/session'`). The canonical
+// definitions now live in the runtime-neutral session-constants.ts so
+// Edge-safe modules (lib/supabase/middleware.ts) can use them without
+// pulling in this file's node:crypto / next/headers imports.
+export { SESSION_COOKIE, SESSION_TTL_SECONDS };
 
 // ---------------------------------------------------------------------------
 // Secret key
@@ -100,64 +102,79 @@ export interface VerifiedSession {
  * Set the crm-session cookie after a successful PIN login.
  * Call this from a server action only.
  *
- * Fail-soft: if SESSION_SECRET is missing we log a warning and return without
- * setting the cookie — login still succeeds. verifySession() will return null
- * (fail closed) until the secret is configured, so protected actions stay
- * denied while the app remains usable.
+ * Fail-CLOSED: if SESSION_SECRET is missing (or signing otherwise fails) this
+ * throws instead of silently returning. A login that "succeeds" without ever
+ * setting the server cookie leaves the client in a permanently zeroed state —
+ * every server action's requireRole() fails with "No valid session" forever,
+ * with no way for the user to recover short of an admin fixing the env var.
+ * Callers (see actions/auth.ts) must catch this and surface a clear error
+ * rather than returning `{ success: true }`.
  */
 export async function setSessionCookie(userId: string): Promise<void> {
-  let signed: string;
-  try {
-    signed = signUserId(userId);
-  } catch (err) {
-    console.error(
-      '[session] setSessionCookie: could not sign cookie — SESSION_SECRET may be missing. ' +
-      'Server-side session will not be set until the secret is configured. Error:',
-      err
-    );
-    return; // do not throw — let login proceed without the server cookie
-  }
+  const signed = signUserId(userId); // throws if SESSION_SECRET is missing
 
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, signed, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: SESSION_TTL_SECONDS,
-  });
+  cookieStore.set(SESSION_COOKIE, signed, buildSessionCookieOptions({ maxAge: SESSION_TTL_SECONDS }));
 }
+
+// Note: there used to be a `refreshSessionCookie` here — a pure one-line
+// alias for setSessionCookie (same signature, same body, only the docstring
+// differed). Sliding expiration is "set the cookie again with a fresh
+// maxAge", which setSessionCookie already does; callers (actions/auth.ts's
+// refreshSessionCookieAction) now call setSessionCookie directly.
 
 /**
  * Clear the crm-session cookie on logout.
  * Call this from a server action only.
+ *
+ * Passes the same `path` used at set time (via buildSessionCookieOptions) —
+ * cookie deletion is matched by name AND path, so a delete call with no path
+ * (or a different one) silently fails to remove a cookie set with `path: '/'`.
  */
 export async function clearSessionCookie(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete({ name: SESSION_COOKIE, path: buildSessionCookieOptions().path });
 }
 
 /**
- * Verify the current crm-session cookie and return the authenticated user.
+ * Result of checkSession() — distinguishes a definitive "logged out" state
+ * from an inconclusive infrastructure failure. This distinction matters to
+ * callers like AuthProvider: a `no cookie / bad signature / user deleted`
+ * result should hard-clear the client's cached session (that's the fix for
+ * the "silent logout" bug — the client must not keep believing it's logged
+ * in once the server says otherwise), but a transient DB/service-client
+ * failure should NOT log the user out — that would turn a network blip into
+ * an outage for every logged-in user.
+ */
+export type SessionCheck =
+  | { status: 'valid'; session: VerifiedSession }
+  | { status: 'unauthenticated' } // no cookie, or bad signature — definitively logged out
+  | { status: 'error' }; // DB/service-client failure — inconclusive, do NOT log the user out
+
+/**
+ * Check the current crm-session cookie and return a discriminated result.
  *
  * - Validates the HMAC signature (tamper detection)
  * - Re-fetches the user's current role from public.users (never trusts a
  *   role baked into the cookie)
- * - Returns null on any failure — FAIL CLOSED
+ * - `unauthenticated`: missing cookie, bad signature, or the user row no
+ *   longer exists (deleted user) — all definitively "not logged in".
+ * - `error`: creating the service client or querying `users` failed — the
+ *   session may still be valid, we just couldn't confirm it.
  */
-export async function verifySession(): Promise<VerifiedSession | null> {
+export async function checkSession(): Promise<SessionCheck> {
   let cookieStore: Awaited<ReturnType<typeof cookies>>;
   try {
     cookieStore = await cookies();
   } catch {
-    return null;
+    return { status: 'error' };
   }
 
   const cookieValue = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!cookieValue) return null;
+  if (!cookieValue) return { status: 'unauthenticated' };
 
   const userId = verifySignature(cookieValue);
-  if (!userId) return null;
+  if (!userId) return { status: 'unauthenticated' };
 
   // Re-read role from DB — do not trust anything in the cookie beyond userId
   let serviceClient: Awaited<ReturnType<typeof createServiceClient>>;
@@ -165,24 +182,62 @@ export async function verifySession(): Promise<VerifiedSession | null> {
     serviceClient = await createServiceClient();
   } catch (err) {
     console.error('[session] Failed to create service client:', err);
-    return null;
+    return { status: 'error' };
   }
 
+  // `.maybeSingle()`, not `.single()`: `.single()` returns an ERROR
+  // (PostgREST code PGRST116) when zero rows match, it does NOT resolve
+  // `{ data: null, error: null }`. With `.single()` a deleted user would hit
+  // the `if (error)` branch below and be classified `error` — which
+  // AuthProvider deliberately treats as "keep the cached session" — so a
+  // deleted user's session would never be recognized as dead. `.maybeSingle()`
+  // correctly returns `{ data: null, error: null }` for zero rows, letting
+  // the `if (!data)` branch below do its job.
   const { data, error } = await serviceClient
     .from('users')
     .select('id, name, role')
     .eq('id', userId)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) {
-    return null;
+  if (error) {
+    // Defensive: `.maybeSingle()` should never itself produce PGRST116 (that
+    // code is specifically `.single()`'s "0 or >1 rows" signal), but if some
+    // other codepath or a future Supabase client change ever does, it means
+    // "no row" — not an inconclusive infrastructure failure — so treat it the
+    // same as the `!data` case just below rather than as `error`.
+    if ((error as { code?: string }).code === 'PGRST116') {
+      return { status: 'unauthenticated' };
+    }
+    console.error('[session] users lookup failed:', error);
+    return { status: 'error' };
+  }
+
+  if (!data) {
+    // Query succeeded but the row is gone — the user was deleted.
+    return { status: 'unauthenticated' };
   }
 
   return {
-    userId: data.id,
-    role: data.role,
-    name: data.name,
+    status: 'valid',
+    session: {
+      userId: data.id,
+      role: data.role,
+      name: data.name,
+    },
   };
+}
+
+/**
+ * Verify the current crm-session cookie and return the authenticated user.
+ *
+ * Thin wrapper around checkSession() — returns null for anything that isn't
+ * a `valid` result (both `unauthenticated` and `error` collapse to null here
+ * since this function's callers, e.g. requireRole(), only ever need a
+ * binary allow/deny and always fail closed).
+ */
+export async function verifySession(): Promise<VerifiedSession | null> {
+  const result = await checkSession();
+  return result.status === 'valid' ? result.session : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +261,7 @@ export async function requireRole(
 ): Promise<AuthorizedResult<VerifiedSession> | UnauthorizedResult> {
   const session = await verifySession();
   if (!session) {
-    return { authorized: false, reason: 'No valid session' };
+    return { authorized: false, reason: NO_SESSION_REASON };
   }
   if (!allowedRoles.includes(session.role)) {
     return {

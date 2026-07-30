@@ -305,8 +305,7 @@ export async function readStagingContainers(): Promise<Container[]> {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error reading containers:', error);
-    return [];
+    throw new Error(`Failed to read staging containers: ${error.message}`);
   }
 
   const containers: Container[] = [];

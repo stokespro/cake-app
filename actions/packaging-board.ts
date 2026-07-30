@@ -31,12 +31,27 @@ export async function getBoardData(): Promise<BoardData> {
     return { toFillCards: [], toCaseCards: [], doneItems: [], lastUpdated, error: auth.reason }
   }
 
+  // Soft errors — failures in claims/done-items should degrade the board
+  // (still show FILL/CASE cards) rather than fail the whole request, but must
+  // not be swallowed silently. Collected here and surfaced via
+  // BoardData.softErrors — a field distinct from BoardData.error so the
+  // consumer can tell "not authorized" / "unexpected crash" (hard failure,
+  // toast-worthy) apart from "partially degraded but still usable" (quiet,
+  // persistent indicator; must NOT toast on every poll of an unattended
+  // display — see app/dashboard/packaging/board/page.tsx).
+  const softErrors: string[] = []
+
   try {
     // 1. Parallel fetch: inventory, orders, active claims
     const [inventory, orders, activeClaims] = await Promise.all([
       readInventory(),
       readOrders(),
-      readActiveClaims().catch(() => [] as Awaited<ReturnType<typeof readActiveClaims>>),
+      readActiveClaims().catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[packaging-board] readActiveClaims failed:', err)
+        softErrors.push(`Failed to load active claims: ${msg}`)
+        return [] as Awaited<ReturnType<typeof readActiveClaims>>
+      }),
     ])
 
     // 2. Build adjusted inventory: FILL claims reduce staged
@@ -151,9 +166,20 @@ export async function getBoardData(): Promise<BoardData> {
     const toCaseCards = sortCards(allCards.filter((c) => c.taskType === 'CASE'))
 
     // 7. Done items
-    const doneItems = await readDoneItemsToday().catch(() => [])
+    const doneItems = await readDoneItemsToday().catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[packaging-board] readDoneItemsToday failed:', err)
+      softErrors.push(`Failed to load done items: ${msg}`)
+      return []
+    })
 
-    return { toFillCards, toCaseCards, doneItems, lastUpdated }
+    return {
+      toFillCards,
+      toCaseCards,
+      doneItems,
+      lastUpdated,
+      ...(softErrors.length > 0 ? { softErrors } : {}),
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return {
