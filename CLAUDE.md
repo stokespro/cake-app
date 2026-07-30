@@ -317,17 +317,25 @@ mcp__supabase__generate_typescript_types
 
 ## Deployment
 
-- **Production URL:** Not explicitly documented in repo (needs to be added)
-- **Deploy command:** `vercel --prod` (Vercel CLI v50.1.6+, no GitHub Actions)
+- **Production URL:** Not explicitly documented in repo (needs to be added). Note the raw
+  `*.vercel.app` deployment URLs sit behind Vercel Deployment Protection (SSO) and 302 any
+  unauthenticated request to `vercel.com/sso-api` — smoke-test prod via the custom domain.
+- **Deploy:** **automatic on merge/push to `main`** via Vercel's Git integration. No CLI step,
+  no GitHub Actions. `vercel --prod` is only for an out-of-band deploy from a working copy.
 - **Packaging TV display** (separate app): https://process.cakeoklahoma.com
 - **Platform:** Vercel (Next.js 16 with Turbopack)
 - **Database:** Supabase vault project (managed, hosted)
 
 **Deployment workflow:**
-1. Commit changes to main branch (no feature branches required)
-2. Run `vercel --prod` via CLI
-3. Vercel builds with Turbopack and deploys
-4. Database schema changes via Supabase MCP (migrations applied directly)
+1. Merge to `main` (PR or direct commit) — **this alone ships to production**
+2. Vercel builds with Turbopack and promotes automatically; status is reported back onto the
+   commit — check with `gh api repos/stokespro/cake-app/commits/<sha>/status`
+3. Database schema changes via Supabase MCP (migrations applied directly)
+
+**Merging to `main` is deploying.** There is no separate gate, so anything landed on `main` is
+live within minutes — treat merge as the production release step. Environment variables are read
+at build/run time, so adding or changing one in Vercel needs a redeploy to take effect;
+`SESSION_SECRET` must be present in Production or auth fails closed (see "Local development").
 
 ## Current priorities
 <!-- Joshua updates this as needed -->
