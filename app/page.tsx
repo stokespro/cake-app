@@ -1,11 +1,13 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { verifySession } from '@/lib/auth/session'
 
 export default async function Home() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // The real auth is the PIN-based crm-session cookie, not the Supabase
+  // shadow session — supabase.auth.getUser() never reflects logout (see
+  // SPRO-13), which sent logged-out users straight back to /dashboard.
+  const session = await verifySession()
 
-  if (user) {
+  if (session) {
     redirect('/dashboard')
   } else {
     redirect('/login')

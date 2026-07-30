@@ -1,28 +1,36 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { authenticateByPin } from '@/actions/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
+import { sanitizeNextPath } from './sanitize-next-path'
 
-export default function LoginPage() {
+function LoginPageInner() {
   const [pin, setPin] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { login, user, isLoading: authLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const isSubmitting = useRef(false)
   const hasRedirected = useRef(false)
+
+  const nextPath = sanitizeNextPath(
+    searchParams.get('next'),
+    typeof window !== 'undefined' ? window.location.origin : ''
+  )
+  const sessionExpiredNotice = searchParams.get('reason') === 'session_expired'
 
   // Redirect if already logged in (single redirect check)
   useEffect(() => {
     if (user && !authLoading && !hasRedirected.current) {
       hasRedirected.current = true
-      router.replace('/dashboard')
+      router.replace(nextPath)
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, nextPath])
 
   const handleDigitPress = (digit: string) => {
     if (pin.length < 4 && !isLoading) {
@@ -79,7 +87,7 @@ export default function LoginPage() {
             hasRedirected.current = true
             login(result.user)
             // Use replace to prevent back navigation to login
-            router.replace('/dashboard')
+            router.replace(nextPath)
           } else {
             setError(result.error || 'Invalid PIN')
             setPin('')
@@ -95,7 +103,7 @@ export default function LoginPage() {
         })
       // Don't reset isLoading on success - let the redirect handle it
     }
-  }, [pin, isLoading, login, router])
+  }, [pin, isLoading, login, router, nextPath])
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800">
@@ -107,6 +115,12 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {sessionExpiredNotice && !error && (
+            <div className="p-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md text-center dark:text-amber-400 dark:bg-amber-950/20 dark:border-amber-900">
+              Your session expired. Please log in again.
+            </div>
+          )}
+
           {error && (
             <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md text-center">
               {error}
@@ -190,5 +204,14 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  // useSearchParams() requires a Suspense boundary in the App Router.
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
   )
 }

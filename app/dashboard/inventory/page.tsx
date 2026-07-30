@@ -45,6 +45,7 @@ import {
 import { getInventoryData, type InventorySku, type InventoryStrain, type InventoryProductType, type InventoryRecord, type InventoryPackage } from '@/actions/inventory'
 import { getActiveBatchesForStrain } from '@/actions/vault'
 import type { Batch } from '@/types/vault'
+import { ErrorState } from '@/components/ui/error-state'
 
 // Formats an optional lab-testing percentage value; renders "—" when missing
 function formatPercent(value: number | null | undefined): string {
@@ -85,12 +86,13 @@ export default function InventoryPage() {
   const [pendingOrderItems, setPendingOrderItems] = useState<Map<string, number>>(new Map())
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
   const [filterStock, setFilterStock] = useState('all')
   const [sortField, setSortField] = useState<SortField>('sku')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const { user } = useAuth()
+  const { user, handleSessionError } = useAuth()
 
   // Strain batch drill-down (click a card/row to view active batches + test results)
   const [batchSheetOpen, setBatchSheetOpen] = useState(false)
@@ -104,10 +106,20 @@ export default function InventoryPage() {
 
   const fetchAllData = async () => {
     try {
+      setError(null)
+
       const result = await getInventoryData()
 
       if ('error' in result) {
         console.error('Error fetching inventory data:', result.error)
+        if (handleSessionError(result.error)) return
+        setError("Couldn't load inventory. Try again.")
+        setSkus([])
+        setStrains([])
+        setProductTypes([])
+        setInventory([])
+        setVaultPackages([])
+        setPendingOrderItems(new Map())
         return
       }
 
@@ -130,6 +142,13 @@ export default function InventoryPage() {
       setPendingOrderItems(orderItemsMap)
     } catch (error) {
       console.error('Error fetching inventory data:', error)
+      setError("Couldn't load inventory. Try again.")
+      setSkus([])
+      setStrains([])
+      setProductTypes([])
+      setInventory([])
+      setVaultPackages([])
+      setPendingOrderItems(new Map())
     } finally {
       setLoading(false)
     }
@@ -418,6 +437,18 @@ export default function InventoryPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-muted-foreground">Loading inventory...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4 sm:space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Inventory</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">Track available stock across all stages</p>
+        </div>
+        <ErrorState title="Unable to load inventory" message={error} onRetry={fetchAllData} />
       </div>
     )
   }

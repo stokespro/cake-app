@@ -31,12 +31,17 @@ function signCookie(userId: string, secret = SECRET): string {
   return `${userId}.${sig}`;
 }
 
+// checkSession() calls `.maybeSingle()`, not `.single()` — the mock chain
+// must mirror that exactly, since `.single()` and `.maybeSingle()` have
+// different real-world result shapes for "zero rows" (see the PGRST116
+// tests below) and a mock of the wrong method would pass even if the
+// production code called the wrong one.
 function mockUsersQueryResult(result: { data: unknown; error: unknown }) {
   mockCreateServiceClient.mockResolvedValue({
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue(result),
+          maybeSingle: vi.fn().mockResolvedValue(result),
         }),
       }),
     }),
@@ -126,10 +131,40 @@ describe('checkSession', () => {
     expect(result).toEqual({ status: 'error' });
   });
 
+  // This is the realistic `.maybeSingle()` shape for "zero rows matched"
+  // (e.g. the user was deleted): `.maybeSingle()` resolves cleanly with
+  // `{ data: null, error: null }`, unlike `.single()`, which would instead
+  // reject/resolve with a PGRST116 error for the same zero-row case (see the
+  // next test) — a distinction that matters because `checkSession()` used to
+  // call `.single()` here, which meant this exact scenario was silently
+  // misclassified as `status: 'error'` (see the PGRST116 test below) instead
+  // of `status: 'unauthenticated'`, and AuthProvider deliberately keeps the
+  // cached session on `error` — a deleted user's session would never expire.
   it('returns unauthenticated when the query succeeds but no row is found (user deleted)', async () => {
     const userId = 'a1b2c3d4-e5f6-4789-a012-3456789abcde';
     mockCookieGet.mockReturnValue({ name: SESSION_COOKIE, value: signCookie(userId) });
     mockUsersQueryResult({ data: null, error: null });
+
+    const result = await checkSession();
+
+    expect(result).toEqual({ status: 'unauthenticated' });
+  });
+
+  // Defensive coverage for the belt-and-suspenders PGRST116 mapping in
+  // checkSession(): `.maybeSingle()` should never itself produce this error
+  // code (that's specifically `.single()`'s "0 or >1 rows" signal), but if
+  // it ever did — a future Supabase/PostgREST client change, or a caller
+  // elsewhere reusing this same query builder with `.single()` — it must
+  // still resolve to `unauthenticated`, not the inconclusive `error` status,
+  // since a PGRST116 "no rows" condition is definitionally "user not found",
+  // not an infrastructure hiccup.
+  it('returns unauthenticated (not error) when the users query errors with PGRST116 (defensive — .single()-style "no rows" signal)', async () => {
+    const userId = 'a1b2c3d4-e5f6-4789-a012-3456789abcde';
+    mockCookieGet.mockReturnValue({ name: SESSION_COOKIE, value: signCookie(userId) });
+    mockUsersQueryResult({
+      data: null,
+      error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+    });
 
     const result = await checkSession();
 

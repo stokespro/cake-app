@@ -1,14 +1,15 @@
 // Regression coverage for the PIN-session middleware gate. Verifies the
-// protected-path redirect, the "never redirect /login" no-loop guarantee,
-// fail-closed behavior when SESSION_SECRET is missing, sliding-expiration
-// cookie rolling, and the prefix-matching correctness that keeps
-// `/dashboardsomething` from being treated as protected.
+// protected-path redirect (document navigations only — see below), the
+// "never redirect /login" no-loop guarantee, fail-closed behavior when
+// SESSION_SECRET is missing, sliding-expiration cookie rolling, and the
+// prefix-matching correctness that keeps `/dashboardsomething` from being
+// treated as protected.
 //
-// Hermetic by construction: NEXT_PUBLIC_SUPABASE_URL / ANON_KEY are left
-// unset for these tests, which makes `updateSession()`'s
-// `createServerClient(...)` branch a no-op (it's gated behind
-// `if (supabaseUrl && ...)`), so no real Supabase client is ever created and
-// nothing needs to be mocked there.
+// The document-navigation-only gate (SPRO-13 pass 2) is the most
+// safety-critical behavior here: Server Actions POST to the CURRENT page's
+// URL, so a naive "redirect any request to a protected path" gate 307's the
+// action's own POST before it ever executes — see the "THE regression pass 1
+// shipped" test below for the specific regression this locks down.
 
 import { createHmac } from 'crypto';
 import { NextRequest } from 'next/server';
@@ -45,8 +46,10 @@ describe('updateSession (middleware gate)', () => {
 
   beforeEach(() => {
     process.env.SESSION_SECRET = SECRET;
-    // Leave Supabase env unset so updateSession's createServerClient branch
-    // is skipped entirely — see file header comment.
+    // updateSession() no longer touches Supabase at all (the shadow-auth
+    // cookie refresh it used to do was removed — see SPRO-13 pass 2, "Delete
+    // the Supabase shadow auth entirely"), so these are cleared defensively
+    // only; nothing in updateSession() reads them anymore.
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   });
@@ -62,8 +65,8 @@ describe('updateSession (middleware gate)', () => {
     else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalSupabaseAnonKey;
   });
 
-  it('redirects a protected path with no cookie to /login with next + reason=session_expired', async () => {
-    const request = makeRequest('/dashboard/orders?foo=bar');
+  it('redirects a protected path with no cookie to /login with next + reason=session_expired on a document navigation', async () => {
+    const request = makeRequest('/dashboard/orders?foo=bar', { documentNavigation: true });
 
     const response = await updateSession(request);
 
@@ -72,6 +75,37 @@ describe('updateSession (middleware gate)', () => {
     expect(location.pathname).toBe('/login');
     expect(location.searchParams.get('next')).toBe('/dashboard/orders?foo=bar');
     expect(location.searchParams.get('reason')).toBe('session_expired');
+  });
+
+  // THE regression pass 1 shipped: a Server Action POST (or RSC fetch/
+  // prefetch) to a protected path has no `sec-fetch-dest: document` header.
+  // Redirecting these 307's the action's own POST before it ever reaches the
+  // route handler, so e.g. checkSessionAction() posting to /dashboard/orders
+  // would never execute and the client would never learn its session was
+  // dead. These MUST pass through untouched and let
+  // requireRole()/checkSession() (lib/auth/session.ts) fail closed instead.
+  it.each([
+    { name: 'no sec-fetch-dest header (Server Action POST)', dest: undefined },
+    { name: 'sec-fetch-dest: empty (fetch()/server action)', dest: 'empty' },
+  ])(
+    'passes through (does NOT redirect) a protected path with a dead cookie when the request is not a document navigation — $name',
+    async ({ dest }) => {
+      const request = makeRequest('/dashboard/orders');
+      if (dest) request.headers.set('sec-fetch-dest', dest);
+
+      const response = await updateSession(request);
+
+      expect(response.headers.get('location')).toBeNull();
+      expect([307, 308]).not.toContain(response.status);
+    }
+  );
+
+  it('passes through (does NOT redirect) a protected path with NO cookie at all when the request is not a document navigation', async () => {
+    const request = makeRequest('/dashboard/orders'); // no cookie, no documentNavigation
+
+    const response = await updateSession(request);
+
+    expect(response.headers.get('location')).toBeNull();
   });
 
   it('does not redirect a protected path with a validly-signed cookie', async () => {
@@ -100,9 +134,9 @@ describe('updateSession (middleware gate)', () => {
     expect(response.headers.get('location')).toBeNull();
   });
 
-  it('fails closed (redirects) on a protected path when SESSION_SECRET is unset', async () => {
+  it('fails closed (redirects) on a protected path document navigation when SESSION_SECRET is unset', async () => {
     delete process.env.SESSION_SECRET;
-    const request = makeRequest('/dashboard/orders', { cookie: signCookie(USER_ID) });
+    const request = makeRequest('/dashboard/orders', { cookie: signCookie(USER_ID), documentNavigation: true });
 
     const response = await updateSession(request);
 
@@ -110,6 +144,15 @@ describe('updateSession (middleware gate)', () => {
     const location = new URL(response.headers.get('location')!);
     expect(location.pathname).toBe('/login');
     expect(location.searchParams.get('reason')).toBe('session_expired');
+  });
+
+  it('passes through (does NOT redirect) a protected path non-document request when SESSION_SECRET is unset', async () => {
+    delete process.env.SESSION_SECRET;
+    const request = makeRequest('/dashboard/orders', { cookie: signCookie(USER_ID) });
+
+    const response = await updateSession(request);
+
+    expect(response.headers.get('location')).toBeNull();
   });
 
   it('rolls the crm-session cookie forward on a document navigation', async () => {
