@@ -80,6 +80,7 @@ import {
   type CustomerRecord,
   type ProfileRecord,
 } from '@/actions/customers'
+import { ErrorState } from '@/components/ui/error-state'
 
 const PAGE_SIZE = 50
 
@@ -137,7 +138,7 @@ function DispensariesPageContent() {
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
 
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, isLoading: authLoading, handleSessionError } = useAuth()
 
   // Parse filter state from URL
   const filters = useMemo(() => parseSearchParams(searchParams), [searchParams])
@@ -149,6 +150,7 @@ function DispensariesPageContent() {
   const [dispensaries, setDispensaries] = useState<CustomerRecord[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Filter options data
   const [cities, setCities] = useState<string[]>([])
@@ -212,30 +214,37 @@ function DispensariesPageContent() {
   }, [])
 
   // Fetch dispensaries with filters
-  useEffect(() => {
-    const fetchDispensaries = async () => {
-      setLoading(true)
-      const result = await getCustomers({
-        search: filters.search,
-        city: filters.city,
-        salesPersonId: filters.salesPersonId,
-        hasOrders: filters.hasOrders,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        status: filters.status,
-        page: filters.page,
-        pageSize: PAGE_SIZE,
-      })
+  const fetchDispensaries = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    const result = await getCustomers({
+      search: filters.search,
+      city: filters.city,
+      salesPersonId: filters.salesPersonId,
+      hasOrders: filters.hasOrders,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      status: filters.status,
+      page: filters.page,
+      pageSize: PAGE_SIZE,
+    })
 
-      if (result.data) {
-        setDispensaries(result.data)
-        setTotalCount(result.count)
-      }
-      setLoading(false)
+    if (result.data) {
+      setDispensaries(result.data)
+      setTotalCount(result.count)
+    } else {
+      console.error('Error fetching dispensaries:', result.error)
+      if (handleSessionError(result.error)) return
+      setError("Couldn't load dispensaries. Try again.")
+      setDispensaries([])
+      setTotalCount(0)
     }
+    setLoading(false)
+  }, [filters, handleSessionError])
 
+  useEffect(() => {
     fetchDispensaries()
-  }, [filters])
+  }, [fetchDispensaries])
 
   const clearAllFilters = () => {
     setSearchInput('')
@@ -548,185 +557,189 @@ function DispensariesPageContent() {
       </div>
 
       {/* Dispensaries Table */}
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-4 space-y-4">
-              {[...Array(10)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <Skeleton className="h-10 w-10 rounded" />
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-48" />
-                    <Skeleton className="h-3 w-32" />
+      {error ? (
+        <ErrorState title="Unable to load dispensaries" message={error} onRetry={fetchDispensaries} />
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="p-4 space-y-4">
+                {[...Array(10)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-10 w-10 rounded" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                    <Skeleton className="h-8 w-8" />
                   </div>
-                  <Skeleton className="h-8 w-8" />
-                </div>
-              ))}
-            </div>
-          ) : dispensaries.length === 0 ? (
-            <div className="py-12 text-center">
-              <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground mb-4">
-                {activeFilterCount > 0 ? 'No dispensaries found matching your filters' : 'No dispensaries added yet'}
-              </p>
-              {canAddDispensary && activeFilterCount === 0 && (
-                <Button asChild>
-                  <Link href="/dashboard/dispensaries/new">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add First Dispensary
-                  </Link>
-                </Button>
-              )}
-              {activeFilterCount > 0 && (
-                <Button variant="outline" onClick={clearAllFilters}>
-                  Clear filters
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Business Name</TableHead>
-                    <TableHead className="hidden md:table-cell">City</TableHead>
-                    <TableHead className="hidden md:table-cell">Phone</TableHead>
-                    <TableHead className="hidden lg:table-cell">OMMA License</TableHead>
-                    <TableHead className="hidden xl:table-cell">Sales Person</TableHead>
-                    <TableHead className="hidden xl:table-cell">Orders</TableHead>
-                    <TableHead className="w-[50px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dispensaries.map((dispensary) => (
-                    <TableRow key={dispensary.id} className="hover:bg-muted/50">
-                      <TableCell>
-                        <Link
-                          href={`/dashboard/dispensaries/${dispensary.id}`}
-                          className="block hover:text-primary transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <div className="font-medium flex items-center gap-2">
-                                {dispensary.business_name}
-                                {dispensary.is_active === false && (
-                                  <Badge variant="secondary" className="text-xs font-normal">Inactive</Badge>
-                                )}
-                              </div>
-                              <div className="text-sm text-muted-foreground md:hidden">
-                                {dispensary.city && <span>{dispensary.city}</span>}
-                                {dispensary.phone_number && (
-                                  <div className="flex items-center gap-1">
-                                    <Phone className="h-3 w-3" />
-                                    {dispensary.phone_number}
-                                  </div>
-                                )}
+                ))}
+              </div>
+            ) : dispensaries.length === 0 ? (
+              <div className="py-12 text-center">
+                <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4">
+                  {activeFilterCount > 0 ? 'No dispensaries found matching your filters' : 'No dispensaries added yet'}
+                </p>
+                {canAddDispensary && activeFilterCount === 0 && (
+                  <Button asChild>
+                    <Link href="/dashboard/dispensaries/new">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add First Dispensary
+                    </Link>
+                  </Button>
+                )}
+                {activeFilterCount > 0 && (
+                  <Button variant="outline" onClick={clearAllFilters}>
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Business Name</TableHead>
+                      <TableHead className="hidden md:table-cell">City</TableHead>
+                      <TableHead className="hidden md:table-cell">Phone</TableHead>
+                      <TableHead className="hidden lg:table-cell">OMMA License</TableHead>
+                      <TableHead className="hidden xl:table-cell">Sales Person</TableHead>
+                      <TableHead className="hidden xl:table-cell">Orders</TableHead>
+                      <TableHead className="w-[50px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dispensaries.map((dispensary) => (
+                      <TableRow key={dispensary.id} className="hover:bg-muted/50">
+                        <TableCell>
+                          <Link
+                            href={`/dashboard/dispensaries/${dispensary.id}`}
+                            className="block hover:text-primary transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              <div>
+                                <div className="font-medium flex items-center gap-2">
+                                  {dispensary.business_name}
+                                  {dispensary.is_active === false && (
+                                    <Badge variant="secondary" className="text-xs font-normal">Inactive</Badge>
+                                  )}
+                                </div>
+                                <div className="text-sm text-muted-foreground md:hidden">
+                                  {dispensary.city && <span>{dispensary.city}</span>}
+                                  {dispensary.phone_number && (
+                                    <div className="flex items-center gap-1">
+                                      <Phone className="h-3 w-3" />
+                                      {dispensary.phone_number}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {dispensary.city && (
-                          <span className="text-muted-foreground">{dispensary.city}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {dispensary.phone_number && (
-                          <a
-                            href={`tel:${dispensary.phone_number}`}
-                            className="text-muted-foreground hover:text-primary transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {dispensary.phone_number}
-                          </a>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {dispensary.omma_license && (
-                          <Badge variant="outline" className="text-xs">
-                            {dispensary.omma_license}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden xl:table-cell">
-                        {dispensary.assigned_sales?.full_name && (
-                          <span className="text-sm text-muted-foreground">
-                            {dispensary.assigned_sales.full_name}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden xl:table-cell">
-                        {dispensary.has_orders ? (
-                          <Badge variant="secondary" className="text-xs">
-                            {dispensary.order_count || 0}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          </Link>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {dispensary.city && (
+                            <span className="text-muted-foreground">{dispensary.city}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {dispensary.phone_number && (
+                            <a
+                              href={`tel:${dispensary.phone_number}`}
+                              className="text-muted-foreground hover:text-primary transition-colors"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link
-                                href={`/dashboard/dispensaries/${dispensary.id}`}
-                                className="flex items-center gap-2"
+                              {dispensary.phone_number}
+                            </a>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          {dispensary.omma_license && (
+                            <Badge variant="outline" className="text-xs">
+                              {dispensary.omma_license}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          {dispensary.assigned_sales?.full_name && (
+                            <span className="text-sm text-muted-foreground">
+                              {dispensary.assigned_sales.full_name}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          {dispensary.has_orders ? (
+                            <Badge variant="secondary" className="text-xs">
+                              {dispensary.order_count || 0}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <Eye className="h-4 w-4" />
-                                View Dispensary
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link
-                                href={`/dashboard/communications/new?dispensary=${dispensary.id}`}
-                                className="flex items-center gap-2"
-                              >
-                                <MessageSquare className="h-4 w-4" />
-                                Log Communication
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link
-                                href={`/dashboard/orders/new?dispensary=${dispensary.id}`}
-                                className="flex items-center gap-2"
-                              >
-                                <ShoppingCart className="h-4 w-4" />
-                                Create Order
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link
-                                href={`/dashboard/dispensaries/${dispensary.id}#analytics`}
-                                className="flex items-center gap-2"
-                              >
-                                <BarChart3 className="h-4 w-4" />
-                                Analytics
-                              </Link>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/dashboard/dispensaries/${dispensary.id}`}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  View Dispensary
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/dashboard/communications/new?dispensary=${dispensary.id}`}
+                                  className="flex items-center gap-2"
+                                >
+                                  <MessageSquare className="h-4 w-4" />
+                                  Log Communication
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/dashboard/orders/new?dispensary=${dispensary.id}`}
+                                  className="flex items-center gap-2"
+                                >
+                                  <ShoppingCart className="h-4 w-4" />
+                                  Create Order
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/dashboard/dispensaries/${dispensary.id}#analytics`}
+                                  className="flex items-center gap-2"
+                                >
+                                  <BarChart3 className="h-4 w-4" />
+                                  Analytics
+                                </Link>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bottom Pagination */}
       {totalPages > 1 && !loading && (

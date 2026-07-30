@@ -48,11 +48,9 @@ Always say "Delegating to [agent name]..." so Joshua can see the process.
 **Framework:** Next.js 16.1.4 (App Router, Turbopack) + React 19.1.0 + TypeScript 5
 **Styling:** Tailwind CSS v4 + shadcn/ui (Radix UI v1 primitives)
 **Database:** Supabase — vault project (`spkimmrtaxwnysjqkxix`)
-**Auth:** Dual auth system:
-  - PIN-based (4-digit) for warehouse staff (localStorage session as `crm-user`)
-  - Supabase Auth (email/password) with `auth_id` column for sales/CRM users
+**Auth:** PIN-only session auth — 4-digit PIN, signed HttpOnly `crm-session` cookie (HMAC-SHA256, `SESSION_SECRET`), 7-day sliding TTL. Client mirrors it in `localStorage['crm-user']` for UI only. See "Auth architecture" under Known issues for detail; the old Supabase-Auth "shadow auth" path has been removed.
 **PWA:** Serwist 9.5.3 (service worker at `app/sw.ts`, manifest at `app/manifest.json`)
-**Testing:** Vitest configured — but no tests written yet
+**Testing:** Vitest configured, with real coverage on the auth/session layer (see Known issues)
 **Deployment:** Vercel via `vercel --prod`
 **Key libraries:**
   - UI: Sonner 2.0.7 (toasts), lucide-react 0.542.0 (icons), cmdk 1.1.1 (command palette)
@@ -68,7 +66,7 @@ cake-app started as a standalone CRM but has evolved into the unified CAKE Platf
 
 **What's built and working:**
 
-- **Auth system** (`/login`, `lib/auth-context.tsx`) — PIN login (localStorage session as `crm-user`), Supabase Auth integration with `auth_id` column, role-based nav, permission helpers (canCreateOrder, canApproveOrder, canEditOrder, canDeleteOrder, canManageUsers, canAssignSales)
+- **Auth system** (`/login`, `lib/auth-context.tsx`, `lib/auth/session.ts`) — signed-cookie PIN session (see "Auth architecture" under Known issues), role-based nav, permission helpers (canCreateOrder, canApproveOrder, canEditOrder, canDeleteOrder, canManageUsers, canAssignSales). The `auth_id` column and Supabase-Auth sign-in are vestigial — not used by the current auth flow.
 
 - **Vault** (`/dashboard/vault`) — bulk package management, weight tracking, transaction history, batch/strain/product type admin at `/vault/admin`. Includes server actions in `actions/vault.ts` for package CRUD, weight adjustments, batch management, and transaction logging. Types in `types/vault.ts` define VaultPackage, Transaction, Batch with `is_active` flag, Strain, and ProductType.
 
@@ -90,31 +88,29 @@ cake-app started as a standalone CRM but has evolved into the unified CAKE Platf
 
 - **Commissions** (`/dashboard/commissions`, `/dashboard/commissions/rates`, `/dashboard/my-commissions`) — Commission rates by salesperson/SKU/product type with price tier overrides, auto-calculated on delivery via DB trigger (`calculate_commission_on_delivery`), approval workflow (pending → approved → paid). System uses `commission_rates` and `commissions` tables. DB schema created in migration `20260202022500_create_commission_system.sql` with price tier enhancements in `20260202032800_add_price_tiers_to_commissions.sql`.
 
-- **Users** (`/dashboard/users`) — User management with role system (admin, management, sales, agent, vault, packaging, standard). Admin-only access. Auth ID integration for Supabase Auth users.
+- **Users** (`/dashboard/users`) — User management with role system (admin, management, sales, agent, vault, packaging, standard). Admin-only access.
 
 **What's incomplete / known issues:**
 
-1. **Tests** — Vitest is configured (`npm test`, `npm run test:ui`, `npm run test:coverage`) but zero test files exist anywhere in the codebase. No `.test.ts` or `.test.tsx` files. No test coverage.
+1. **Test coverage is auth/session-only** — `vitest.config.ts` exists (node environment, `@/` alias mirroring `tsconfig.json`) and there are 8 test files / 84 passing tests: `lib/auth/session.test.ts`, `lib/auth/session-edge.test.ts`, `lib/auth/session-errors.test.ts`, `lib/auth/session-constants.test.ts`, `lib/auth-context.test.ts`, `lib/supabase/middleware.test.ts`, `actions/auth.test.ts`, `app/login/sanitize-next-path.test.ts`. Everything else in the app — orders, vault, packaging, commissions, finance — has zero test coverage.
 
 2. **Materials integration with packaging** — `actions/packaging-v2.ts` has material deduction logic but imports are commented out: `// DISABLED: Materials imports - re-enable when materials module is complete`. The materials tracking system is built (`materials_inventory` table, materials dashboard) but not wired into the packaging task completion flow.
 
 3. **Old packaging components** — Legacy components still in repo at `components/packaging/`: `TaskQueue.tsx`, `TaskRow.tsx`, `RefreshControls.tsx`. These were replaced by the new Kanban board but weren't deleted. Should be removed.
 
-4. **Vitest config missing** — The `npm test` script runs `vitest` but no `vitest.config.ts` or `vitest.config.js` exists in the repo. Testing infrastructure is incomplete.
+4. **Monorepo** — Phase 4 goal not complete. Packaging TV display (at process.cakeoklahoma.com) and cake-app are still separate repos. No monorepo setup exists (no `pnpm-workspace.yaml`, no Turborepo config).
 
-5. **Monorepo** — Phase 4 goal not complete. Packaging TV display (at process.cakeoklahoma.com) and cake-app are still separate repos. No monorepo setup exists (no `pnpm-workspace.yaml`, no Turborepo config).
+5. **Deprecate cake-crm Supabase project** — Old Supabase project `jwsidjgsjohhrntxdljp` is still active (mentioned in todos.md Phase 3). Vault project (`spkimmrtaxwnysjqkxix`) is the live one. Old project should be archived/deleted.
 
-6. **Deprecate cake-crm Supabase project** — Old Supabase project `jwsidjgsjohhrntxdljp` is still active (mentioned in todos.md Phase 3). Vault project (`spkimmrtaxwnysjqkxix`) is the live one. Old project should be archived/deleted.
+6. **Sales "Assigned Accounts" section** — Listed as future enhancement in todos.md. User profile page doesn't show which dispensaries are assigned to each sales user. Would be useful for sales management.
 
-7. **Sales "Assigned Accounts" section** — Listed as future enhancement in todos.md. User profile page doesn't show which dispensaries are assigned to each sales user. Would be useful for sales management.
+7. **Commission system production testing** — DB schema and UI are built (complex 800+ line pages with rate management, approval workflows, tiered pricing), but real-world production testing with actual sales data may be limited. Commission calculation trigger is in place but hasn't been battle-tested at scale.
 
-8. **Commission system production testing** — DB schema and UI are built (complex 800+ line pages with rate management, approval workflows, tiered pricing), but real-world production testing with actual sales data may be limited. Commission calculation trigger is in place but hasn't been battle-tested at scale.
+8. **Production URL not documented** — The deployed production URL for the CAKE Platform isn't documented in the repo. Only the packaging TV display URL (process.cakeoklahoma.com) is mentioned.
 
-9. **Production URL not documented** — The deployed production URL for the CAKE Platform isn't documented in the repo. Only the packaging TV display URL (process.cakeoklahoma.com) is mentioned.
+9. **Auth architecture** — The PIN session is the *only* auth system now; the old Supabase-Auth "shadow auth" (`signInWithPassword` with credentials derived from user id + PIN) has been removed entirely. Session state: an HMAC-SHA256-signed HttpOnly cookie `crm-session`, payload `<userId>.<signature>`, 7-day TTL, signed with `SESSION_SECRET`. Verified server-side by `verifySession()`/`checkSession()`/`requireRole()` in `lib/auth/session.ts` (Node crypto) and, for the middleware gate, by `lib/auth/session-edge.ts` (Web Crypto) — the two must stay byte-identical in behavior. The role is always re-read fresh from `public.users`, never trusted from the cookie. Nothing depends on `auth.uid()` / RLS — every server action uses `createServiceClient()` (service-role, bypasses RLS), so **RLS is not a backstop in this app; authorization is enforced solely in application code via `requireRole()`**. A server action without a `requireRole()` guard is unauthenticated and world-callable. Client state lives in `localStorage['crm-user']` for UI purposes only and is reconciled against the server on mount, on tab refocus, and on a 30-minute heartbeat (for unattended kiosk/TV displays). `handleSessionError()` from `useAuth()` is the single authoritative path for reacting to an expired session — route server-action errors through it rather than rendering ad hoc "session expired" copy.
 
-10. **Auth system duality complexity** — The codebase supports both PIN auth (localStorage) and Supabase Auth (email/password) simultaneously. The `auth_id` column was added in migration `20260218140000_add_auth_id.sql` but the auth flow complexity isn't fully documented. Edge cases around auth state management need documentation.
-
-11. **TypeScript/ESLint errors ignored in builds** — `next.config.ts` has `ignoreBuildErrors: true` and `ignoreDuringBuilds: true`. This means type errors and lint errors don't block production deploys. While pragmatic for rapid iteration, it increases risk of runtime errors.
+10. **TypeScript/ESLint errors ignored in builds** — `next.config.ts` has `ignoreBuildErrors: true` and `ignoreDuringBuilds: true`. This means type errors and lint errors don't block production deploys. While pragmatic for rapid iteration, it increases risk of runtime errors.
 
 **Role system:**
 | Role | Access |
@@ -141,8 +137,13 @@ npm run dev     # starts on localhost:3000 with Turbopack
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://spkimmrtaxwnysjqkxix.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+SUPABASE_SERVICE_ROLE_KEY=<service role key>
+SESSION_SECRET=<generate with: openssl rand -hex 32>
 DATA_SOURCE=supabase
 ```
+
+- `SUPABASE_SERVICE_ROLE_KEY` — required. `createServiceClient()` (`lib/supabase/server.ts`) throws without it, and nearly every server action goes through that client.
+- `SESSION_SECRET` — required, and mandatory as of the auth rework: with it unset, `authenticateByPin` fails closed (no one can log in) and middleware redirects every `/dashboard` and `/cultivation-display` document navigation to `/login` — a total lockout with no in-app recovery. Generate with `openssl rand -hex 32`. In Vercel it's currently set for Production and Preview only, not Development — a fresh local checkout has no value for it until you add one to `.env.local`. Rotating it invalidates every outstanding `crm-session` cookie and logs every user out at once. Adding or changing it in Vercel requires a redeploy to take effect.
 
 Note: `.env.local` is gitignored (see `.gitignore` lines 34, 42) — you'll need to create it from the Supabase vault project dashboard. No `.env.example` file exists in the repo currently.
 
@@ -152,14 +153,14 @@ npm run build         # production build with Turbopack
 npm run start         # start production server
 npm run lint          # ESLint (v9)
 npm run type-check    # TypeScript check (tsc --noEmit)
-npm test              # Vitest (no tests exist yet)
+npm test              # Vitest — 8 test files / 84 tests, all on the auth/session layer
 npm run test:ui       # Vitest with UI
 npm run test:coverage # Vitest with coverage report
 vercel --prod         # deploy to production (requires Vercel CLI v50.1.6+)
 ```
 
 **Development notes:**
-- Next.js middleware at `middleware.ts` handles Supabase session refresh
+- `middleware.ts` (via `lib/supabase/middleware.ts`) is the server-side auth enforcement point, not just session refresh — see "Important files" below for what it actually gates
 - PWA manifest at `app/manifest.json`, service worker at `app/sw.ts`
 - Turbopack is used for both dev and build (faster than webpack)
 - `next.config.ts` has `ignoreBuildErrors: true` and `ignoreDuringBuilds: true` — TypeScript/ESLint errors won't block builds
@@ -180,10 +181,19 @@ vercel --prod         # deploy to production (requires Vercel CLI v50.1.6+)
 ```
 # Auth & Session
 lib/auth-context.tsx              # PIN auth, session, permission helpers (canCreateOrder, etc.)
+lib/auth/session.ts               # Cookie sign/verify/clear, checkSession()/verifySession()/requireRole() (Node crypto)
+lib/auth/session-edge.ts          # Edge-safe (Web Crypto) mirror of the signature check, for middleware
 lib/supabase/client.ts            # Supabase browser client
-lib/supabase/server.ts            # Supabase server client
-lib/supabase/middleware.ts        # Supabase auth middleware helper
-middleware.ts                     # Next.js middleware (Supabase session refresh)
+lib/supabase/server.ts            # Supabase server client (createClient, createServiceClient)
+lib/supabase/middleware.ts        # Auth enforcement: verifies crm-session, redirects unauthenticated document
+                                   #   navigations for PROTECTED_PREFIXES (/dashboard, /cultivation-display),
+                                   #   slides the cookie forward. Add new authenticated top-level routes to
+                                   #   PROTECTED_PREFIXES here or they ship with no server-side gate. Deliberately
+                                   #   does NOT redirect non-document requests (Server Action POSTs, RSC fetches) —
+                                   #   those must reach the server so requireRole() can fail closed with
+                                   #   "No valid session"; redirecting them was a real bug that broke session-expiry
+                                   #   detection and must not be "tidied up" later.
+middleware.ts                     # Next.js middleware entry point, delegates to lib/supabase/middleware.ts
 
 # Packaging Core Logic
 lib/packaging/allocation-engine.ts # Task generation logic (URGENT/TOMORROW/UPCOMING/BACKFILL)
@@ -307,17 +317,28 @@ mcp__supabase__generate_typescript_types
 
 ## Deployment
 
-- **Production URL:** Not explicitly documented in repo (needs to be added)
-- **Deploy command:** `vercel --prod` (Vercel CLI v50.1.6+, no GitHub Actions)
+- **Production URL:** https://app.cakeoklahoma.com — use this to smoke-test prod. The raw
+  `*.vercel.app` deployment URLs (`cake-crm.vercel.app`, `cake-app-*.vercel.app`, and the
+  per-deployment ones) sit behind Vercel Deployment Protection (SSO) and 302 any unauthenticated
+  request to `vercel.com/sso-api`, so they are useless for verifying live behaviour.
+- **Vercel project:** `cake-app` under team `joshua-stokes-projects`
+  (`prj_ZOlJNcxkrz14B0sOmmiQERhIgi14`)
+- **Deploy:** **automatic on merge/push to `main`** via Vercel's Git integration. No CLI step,
+  no GitHub Actions. `vercel --prod` is only for an out-of-band deploy from a working copy.
 - **Packaging TV display** (separate app): https://process.cakeoklahoma.com
 - **Platform:** Vercel (Next.js 16 with Turbopack)
 - **Database:** Supabase vault project (managed, hosted)
 
 **Deployment workflow:**
-1. Commit changes to main branch (no feature branches required)
-2. Run `vercel --prod` via CLI
-3. Vercel builds with Turbopack and deploys
-4. Database schema changes via Supabase MCP (migrations applied directly)
+1. Merge to `main` (PR or direct commit) — **this alone ships to production**
+2. Vercel builds with Turbopack and promotes automatically; status is reported back onto the
+   commit — check with `gh api repos/stokespro/cake-app/commits/<sha>/status`
+3. Database schema changes via Supabase MCP (migrations applied directly)
+
+**Merging to `main` is deploying.** There is no separate gate, so anything landed on `main` is
+live within minutes — treat merge as the production release step. Environment variables are read
+at build/run time, so adding or changing one in Vercel needs a redeploy to take effect;
+`SESSION_SECRET` must be present in Production or auth fails closed (see "Local development").
 
 ## Current priorities
 <!-- Joshua updates this as needed -->

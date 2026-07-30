@@ -77,7 +77,7 @@ import type { VaultPackage, Transaction, Strain, ProductType, Batch } from '@/ty
 const GRAMS_PER_LB = 453.592
 
 export default function VaultPage() {
-  const { user } = useAuth()
+  const { user, handleSessionError } = useAuth()
   const [packages, setPackages] = useState<VaultPackage[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -149,6 +149,12 @@ export default function VaultPage() {
   }, [strainFilter, batchFilter, typeFilter])
 
   // Fetch filter data
+  // Note: a toast per failed fetch (rather than a full page error state) was
+  // chosen here deliberately — this data only feeds the filter dropdowns, the
+  // primary package list has its own error handling via fetchPackages/toast
+  // above, and restructuring this page around a blocking error state for
+  // secondary filter data would be disproportionate to the risk (stale/empty
+  // dropdowns, not zeroed-looking primary data).
   const fetchFilterData = async () => {
     const [strainsResult, typesResult, batchesResult, uniqueBatchesResult] = await Promise.all([
       getStrains(),
@@ -159,15 +165,35 @@ export default function VaultPage() {
 
     if (strainsResult.success && strainsResult.strains) {
       setStrains(strainsResult.strains)
+    } else {
+      console.error('Error fetching strains:', strainsResult.error)
+      if (handleSessionError(strainsResult.error)) return
+      toast.error(strainsResult.error || 'Failed to load filter options')
+      setStrains([])
     }
     if (typesResult.success && typesResult.productTypes) {
       setProductTypes(typesResult.productTypes)
+    } else {
+      console.error('Error fetching product types:', typesResult.error)
+      if (handleSessionError(typesResult.error)) return
+      toast.error(typesResult.error || 'Failed to load filter options')
+      setProductTypes([])
     }
     if (batchesResult.success && batchesResult.batches) {
       setBatches(batchesResult.batches)
+    } else {
+      console.error('Error fetching batches:', batchesResult.error)
+      if (handleSessionError(batchesResult.error)) return
+      toast.error(batchesResult.error || 'Failed to load filter options')
+      setBatches([])
     }
     if (uniqueBatchesResult.success && uniqueBatchesResult.batches) {
       setUniqueBatches(uniqueBatchesResult.batches)
+    } else {
+      console.error('Error fetching unique batches:', uniqueBatchesResult.error)
+      if (handleSessionError(uniqueBatchesResult.error)) return
+      toast.error(uniqueBatchesResult.error || 'Failed to load filter options')
+      setUniqueBatches([])
     }
   }
 

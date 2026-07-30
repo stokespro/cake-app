@@ -64,6 +64,13 @@ export default function PackagingBoardPage() {
       const data = await getBoardData()
       setBoardData(data)
       setLastUpdated(new Date())
+      // Hard failure (not authorized / unexpected crash) — board arrays are
+      // empty, so this is toast-worthy. Soft degradation (data.softErrors)
+      // is intentionally NOT toasted here: this board runs unattended on
+      // the packaging-room TV, polling on a timer with nobody to dismiss
+      // toasts, so a persistent soft failure would otherwise stack a red
+      // toast on every refresh tick forever. It's surfaced instead as a
+      // quiet, persistent indicator below (see the "Degraded" banner).
       if (data.error) {
         toast.error(`Board error: ${data.error}`)
       }
@@ -175,10 +182,18 @@ export default function PackagingBoardPage() {
         </div>
       </div>
 
-      {/* Error state */}
+      {/* Hard failure state — not authorized / unexpected crash */}
       {boardData?.error && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           {boardData.error}
+        </div>
+      )}
+
+      {/* Soft degradation indicator — board still usable, so this is a
+          quiet, persistent banner rather than a toast (see fetchBoard). */}
+      {boardData?.softErrors && boardData.softErrors.length > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-500">
+          Some board data is degraded: {boardData.softErrors.join('; ')}
         </div>
       )}
 

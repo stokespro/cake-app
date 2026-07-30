@@ -10,7 +10,6 @@ import { createServiceClient } from '@/lib/supabase/server'
 export interface UserRecord {
   id: string
   name: string
-  pin: string
   role: string
   created_at: string
   slack_user_id?: string
@@ -27,6 +26,12 @@ export interface UserDetail extends UserRecord {
 /**
  * Fetch all users with their Slack mappings joined.
  * Only callable by admin.
+ *
+ * SECURITY: does NOT select `pin`. PINs must never leave the server — this
+ * used to select the plaintext 4-digit PIN for every user and ship it into
+ * the RSC flight payload / browser memory / devtools / any client error or
+ * telemetry capture. PINs are write-only from the client's perspective now:
+ * createUser/updateUser accept one, nothing reads one back.
  */
 export async function getUsers(): Promise<
   { data: UserRecord[]; error?: never } | { data?: never; error: string }
@@ -37,7 +42,7 @@ export async function getUsers(): Promise<
   const db = await createServiceClient()
 
   const [usersResult, mappingsResult] = await Promise.all([
-    db.from('users').select('id, name, pin, role, created_at').order('name'),
+    db.from('users').select('id, name, role, created_at').order('name'),
     db.from('slack_user_mappings').select('id, slack_user_id, cake_user_id'),
   ])
 
@@ -61,6 +66,8 @@ export async function getUsers(): Promise<
 /**
  * Fetch a single user and their Slack mapping.
  * Only callable by admin.
+ *
+ * SECURITY: does NOT select `pin` — see getUsers() above.
  */
 export async function getUser(userId: string): Promise<
   { data: UserDetail; error?: never } | { data?: never; error: string }
@@ -73,7 +80,7 @@ export async function getUser(userId: string): Promise<
   const [userResult, mappingResult] = await Promise.all([
     db
       .from('users')
-      .select('id, name, pin, role, created_at')
+      .select('id, name, role, created_at')
       .eq('id', userId)
       .single(),
     db
@@ -170,7 +177,12 @@ export async function createUser(input: CreateUserInput): Promise<
 
 export interface UpdateUserInput {
   name: string
-  pin: string
+  // Optional and write-only: the client never reads back a user's existing
+  // PIN (see getUser()/getUsers() above — the plaintext PIN is never sent to
+  // the browser), so there is nothing to "leave unchanged" by resubmitting a
+  // fetched value. Omit or pass an empty string to leave the PIN untouched;
+  // pass a 4-digit string to set a new one.
+  pin?: string
   role: string
   slack_user_id: string
   /** id of the existing slack_user_mappings row, if any */
@@ -178,8 +190,9 @@ export interface UpdateUserInput {
 }
 
 /**
- * Update an existing user's name, PIN, role, and Slack mapping.
- * PIN uniqueness is validated server-side (excluding the current user).
+ * Update an existing user's name, role, Slack mapping, and (optionally) PIN.
+ * PIN uniqueness is validated server-side (excluding the current user) only
+ * when a new PIN is supplied.
  * Only callable by admin.
  */
 export async function updateUser(userId: string, input: UpdateUserInput): Promise<
@@ -188,27 +201,36 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
   const auth = await requireRole(['admin'])
   if (!auth.authorized) return { error: auth.reason }
 
-  if (!/^\d{4}$/.test(input.pin)) {
+  const newPin = input.pin?.trim()
+  const isChangingPin = !!newPin
+
+  if (isChangingPin && !/^\d{4}$/.test(newPin)) {
     return { error: 'PIN must be exactly 4 digits' }
   }
 
   const db = await createServiceClient()
 
-  // Check PIN uniqueness excluding this user
-  const { data: pinConflict } = await db
-    .from('users')
-    .select('id')
-    .eq('pin', input.pin)
-    .neq('id', userId)
-    .maybeSingle()
+  if (isChangingPin) {
+    // Check PIN uniqueness excluding this user
+    const { data: pinConflict } = await db
+      .from('users')
+      .select('id')
+      .eq('pin', newPin)
+      .neq('id', userId)
+      .maybeSingle()
 
-  if (pinConflict) {
-    return { error: 'This PIN is already in use by another user.' }
+    if (pinConflict) {
+      return { error: 'This PIN is already in use by another user.' }
+    }
   }
 
   const { error: updateError } = await db
     .from('users')
-    .update({ name: input.name, pin: input.pin, role: input.role })
+    .update({
+      name: input.name,
+      role: input.role,
+      ...(isChangingPin ? { pin: newPin } : {}),
+    })
     .eq('id', userId)
 
   if (updateError) {

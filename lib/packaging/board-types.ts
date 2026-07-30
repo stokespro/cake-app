@@ -52,13 +52,27 @@ export interface DoneItem {
   completedAt: string
 }
 
-// Full board data returned from getBoardData
+// Full board data returned from getBoardData.
+//
+// `error` and `softErrors` are deliberately distinct fields, not one shared
+// string:
+// - `error` is a HARD failure — not authorized (`auth.reason`), or an
+//   unexpected exception. When set, the board arrays are empty and the
+//   consumer should surface this prominently (e.g. a toast) — something is
+//   actually broken.
+// - `softErrors` is non-fatal, partial degradation — e.g. active claims or
+//   today's done items failed to load, but the FILL/CASE cards themselves
+//   still rendered from inventory/orders. The board is usable; the consumer
+//   should show a quiet, persistent indicator (no toast) since this field
+//   can legitimately stay populated indefinitely on an unattended display
+//   and re-fires on every poll.
 export interface BoardData {
   toFillCards: SkuBoardCard[]
   toCaseCards: SkuBoardCard[]
   doneItems: DoneItem[]
   lastUpdated: string
   error?: string
+  softErrors?: string[]
 }
 
 // A user eligible to be a packaging worker

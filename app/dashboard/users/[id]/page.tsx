@@ -56,7 +56,10 @@ export default function EditUserPage() {
       const { data: user } = result
       setFormData({
         name: user.name || '',
-        pin: user.pin || '',
+        // The server never sends back the existing plaintext PIN (see
+        // actions/users.ts) — leave this blank. An empty/untouched PIN field
+        // means "keep the current PIN"; only a non-empty value here changes it.
+        pin: '',
         role: user.role || 'standard',
         slack_user_id: user.slack_user_id || ''
       })
@@ -168,9 +171,7 @@ export default function EditUserPage() {
 
             {/* PIN */}
             <div className="space-y-2">
-              <Label htmlFor="pin">
-                Login PIN <span className="text-destructive">*</span>
-              </Label>
+              <Label htmlFor="pin">Login PIN</Label>
               <div className="flex gap-2">
                 <Input
                   id="pin"
@@ -178,18 +179,19 @@ export default function EditUserPage() {
                   inputMode="numeric"
                   pattern="\d{4}"
                   maxLength={4}
-                  placeholder="4-digit PIN"
+                  placeholder="Leave blank to keep current PIN"
                   value={formData.pin}
                   onChange={(e) => handleInputChange('pin', e.target.value.replace(/\D/g, '').slice(0, 4))}
                   className="font-mono text-lg tracking-widest"
-                  required
                 />
                 <Button type="button" variant="outline" onClick={regeneratePin}>
                   <RefreshCw className="h-4 w-4" />
                 </Button>
               </div>
               <p className="text-sm text-muted-foreground">
-                Changing the PIN will require the user to use the new PIN for login.
+                For security, the existing PIN is never shown. Leave this blank to
+                keep it unchanged, or enter/regenerate a new 4-digit PIN — the user
+                will need the new PIN to log in.
               </p>
             </div>
 

@@ -8,10 +8,10 @@
 // Moves recurring-task generation OFF the page-load path (previously run as
 // an awaited call inside fetchData() on every cultivation page load) and
 // onto a scheduled job. The underlying generation logic
-// (generateRecurringTasksCore, in actions/cultivation.ts) is already
-// idempotent — it uses a last_generated_date watermark per recurring
-// definition and filters candidate dates against existing children — so
-// re-running this cron (or a stale manual trigger) is always safe.
+// (generateRecurringTasksCore, in lib/cultivation/generate-recurring-tasks.ts)
+// is already idempotent — it uses a last_generated_date watermark per
+// recurring definition and filters candidate dates against existing children
+// — so re-running this cron (or a stale manual trigger) is always safe.
 //
 // Auth: Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically when
 // CRON_SECRET is set in Vercel environment variables. Requests without the
@@ -20,9 +20,14 @@
 // NOTE: CRON_SECRET must be added to Vercel environment variables before this
 // cron can run in production. The route will always 401 until that secret is
 // configured.
+//
+// generateRecurringTasksCore() is intentionally NOT exported from
+// actions/cultivation.ts ('use server') — see that file's comment for why
+// doing so would make it a public, unauthenticated, service-role write
+// endpoint bypassing this route's CRON_SECRET check entirely.
 
 import { type NextRequest, NextResponse } from 'next/server'
-import { generateRecurringTasksCore } from '@/actions/cultivation'
+import { generateRecurringTasksCore } from '@/lib/cultivation/generate-recurring-tasks'
 
 // Force Node.js runtime — generateRecurringTasksCore builds its Supabase
 // client via createServiceClient() (lib/supabase/server.ts), which is

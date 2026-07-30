@@ -874,7 +874,13 @@ export async function getMonthSummary(month: string): Promise<{
       // Non-fatal: catch so a bank RPC error doesn't block the whole page.
       createServiceClient()
         .then((svc) => svc.rpc('get_bank_balance'))
-        .catch(() => ({ data: null, error: null })),
+        .catch((err) => {
+          // Non-fatal — a bank RPC failure shouldn't block the whole page, but
+          // the failure must still be visible for debugging rather than
+          // silently masqueraded as "no bank balance configured".
+          console.error('Error fetching bank balance:', err)
+          return { data: null, error: err instanceof Error ? err : new Error(String(err)) }
+        }),
     ])
 
     if (billsRes.error) {
@@ -1111,7 +1117,13 @@ export async function getWeeklyBudget(params?: { weeks?: number }): Promise<{
 
       createServiceClient()
         .then((svc) => svc.rpc('get_bank_balance'))
-        .catch(() => ({ data: null, error: null })),
+        .catch((err) => {
+          // Non-fatal — a bank RPC failure shouldn't block the whole page, but
+          // the failure must still be visible for debugging rather than
+          // silently masqueraded as "no bank balance configured".
+          console.error('Error fetching bank balance:', err)
+          return { data: null, error: err instanceof Error ? err : new Error(String(err)) }
+        }),
     ])
 
     if (billsRes.error) {

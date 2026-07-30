@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useAuth } from '@/lib/auth-context'
 import { getTasks, markTaskComplete } from '@/actions/tasks'
 import type { TaskWithCustomer } from '@/actions/tasks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ErrorState } from '@/components/ui/error-state'
 import { Plus, Search, Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
@@ -23,9 +25,11 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<TaskWithCustomer[]>([])
   const [filteredTasks, setFilteredTasks] = useState<TaskWithCustomer[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterPriority, setFilterPriority] = useState('all')
+  const { handleSessionError } = useAuth()
 
   useEffect(() => {
     fetchTasks()
@@ -37,9 +41,13 @@ export default function TasksPage() {
 
   const fetchTasks = async () => {
     try {
+      setError(null)
       const result = await getTasks()
       if (result.error) {
         console.error('Error fetching tasks:', result.error)
+        if (handleSessionError(result.error)) return
+        setError("Couldn't load tasks. Try again.")
+        setTasks([])
         return
       }
       setTasks(result.data ?? [])
@@ -183,7 +191,9 @@ export default function TasksPage() {
 
       {/* Tasks List */}
       <div className="space-y-4">
-        {filteredTasks.length === 0 ? (
+        {error ? (
+          <ErrorState title="Unable to load tasks" message={error} onRetry={fetchTasks} />
+        ) : filteredTasks.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">No tasks found</p>

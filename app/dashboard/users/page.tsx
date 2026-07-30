@@ -203,7 +203,10 @@ export default function UsersPage() {
                           </Badge>
                         </div>
                         <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground flex-wrap">
-                          <span>PIN: {user.pin}</span>
+                          {/* PINs are no longer sent to the client (see
+                              actions/users.ts — plaintext PINs must never
+                              leave the server). Edit the user to set a new
+                              one. */}
                           <span>Slack: {user.slack_user_id || 'Not linked'}</span>
                           <span>Added: {formatDate(user.created_at)}</span>
                         </div>
