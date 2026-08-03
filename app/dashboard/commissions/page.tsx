@@ -389,7 +389,7 @@ export default function CommissionsPage() {
   const exportToCSV = () => {
     const headers = [
       'Order #',
-      'Delivered',
+      'Commission Date',
       'Salesperson',
       'Customer',
       'Order Total',
@@ -640,7 +640,7 @@ export default function CommissionsPage() {
                       />
                     </TableHead>
                     <TableHead>Order #</TableHead>
-                    <TableHead>Delivered</TableHead>
+                    <TableHead>Commission Date</TableHead>
                     <TableHead>Salesperson</TableHead>
                     <TableHead className="text-right">Order Total</TableHead>
                     <TableHead className="text-right">Rate</TableHead>
