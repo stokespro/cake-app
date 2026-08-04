@@ -40,6 +40,16 @@ export type AlertEvent =
 interface UseOrderAlertsOptions {
   onAlert: (event: AlertEvent) => void
   soundEnabled: boolean
+  /**
+   * Optional callback fired on ANY orders/order_items change (INSERT,
+   * UPDATE, DELETE) — including ones that don't produce a toast (e.g. an
+   * order's status flipping from Confirmed -> Packed). Used by the
+   * Packaging Board to trigger a debounced refetch so cards stay live
+   * without a 150s poll. Intentionally decoupled from the toast/alert
+   * queue logic above — this only signals "something changed", it never
+   * reads row content off the realtime payload.
+   */
+  onDataChange?: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +121,14 @@ async function resolveSkuName(
 /**
  * Subscribes to Supabase Realtime for:
  *   - orders: INSERT  → new order alert with full item list
- *   - order_items: INSERT | UPDATE | DELETE → diff alert (debounced per order)
+ *   - orders: UPDATE | DELETE → no toast, just fires onDataChange (status
+ *     transitions like Confirmed -> Packed affect the Packaging Board)
+ *   - order_items: INSERT | UPDATE | DELETE → diff alert (debounced per
+ *     order for the toast) AND an immediate onDataChange signal
+ *
+ * `onDataChange` is intentionally undebounced here — it fires once per raw
+ * DB event. Callers that need to collapse a burst of events into a single
+ * refetch (e.g. the Packaging Board) should debounce on their end.
  *
  * Requires:
  *   - orders + order_items in supabase_realtime publication
@@ -119,12 +136,14 @@ async function resolveSkuName(
  *   - order_items REPLICA IDENTITY FULL for UPDATE old-row values
  *     (migration: 20260615120000_order_items_replica_identity_full.sql)
  */
-export function useOrderAlerts({ onAlert, soundEnabled }: UseOrderAlertsOptions) {
+export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrderAlertsOptions) {
   const onAlertRef = useRef(onAlert)
   const soundEnabledRef = useRef(soundEnabled)
+  const onDataChangeRef = useRef(onDataChange)
 
   useEffect(() => { onAlertRef.current = onAlert }, [onAlert])
   useEffect(() => { soundEnabledRef.current = soundEnabled }, [soundEnabled])
+  useEffect(() => { onDataChangeRef.current = onDataChange }, [onDataChange])
 
   // Stable meow player — reads latest soundEnabled from ref
   const meow = useCallback(() => {
@@ -183,11 +202,29 @@ export function useOrderAlerts({ onAlert, soundEnabled }: UseOrderAlertsOptions)
 
           meow()
           onAlertRef.current(event)
+          onDataChangeRef.current?.()
 
           const label = row.order_number ? ` #${row.order_number}` : ''
           toast.info(`New order${label} — ${customerName} · ${items.length} item${items.length !== 1 ? 's' : ''}`, {
             duration: 6000,
           })
+        }
+      )
+      .on(
+        // Status transitions (e.g. Confirmed -> Packed -> Delivered) don't
+        // produce a toast, but they change what the Packaging Board should
+        // show — signal a data change so subscribers can refetch.
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        () => {
+          onDataChangeRef.current?.()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'orders' },
+        () => {
+          onDataChangeRef.current?.()
         }
       )
       .subscribe()
@@ -314,6 +351,7 @@ export function useOrderAlerts({ onAlert, soundEnabled }: UseOrderAlertsOptions)
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'order_items' },
         (payload) => {
+          onDataChangeRef.current?.()
           const row = payload.new as { id: string; order_id: string; sku_id: string; quantity: number }
           const changes = pendingDiffs.get(row.order_id) ?? []
           changes.push({ changeType: 'INSERT', itemId: row.id, newSkuId: row.sku_id, newQty: row.quantity })
@@ -325,6 +363,7 @@ export function useOrderAlerts({ onAlert, soundEnabled }: UseOrderAlertsOptions)
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'order_items' },
         (payload) => {
+          onDataChangeRef.current?.()
           const oldRow = payload.old as { id: string; order_id: string; sku_id?: string; quantity?: number }
           const newRow = payload.new as { id: string; order_id: string; sku_id: string; quantity: number }
           const orderId = newRow.order_id
@@ -345,6 +384,7 @@ export function useOrderAlerts({ onAlert, soundEnabled }: UseOrderAlertsOptions)
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'order_items' },
         (payload) => {
+          onDataChangeRef.current?.()
           const oldRow = payload.old as { id: string; order_id: string; sku_id?: string; quantity?: number }
           // order_id may not be in the old payload without REPLICA IDENTITY FULL on orders,
           // but it IS present because we set REPLICA IDENTITY FULL on order_items.

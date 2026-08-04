@@ -2,7 +2,8 @@
 
 import {
   readInventory,
-  readOrders,
+  readOrdersRaw,
+  mapOrdersFromRaw,
   readStagingContainers,
   readTaskNotes,
   readTaskStates,
@@ -60,8 +61,14 @@ export async function getDashboardData(): Promise<DashboardData> {
   }
 
   try {
-    // First, process any order status changes
-    const statusChanges = await processOrderStatusChanges()
+    // Single read of `orders` (+ joined customers/order_items), reused below
+    // for both status-change processing and the board's Order[] list —
+    // avoids querying `orders` twice per dashboard load.
+    const rawOrders = await readOrdersRaw()
+
+    // Process any order status changes (packed/delivered cased-inventory
+    // deductions) using the orders we already fetched above.
+    const statusChanges = await processOrderStatusChanges(rawOrders)
     if (statusChanges.packedProcessed > 0 || statusChanges.deliveredProcessed > 0 || statusChanges.reversedPacked > 0) {
       console.log('Order status changes processed:', statusChanges)
     }
@@ -72,10 +79,12 @@ export async function getDashboardData(): Promise<DashboardData> {
       console.log(`Cleaned up ${cleanedUp} old task states`)
     }
 
-    // Fetch all data
-    const [inventory, orders, containers, taskNotes, taskStates] = await Promise.all([
+    const orders = mapOrdersFromRaw(rawOrders)
+
+    // Fetch remaining data (inventory read AFTER status processing above,
+    // since processOrderStatusChanges may have mutated cased inventory)
+    const [inventory, containers, taskNotes, taskStates] = await Promise.all([
       readInventory(),
-      readOrders(),
       readStagingContainers(),
       readTaskNotes(),
       readTaskStates(),

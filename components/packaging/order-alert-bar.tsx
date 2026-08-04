@@ -178,6 +178,17 @@ function AlertCard({ alert, onDismiss }: { alert: StoredAlert; onDismiss: (id: s
 // Main component
 // ---------------------------------------------------------------------------
 
+interface OrderAlertBarProps {
+  /**
+   * Optional callback fired whenever an orders/order_items realtime change
+   * comes through (new order, edited order, or a status update). Wired up
+   * by the Packaging Board to trigger a debounced board refetch — this
+   * component stays self-contained otherwise (own alert queue, own sound
+   * toggle) so passing nothing preserves the original behavior.
+   */
+  onDataChange?: () => void
+}
+
 /**
  * Self-contained alert bar for the packaging page.
  *
@@ -186,7 +197,7 @@ function AlertCard({ alert, onDismiss }: { alert: StoredAlert; onDismiss: (id: s
  * - Sheet panel listing each unreviewed alert, expandable per order
  * - "Clear all" dismisses everything; individual X dismisses one
  */
-export function OrderAlertBar() {
+export function OrderAlertBar({ onDataChange }: OrderAlertBarProps = {}) {
   // --- Sound preference ---
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [audioArmed, setAudioArmed] = useState(false)
@@ -265,6 +276,7 @@ export function OrderAlertBar() {
   useOrderAlerts({
     onAlert: handleAlert,
     soundEnabled: soundEnabled && audioArmed,
+    onDataChange,
   })
 
   const count = queue.length

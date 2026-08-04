@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, Package2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -25,11 +25,15 @@ import { ClaimSheet } from '@/components/packaging-board/ClaimSheet'
 import { getBoardData, getPackagingUsers } from '@/actions/packaging-board'
 import { addContainer } from '@/actions/packaging-v2'
 import { useAuth } from '@/lib/auth-context'
+import { usePackagingBoardRealtime } from '@/hooks/use-packaging-board-realtime'
+import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import type { BoardData, SkuBoardCard, PackagingUser } from '@/lib/packaging/board-types'
 import type { ContainerSize } from '@/lib/packaging/types'
 import { format } from 'date-fns'
 
-const REFRESH_INTERVAL = 150_000 // 150 seconds
+// Multi-row edits (e.g. bulk task advances) fire several realtime events in
+// quick succession — collapse them into a single refetch.
+const REALTIME_DEBOUNCE_MS = 2000
 
 const CONTAINER_SIZES: ContainerSize[] = [8, 4, 3, 2, 1]
 
@@ -54,8 +58,6 @@ export default function PackagingBoardPage() {
 
   // Mobile tab state
   const [activeTab, setActiveTab] = useState<'fill' | 'case' | 'done'>('fill')
-
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load board data
   const fetchBoard = useCallback(async (isManual = false) => {
@@ -91,16 +93,35 @@ export default function PackagingBoardPage() {
     ])
   }, [fetchBoard])
 
-  // Auto-refresh
+  // Single debounced refetch — every realtime source below (board tables +
+  // orders/order_items via OrderAlertBar) routes through this one function
+  // so a burst of events collapses into one server round-trip instead of a
+  // storm of refetches.
+  const debouncedRefetch = useDebouncedCallback(() => {
+    fetchBoard()
+  }, REALTIME_DEBOUNCE_MS)
+
+  // Live updates: realtime replaces the old 150s poll entirely. The board
+  // refetches when containers/packaging_task_state/packaging_claims/
+  // task_notes/inventory change (any device), and also on channel
+  // reconnect (see usePackagingBoardRealtime's SUBSCRIBED-after-drop logic).
+  usePackagingBoardRealtime({ onChange: debouncedRefetch })
+
+  // Resilience fallback (not a timer): re-sync when the tab becomes visible
+  // again or the window regains focus, so a device that was asleep/backgrounded
+  // and may have missed realtime events while disconnected self-heals.
   useEffect(() => {
-    function schedule() {
-      refreshTimerRef.current = setTimeout(() => {
-        fetchBoard().then(schedule)
-      }, REFRESH_INTERVAL)
+    function handleVisible() {
+      if (document.visibilityState === 'visible') fetchBoard()
     }
-    schedule()
+    function handleFocus() {
+      fetchBoard()
+    }
+    document.addEventListener('visibilitychange', handleVisible)
+    window.addEventListener('focus', handleFocus)
     return () => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      document.removeEventListener('visibilitychange', handleVisible)
+      window.removeEventListener('focus', handleFocus)
     }
   }, [fetchBoard])
 
@@ -163,7 +184,7 @@ export default function PackagingBoardPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <OrderAlertBar />
+          <OrderAlertBar onDataChange={debouncedRefetch} />
           {lastUpdated && (
             <span className="text-xs text-muted-foreground hidden sm:inline">
               Updated {format(lastUpdated, 'h:mm:ss a')}

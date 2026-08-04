@@ -34,6 +34,8 @@ import {
   updateInventory,
   updateTaskNote,
 } from '@/actions/packaging-v2'
+import { usePackagingBoardRealtime } from '@/hooks/use-packaging-board-realtime'
+import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import type {
   DashboardData,
   Task,
@@ -46,8 +48,10 @@ import type {
 } from '@/lib/packaging/types'
 import { formatTime } from '@/lib/packaging/utils'
 
-// Auto-refresh interval (2.5 minutes)
-const REFRESH_INTERVAL = 150000
+// Multi-row edits (e.g. bulk task advances) fire several realtime events in
+// quick succession — collapse them into a single refetch. Same debounce used
+// by the Packaging Board v2 (see app/dashboard/packaging/board/page.tsx).
+const REALTIME_DEBOUNCE_MS = 2000
 
 const CONTAINER_SIZES: ContainerSize[] = [8, 4, 3, 2, 1]
 
@@ -112,10 +116,36 @@ export default function PackagingPage() {
     fetchData()
   }, [fetchData])
 
-  // Auto-refresh
+  // Single debounced refetch — every realtime source below (board tables +
+  // orders/order_items via OrderAlertBar) routes through this one function
+  // so a burst of events collapses into one server round-trip instead of a
+  // storm of refetches.
+  const debouncedRefetch = useDebouncedCallback(() => {
+    fetchData()
+  }, REALTIME_DEBOUNCE_MS)
+
+  // Live updates: realtime replaces the old 150s poll entirely. The board
+  // refetches when containers/packaging_task_state/packaging_claims/
+  // task_notes/inventory change (any device), and also on channel
+  // reconnect (see usePackagingBoardRealtime's SUBSCRIBED-after-drop logic).
+  usePackagingBoardRealtime({ onChange: debouncedRefetch })
+
+  // Resilience fallback (not a timer): re-sync when the tab becomes visible
+  // again or the window regains focus, so a device that was asleep/backgrounded
+  // and may have missed realtime events while disconnected self-heals.
   useEffect(() => {
-    const interval = setInterval(fetchData, REFRESH_INTERVAL)
-    return () => clearInterval(interval)
+    function handleVisible() {
+      if (document.visibilityState === 'visible') fetchData()
+    }
+    function handleFocus() {
+      fetchData()
+    }
+    document.addEventListener('visibilitychange', handleVisible)
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [fetchData])
 
   // Handle advance task
@@ -258,7 +288,7 @@ export default function PackagingPage() {
       {/* Order Alert Bar */}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Packaging</h1>
-        <OrderAlertBar />
+        <OrderAlertBar onDataChange={debouncedRefetch} />
       </div>
 
       {/* Inventory Panel - Desktop Only */}

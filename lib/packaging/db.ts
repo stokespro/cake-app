@@ -224,36 +224,83 @@ export async function completeSealAndCase(
 // ORDERS FUNCTIONS
 // ============================================
 
-export async function readOrders(): Promise<Order[]> {
+// Raw shape returned by the single shared orders query. Includes every
+// column needed by BOTH readOrders() (board display) and
+// processOrderStatusChanges() (cased-inventory side effects), so the two
+// callers in getDashboardData() can share one DB round-trip instead of
+// querying `orders` twice per invocation.
+export interface RawOrderRow {
+  id: string;
+  order_number: string | null;
+  customer_id: string;
+  status: string;
+  requested_delivery_date: string | null;
+  actual_delivery_date: string | null;
+  legacy_row_number: number | null;
+  packed_at: string | null;
+  delivered_at: string | null;
+  customers: { business_name: string } | { business_name: string }[] | null;
+  order_items: { sku_id: string; quantity: number }[];
+}
+
+const ORDERS_SELECT = `
+  id,
+  order_number,
+  customer_id,
+  status,
+  requested_delivery_date,
+  actual_delivery_date,
+  legacy_row_number,
+  packed_at,
+  delivered_at,
+  customers (
+    business_name
+  ),
+  order_items (
+    sku_id,
+    quantity
+  )
+`;
+
+// Single source-of-truth read of `orders` (+ joined customers/order_items)
+// covering every status the packaging dashboard cares about — both the
+// board-visible statuses (pending/confirmed/packed) AND 'delivered' (needed
+// by processOrderStatusChanges to detect fresh pending->delivered/packed
+// transitions). Callers derive whatever subset/shape they need from this
+// one result instead of re-querying `orders`.
+export async function readOrdersRaw(): Promise<RawOrderRow[]> {
+  // mapOrdersFromRaw() below depends on the sku_id -> code cache being
+  // populated; load it here so callers can go straight from
+  // readOrdersRaw() -> mapOrdersFromRaw() without a separate await.
   await loadSkuMappings();
 
   const supabase = await createServiceClient();
-  const { data: ordersData, error: ordersError } = await supabase
+  const { data, error } = await supabase
     .from('orders')
-    .select(`
-      id,
-      order_number,
-      customer_id,
-      status,
-      requested_delivery_date,
-      actual_delivery_date,
-      legacy_row_number,
-      customers (
-        business_name
-      ),
-      order_items (
-        sku_id,
-        quantity
-      )
-    `)
-    .in('status', ['pending', 'confirmed', 'packed'])
+    .select(ORDERS_SELECT)
+    .in('status', ['pending', 'confirmed', 'packed', 'delivered'])
     .order('requested_delivery_date', { ascending: true });
 
-  if (ordersError) throw new Error(`Failed to read orders: ${ordersError.message}`);
+  if (error) throw new Error(`Failed to read orders: ${error.message}`);
+
+  return (data || []) as unknown as RawOrderRow[];
+}
+
+// Map raw order rows -> the packaging Order[] shape used by the allocation
+// engine. Excludes 'delivered' orders (they no longer need packaging).
+export function mapOrdersFromRaw(rawOrders: RawOrderRow[]): Order[] {
+  const statusMap: Record<string, OrderStatus> = {
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    packed: 'Packed',
+    delivered: 'Delivered',
+  };
 
   const orders: Order[] = [];
 
-  for (const order of ordersData || []) {
+  for (const order of rawOrders) {
+    if (order.status === 'delivered') continue;
+
     const lineItems: OrderLineItem[] = [];
 
     for (const item of order.order_items || []) {
@@ -266,13 +313,6 @@ export async function readOrders(): Promise<Order[]> {
         });
       }
     }
-
-    const statusMap: Record<string, OrderStatus> = {
-      pending: 'Pending',
-      confirmed: 'Confirmed',
-      packed: 'Packed',
-      delivered: 'Delivered',
-    };
 
     // customers may be an array (from join) or single object
     const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
@@ -289,6 +329,12 @@ export async function readOrders(): Promise<Order[]> {
   }
 
   return orders;
+}
+
+export async function readOrders(): Promise<Order[]> {
+  await loadSkuMappings();
+  const rawOrders = await readOrdersRaw();
+  return mapOrdersFromRaw(rawOrders);
 }
 
 // ============================================
@@ -476,7 +522,14 @@ async function restoreToCased(orderId: string): Promise<void> {
   }
 }
 
-export async function processOrderStatusChanges(): Promise<{
+// Accepts an optional pre-fetched `orders` result (raw rows from
+// readOrdersRaw()) so callers that already read `orders` in the same
+// request — e.g. getDashboardData() — don't have to query it again here.
+// If omitted, falls back to fetching it directly (preserves the previous
+// standalone behavior for any other caller).
+export async function processOrderStatusChanges(
+  preFetchedOrders?: RawOrderRow[]
+): Promise<{
   packedProcessed: number;
   deliveredProcessed: number;
   reversedPacked: number;
@@ -486,20 +539,27 @@ export async function processOrderStatusChanges(): Promise<{
   let reversedPacked = 0;
 
   const supabase = await createServiceClient();
-  const { data: orders, error } = await supabase
-    .from('orders')
-    .select(`
-      id,
-      status,
-      packed_at,
-      delivered_at,
-      order_items (sku_id, quantity)
-    `)
-    .in('status', ['pending', 'confirmed', 'packed', 'delivered']);
 
-  if (error || !orders) {
-    console.error('Error fetching orders for status processing:', error);
-    return { packedProcessed, deliveredProcessed, reversedPacked };
+  let orders: Pick<RawOrderRow, 'id' | 'status' | 'packed_at' | 'delivered_at' | 'order_items'>[];
+  if (preFetchedOrders) {
+    orders = preFetchedOrders;
+  } else {
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        id,
+        status,
+        packed_at,
+        delivered_at,
+        order_items (sku_id, quantity)
+      `)
+      .in('status', ['pending', 'confirmed', 'packed', 'delivered']);
+
+    if (error || !data) {
+      console.error('Error fetching orders for status processing:', error);
+      return { packedProcessed, deliveredProcessed, reversedPacked };
+    }
+    orders = data as unknown as RawOrderRow[];
   }
 
   for (const order of orders) {
