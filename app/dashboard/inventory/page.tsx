@@ -41,7 +41,10 @@ import {
   ChevronRight,
   FlaskConical,
   Loader2,
+  FileText,
+  Copy,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { getInventoryData, type InventorySku, type InventoryStrain, type InventoryProductType, type InventoryRecord, type InventoryPackage } from '@/actions/inventory'
 import { getActiveBatchesForStrain } from '@/actions/vault'
 import type { Batch } from '@/types/vault'
@@ -799,6 +802,28 @@ export default function InventoryPage() {
                       <div className="font-semibold text-sm">{formatPercent(batch.total_cannabinoids_percentage)}</div>
                     </div>
                   </div>
+                  {batch.coa_url && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1" asChild>
+                        <a href={batch.coa_url} target="_blank" rel="noopener noreferrer">
+                          <FileText className="mr-1.5 h-3.5 w-3.5" />
+                          Lab Results
+                        </a>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          navigator.clipboard.writeText(batch.coa_url!)
+                          toast.success('Lab results link copied')
+                        }}
+                      >
+                        <Copy className="mr-1.5 h-3.5 w-3.5" />
+                        Copy link
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))
             )}

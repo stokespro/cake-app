@@ -16,6 +16,11 @@ export type Database = {
     Tables: {
       batches: {
         Row: {
+          coa_filename: string | null
+          coa_path: string | null
+          coa_uploaded_at: string | null
+          coa_uploaded_by: string | null
+          coa_url: string | null
           created_at: string | null
           id: string
           is_active: boolean
@@ -26,6 +31,11 @@ export type Database = {
           total_cannabinoids_percentage: number | null
         }
         Insert: {
+          coa_filename?: string | null
+          coa_path?: string | null
+          coa_uploaded_at?: string | null
+          coa_uploaded_by?: string | null
+          coa_url?: string | null
           created_at?: string | null
           id?: string
           is_active?: boolean
@@ -36,6 +46,11 @@ export type Database = {
           total_cannabinoids_percentage?: number | null
         }
         Update: {
+          coa_filename?: string | null
+          coa_path?: string | null
+          coa_uploaded_at?: string | null
+          coa_uploaded_by?: string | null
+          coa_url?: string | null
           created_at?: string | null
           id?: string
           is_active?: boolean
@@ -46,6 +61,13 @@ export type Database = {
           total_cannabinoids_percentage?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "batches_coa_uploaded_by_fkey"
+            columns: ["coa_uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "batches_strain_id_fkey"
             columns: ["strain_id"]
