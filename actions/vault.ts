@@ -12,6 +12,10 @@ const VAULT_WRITE_ROLES = ['admin', 'management', 'vault']
 const VAULT_ADMIN_ROLES = ['admin', 'management']
 // Roles that can read inventory (broader — matches canViewSection 'inventory')
 const INVENTORY_READ_ROLES = ['admin', 'management', 'vault', 'packaging', 'standard', 'sales', 'agent']
+// Storage bucket for batch lab results (COA) PDFs — public bucket, writes only via signed upload URLs
+const LAB_RESULTS_BUCKET = 'lab-results'
+// Max COA PDF size, mirrors the storage bucket's file_size_limit
+const MAX_COA_BYTES = 20 * 1024 * 1024
 
 // Get a single package by tag ID
 export async function getPackage(tagId: string): Promise<{
@@ -920,6 +924,199 @@ export async function deleteBatch(id: string): Promise<{ success: boolean; error
   }
 
   return { success: true }
+}
+
+// Sanitizes an uploaded COA filename into a safe storage object basename:
+// lowercased, path separators/traversal stripped, anything outside
+// [a-z0-9._-] replaced with '-', repeats collapsed, truncated to 100 chars,
+// and guaranteed to still end in .pdf.
+function sanitizeCoaFileName(fileName: string): string {
+  // Strip any path separators / traversal segments from caller input first —
+  // only the basename survives.
+  const base = fileName.replace(/\\/g, '/').split('/').pop()?.trim() || 'coa.pdf'
+
+  let safe = base
+    .toLowerCase()
+    .replace(/\.\.+/g, '-')
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+
+  safe = safe.slice(0, 100)
+
+  if (!safe.endsWith('.pdf')) {
+    safe = `${safe.slice(0, 96).replace(/[.-]+$/g, '')}.pdf`
+  }
+
+  return safe || 'coa.pdf'
+}
+
+// Mints a signed upload URL for a batch's COA PDF. The browser uploads bytes
+// straight to Supabase Storage with this URL/token — server actions never
+// see the file body, avoiding the 1 MB server-action / 4.5 MB Vercel body caps.
+export async function createBatchCoaUploadUrl(
+  batchId: string,
+  fileName: string
+): Promise<{ success: boolean; path?: string; token?: string; error?: string }> {
+  const auth = await requireRole(VAULT_ADMIN_ROLES)
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  if (!fileName.toLowerCase().endsWith('.pdf')) {
+    return { success: false, error: 'Only PDF files are supported' }
+  }
+
+  const db = await createServiceClient()
+
+  const { data: batch, error: batchError } = await db
+    .from('batches')
+    .select('id')
+    .eq('id', batchId)
+    .single()
+
+  if (batchError || !batch) {
+    return { success: false, error: 'Batch not found' }
+  }
+
+  const safeName = sanitizeCoaFileName(fileName)
+  const path = `${batchId}/${Date.now()}-${safeName}`
+
+  const { data, error } = await db.storage
+    .from(LAB_RESULTS_BUCKET)
+    .createSignedUploadUrl(path)
+
+  if (error || !data) {
+    return { success: false, error: error?.message || 'Failed to create upload URL' }
+  }
+
+  return { success: true, path, token: data.token }
+}
+
+// Records a just-uploaded COA PDF on the batch after the browser has
+// finished uploading bytes directly to storage via the signed URL above.
+export async function attachBatchCoa(
+  batchId: string,
+  path: string,
+  fileName: string
+): Promise<{ success: boolean; batch?: Batch; error?: string }> {
+  const auth = await requireRole(VAULT_ADMIN_ROLES)
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  // SECURITY: `path` is supplied by the caller — without this check a caller
+  // could point a batch's COA at an arbitrary object in the bucket.
+  if (!path.startsWith(`${batchId}/`) || path.includes('..')) {
+    return { success: false, error: 'Invalid file path' }
+  }
+
+  const db = await createServiceClient()
+
+  const basename = path.slice(`${batchId}/`.length)
+
+  const { data: listing, error: listError } = await db.storage
+    .from(LAB_RESULTS_BUCKET)
+    .list(batchId, { search: basename })
+
+  if (listError) {
+    return { success: false, error: listError.message }
+  }
+
+  const uploaded = listing?.find(item => item.name === basename)
+
+  if (!uploaded) {
+    return { success: false, error: 'Upload not found' }
+  }
+
+  const size = uploaded.metadata?.size as number | undefined
+  const mimetype = uploaded.metadata?.mimetype as string | undefined
+
+  if ((size !== undefined && size > MAX_COA_BYTES) || (mimetype && mimetype !== 'application/pdf')) {
+    await db.storage.from(LAB_RESULTS_BUCKET).remove([path])
+    return { success: false, error: 'Uploaded file must be a PDF under 20 MB' }
+  }
+
+  // Grab the previously-attached path (if any) so we can clean it up after
+  // a successful replace.
+  const { data: existingBatch } = await db
+    .from('batches')
+    .select('coa_path')
+    .eq('id', batchId)
+    .single()
+
+  const oldPath = existingBatch?.coa_path ?? null
+
+  const { data: publicUrlData } = db.storage.from(LAB_RESULTS_BUCKET).getPublicUrl(path)
+
+  const { data, error } = await db
+    .from('batches')
+    .update({
+      coa_url: publicUrlData.publicUrl,
+      coa_path: path,
+      coa_filename: fileName.trim().slice(0, 255),
+      coa_uploaded_at: new Date().toISOString(),
+      coa_uploaded_by: auth.session.userId,
+    })
+    .eq('id', batchId)
+    .select(`
+      *,
+      strain:strains(*)
+    `)
+    .single()
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  if (oldPath && oldPath !== path) {
+    // Best-effort — don't fail the action if the orphaned object can't be removed
+    await db.storage.from(LAB_RESULTS_BUCKET).remove([oldPath])
+  }
+
+  return { success: true, batch: data as Batch }
+}
+
+// Detaches (and best-effort deletes) a batch's COA PDF.
+export async function removeBatchCoa(
+  batchId: string
+): Promise<{ success: boolean; batch?: Batch; error?: string }> {
+  const auth = await requireRole(VAULT_ADMIN_ROLES)
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  const db = await createServiceClient()
+
+  const { data: existingBatch, error: fetchError } = await db
+    .from('batches')
+    .select('coa_path')
+    .eq('id', batchId)
+    .single()
+
+  if (fetchError || !existingBatch) {
+    return { success: false, error: 'Batch not found' }
+  }
+
+  if (existingBatch.coa_path) {
+    // Best-effort — don't fail the removal if storage cleanup errors
+    await db.storage.from(LAB_RESULTS_BUCKET).remove([existingBatch.coa_path])
+  }
+
+  const { data, error } = await db
+    .from('batches')
+    .update({
+      coa_url: null,
+      coa_path: null,
+      coa_filename: null,
+      coa_uploaded_at: null,
+      coa_uploaded_by: null,
+    })
+    .eq('id', batchId)
+    .select(`
+      *,
+      strain:strains(*)
+    `)
+    .single()
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, batch: data as Batch }
 }
 
 // Get active batches (with lab-testing fields) for a given strain — used by

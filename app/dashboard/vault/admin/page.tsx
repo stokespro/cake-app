@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ChangeEvent } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -40,7 +40,20 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Pencil, Trash2, Loader2, ToggleLeft, ToggleRight, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  ToggleLeft,
+  ToggleRight,
+  ArrowUp,
+  ArrowDown,
+  ChevronsUpDown,
+  FileText,
+  Upload,
+  X,
+} from 'lucide-react'
 import {
   getStrains,
   createStrain,
@@ -52,6 +65,9 @@ import {
   deleteBatch,
   toggleBatchActive,
   bulkToggleBatchActive,
+  createBatchCoaUploadUrl,
+  attachBatchCoa,
+  removeBatchCoa,
   getProductTypes,
   createProductType,
   updateProductType,
@@ -59,7 +75,10 @@ import {
   getAllPackages,
   togglePackageActive,
 } from '@/actions/vault'
+import { createClient } from '@/lib/supabase/client'
 import type { Strain, Batch, ProductType, VaultPackage } from '@/types/vault'
+
+const MAX_COA_BYTES = 20 * 1024 * 1024
 
 // Formats an optional lab-testing percentage value; renders "—" when missing
 function formatPercent(value: number | null | undefined): string {
@@ -85,6 +104,10 @@ export default function VaultAdminPage() {
   const [batches, setBatches] = useState<Batch[]>([])
   const [batchesLoading, setBatchesLoading] = useState(true)
   const [batchDialogOpen, setBatchDialogOpen] = useState(false)
+  // Tracks whether the dialog was opened as "Add" or "Edit" for label purposes only —
+  // kept separate from `editingBatch` because a successful create promotes `editingBatch`
+  // mid-flow (see handleSaveBatch) and the title/button label shouldn't flip when that happens.
+  const [batchDialogMode, setBatchDialogMode] = useState<'create' | 'edit'>('create')
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
   const [batchName, setBatchName] = useState('')
   const [batchStrainId, setBatchStrainId] = useState('')
@@ -93,6 +116,9 @@ export default function VaultAdminPage() {
   const [batchTotalCannabinoids, setBatchTotalCannabinoids] = useState('')
   const [batchSaving, setBatchSaving] = useState(false)
   const [batchError, setBatchError] = useState('')
+  const [coaFile, setCoaFile] = useState<File | null>(null)
+  const [coaUploading, setCoaUploading] = useState(false)
+  const [existingCoa, setExistingCoa] = useState<{ url: string; filename: string } | null>(null)
   const [deleteBatchId, setDeleteBatchId] = useState<string | null>(null)
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [togglingBatchId, setTogglingBatchId] = useState<string | null>(null)
@@ -396,6 +422,7 @@ export default function VaultAdminPage() {
 
   // Batch handlers
   function openBatchDialog(batch?: Batch) {
+    setBatchDialogMode(batch ? 'edit' : 'create')
     if (batch) {
       setEditingBatch(batch)
       setBatchName(batch.name)
@@ -405,6 +432,9 @@ export default function VaultAdminPage() {
       setBatchTotalCannabinoids(
         batch.total_cannabinoids_percentage != null ? String(batch.total_cannabinoids_percentage) : ''
       )
+      setExistingCoa(
+        batch.coa_url ? { url: batch.coa_url, filename: batch.coa_filename || 'lab-results.pdf' } : null
+      )
     } else {
       setEditingBatch(null)
       setBatchName('')
@@ -412,9 +442,58 @@ export default function VaultAdminPage() {
       setBatchThc('')
       setBatchTerpenes('')
       setBatchTotalCannabinoids('')
+      setExistingCoa(null)
     }
+    setCoaFile(null)
     setBatchError('')
     setBatchDialogOpen(true)
+  }
+
+  function handleCoaFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) {
+      setCoaFile(null)
+      return
+    }
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    if (!isPdf) {
+      setBatchError('Only PDF files are supported')
+      e.target.value = ''
+      setCoaFile(null)
+      return
+    }
+
+    if (file.size > MAX_COA_BYTES) {
+      setBatchError('COA file must be 20 MB or smaller')
+      e.target.value = ''
+      setCoaFile(null)
+      return
+    }
+
+    setBatchError('')
+    setCoaFile(file)
+  }
+
+  async function handleRemoveExistingCoa() {
+    if (!editingBatch) return
+    setCoaUploading(true)
+    const result = await removeBatchCoa(editingBatch.id)
+    if (result.success) {
+      setExistingCoa(null)
+      // Replace the in-dialog batch with the fresh (coa-less) row so a
+      // subsequent save/reopen can't resurrect the stale coa_url, and
+      // refresh the table now — the dialog may be dismissed via Cancel
+      // (no loadBatches() call on that path), which would otherwise leave
+      // a dead COA link showing in the batch table.
+      if (result.batch) {
+        setEditingBatch(result.batch)
+      }
+      loadBatches()
+    } else {
+      setBatchError(result.error || 'Failed to remove COA')
+    }
+    setCoaUploading(false)
   }
 
   async function handleSaveBatch() {
@@ -434,13 +513,67 @@ export default function VaultAdminPage() {
       result = await createBatch(batchName, batchStrainId, testing)
     }
 
-    if (result.success) {
+    setBatchSaving(false)
+
+    if (!result.success || !result.batch) {
+      setBatchError(result.error || 'Failed to save batch')
+      return
+    }
+
+    // Promote the dialog into edit mode against the row that was just
+    // created/updated. Without this, retrying a failed COA upload below
+    // (on the create path) would re-run createBatch with the same name and
+    // fail with "Batch already exists" — a dead end for the user. The
+    // dialog's title/button label are keyed off `batchDialogMode`, not
+    // `editingBatch`, so this doesn't flip the label mid-flow.
+    setEditingBatch(result.batch)
+    setExistingCoa(
+      result.batch.coa_url
+        ? { url: result.batch.coa_url, filename: result.batch.coa_filename || 'lab-results.pdf' }
+        : null
+    )
+
+    if (!coaFile) {
       setBatchDialogOpen(false)
       loadBatches()
-    } else {
-      setBatchError(result.error || 'Failed to save batch')
+      return
     }
-    setBatchSaving(false)
+
+    // The batch itself is saved at this point — if anything below fails we
+    // must not close the dialog, so the user knows to just retry the upload.
+    setCoaUploading(true)
+    const batchId = result.batch.id
+
+    const uploadUrlResult = await createBatchCoaUploadUrl(batchId, coaFile.name)
+    if (!uploadUrlResult.success || !uploadUrlResult.path || !uploadUrlResult.token) {
+      setCoaUploading(false)
+      setBatchError(`Batch saved, but the COA upload failed: ${uploadUrlResult.error || 'Could not start upload'}`)
+      return
+    }
+
+    const supabase = createClient()
+    const { error: uploadError } = await supabase.storage
+      .from('lab-results')
+      .uploadToSignedUrl(uploadUrlResult.path, uploadUrlResult.token, coaFile, {
+        contentType: 'application/pdf',
+      })
+
+    if (uploadError) {
+      setCoaUploading(false)
+      setBatchError(`Batch saved, but the COA upload failed: ${uploadError.message}`)
+      return
+    }
+
+    const attachResult = await attachBatchCoa(batchId, uploadUrlResult.path, coaFile.name)
+    setCoaUploading(false)
+
+    if (!attachResult.success) {
+      setBatchError(`Batch saved, but the COA upload failed: ${attachResult.error || 'Could not attach file'}`)
+      return
+    }
+
+    setBatchDialogOpen(false)
+    loadBatches()
   }
 
   async function handleDeleteBatch() {
@@ -822,6 +955,7 @@ export default function VaultAdminPage() {
                             )}
                           </button>
                         </TableHead>
+                        <TableHead className="hidden md:table-cell">COA</TableHead>
                         <TableHead>
                           <button
                             type="button"
@@ -864,7 +998,7 @@ export default function VaultAdminPage() {
                     <TableBody>
                       {filteredBatches.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center text-muted-foreground">
+                          <TableCell colSpan={10} className="text-center text-muted-foreground">
                             {batches.length === 0 ? 'No batches found' : 'No batches match your filters'}
                           </TableCell>
                         </TableRow>
@@ -883,6 +1017,21 @@ export default function VaultAdminPage() {
                             <TableCell>{formatPercent(batch.thc_percentage)}</TableCell>
                             <TableCell className="hidden sm:table-cell">{formatPercent(batch.terpenes_percentage)}</TableCell>
                             <TableCell className="hidden md:table-cell">{formatPercent(batch.total_cannabinoids_percentage)}</TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {batch.coa_url ? (
+                                <a
+                                  href={batch.coa_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={batch.coa_filename || 'View lab results'}
+                                  className="inline-flex text-primary hover:text-primary/80"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                 batch.is_active
@@ -1327,9 +1476,9 @@ export default function VaultAdminPage() {
       <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingBatch ? 'Edit Batch' : 'Add Batch'}</DialogTitle>
+            <DialogTitle>{batchDialogMode === 'edit' ? 'Edit Batch' : 'Add Batch'}</DialogTitle>
             <DialogDescription>
-              {editingBatch ? 'Update the batch details.' : 'Enter details for the new batch.'}
+              {batchDialogMode === 'edit' ? 'Update the batch details.' : 'Enter details for the new batch.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1401,6 +1550,54 @@ export default function VaultAdminPage() {
                 />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label>Lab Results (COA)</Label>
+              {existingCoa && !coaFile && (
+                <div className="flex items-center justify-between gap-2 rounded-md border p-2">
+                  <a
+                    href={existingCoa.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-primary hover:underline truncate"
+                  >
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{existingCoa.filename}</span>
+                  </a>
+                  {editingBatch && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveExistingCoa}
+                      disabled={coaUploading}
+                    >
+                      <X className="mr-1 h-3.5 w-3.5" />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Input
+                  id="batchCoa"
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleCoaFileChange}
+                  className="text-sm"
+                />
+              </div>
+              {coaFile ? (
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Upload className="h-3 w-3" />
+                  {existingCoa ? 'Will replace with: ' : 'Staged: '}
+                  {coaFile.name}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {existingCoa ? 'Choose a file to replace the current COA.' : 'PDF only, up to 20 MB.'}
+                </p>
+              )}
+            </div>
             {batchError && (
               <p className="text-sm text-destructive">{batchError}</p>
             )}
@@ -1411,10 +1608,10 @@ export default function VaultAdminPage() {
             </Button>
             <Button
               onClick={handleSaveBatch}
-              disabled={batchSaving || !batchName.trim() || !batchStrainId}
+              disabled={batchSaving || coaUploading || !batchName.trim() || !batchStrainId}
             >
-              {batchSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {editingBatch ? 'Save Changes' : 'Add Batch'}
+              {(batchSaving || coaUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {coaUploading ? 'Uploading…' : batchDialogMode === 'edit' ? 'Save Changes' : 'Add Batch'}
             </Button>
           </DialogFooter>
         </DialogContent>

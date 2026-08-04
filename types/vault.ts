@@ -21,6 +21,11 @@ export interface Batch {
   thc_percentage?: number | null
   terpenes_percentage?: number | null
   total_cannabinoids_percentage?: number | null
+  coa_url?: string | null
+  coa_path?: string | null
+  coa_filename?: string | null
+  coa_uploaded_at?: string | null
+  coa_uploaded_by?: string | null
   strain?: Strain
 }
 
