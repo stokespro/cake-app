@@ -29,6 +29,7 @@ import {
   Vault,
   Store,
   BadgeDollarSign,
+  Package,
   Leaf,
   CircleGauge,
   Boxes,
@@ -96,16 +97,15 @@ const allNavigation: NavigationItem[] = [
 
   // 2. Operations group
   // NOTE: 'grow' is included at the group level ONLY so the "Cultivation" child
-  // below is reachable — it is deliberately excluded from the "Packaging"
-  // child (grow role is cultivation-only, per policy).
+  // below is reachable — it is deliberately excluded from the "Packaging" and
+  // "Packaging (New)" children (grow role is cultivation-only, per policy).
   {
     name: 'Operations',
     icon: Factory,
     roles: ['standard', 'packaging', 'vault', 'management', 'admin', 'grow'],
     children: [
-      // Legacy /dashboard/packaging now redirects here (see
-      // app/dashboard/packaging/page.tsx) — one board in the nav.
-      { name: 'Packaging', href: '/dashboard/packaging/board', icon: LayoutGrid, roles: ['standard', 'packaging', 'vault', 'management', 'admin'] },
+      { name: 'Packaging', href: '/dashboard/packaging', icon: Package, roles: ['standard', 'packaging', 'vault', 'management', 'admin'] },
+      { name: 'Packaging (New)', href: '/dashboard/packaging/board', icon: LayoutGrid, roles: ['packaging', 'vault', 'management', 'admin'] },
       { name: 'Cultivation', href: '/dashboard/cultivation', icon: Sprout, roles: ['vault', 'packaging', 'standard', 'management', 'admin', 'grow'] },
     ],
   },
