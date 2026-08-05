@@ -2,7 +2,8 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { requireFinance } from '@/lib/auth/session'
-import { markBillPaid } from '@/actions/finance'
+import { createBill, markBillPaid } from '@/actions/finance'
+import type { BillStatus } from '@/actions/finance'
 
 // ============================================================
 // TYPES
@@ -1002,5 +1003,257 @@ export async function getUntrackedBankTransactions(month: string): Promise<{
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     return { success: false, error: msg }
+  }
+}
+
+// ============================================================
+// createBillFromBankTransaction
+// ============================================================
+// SPRO-77: "Create Bill" on an untracked bank expense. Creates the bill AND
+// links it to the bank transaction so the transaction stops showing as
+// untracked.
+//
+// Why this doesn't just call assign_reconciliation_match() directly:
+// that RPC takes an EXISTING finance_reconciliation_log row id and requires
+// status='pending_review'. An untracked transaction has no log row at all.
+// So we seed a pending_review row for (bank_bs_id, newBillId) and then run the
+// RPC on it. The seed can never collide — the bill id is brand new and the
+// unique key is (bank_bs_id, bill_id) — and every cross-bill guard inside the
+// RPC (bank_txn_spent, already_reconciled, auto_applied_conflict) plus
+// pg_advisory_xact_lock(bank_bs_id) still executes. We never bypass them.
+//
+// Failure model, in order of what the user cares about:
+//   - already reconciled elsewhere  -> nothing is created at all
+//   - bill created, link failed     -> KEEP the bill (it's the user's data),
+//                                      delete the seed row so it can't render
+//                                      as a phantom proposal, warn the user
+//   - both succeeded                -> reconciled
+
+export interface CreateBillFromBankTransactionResult {
+  success: boolean
+  billCreated: boolean
+  reconciled: boolean
+  error?: string
+  warning?: string
+}
+
+export async function createBillFromBankTransaction(input: {
+  bsId: number
+  bill: {
+    name: string
+    amount: number
+    due_date: string
+    status: BillStatus
+    payment_method?: string | null
+    payment_ref?: string | null
+    paid_date?: string | null
+    amount_paid?: number | null
+    notes?: string | null
+    vendor_id?: string
+  }
+}): Promise<CreateBillFromBankTransactionResult> {
+  const auth = await requireFinance()
+  if (!auth.authorized) {
+    return { success: false, billCreated: false, reconciled: false, error: auth.reason }
+  }
+
+  // Use server-derived userId — never trust a client-supplied value
+  const userId = auth.session.userId
+
+  const { bsId, bill } = input
+
+  if (!Number.isFinite(bsId)) {
+    return {
+      success: false,
+      billCreated: false,
+      reconciled: false,
+      error: 'A bank transaction is required',
+    }
+  }
+
+  // Tracked outside the try so the catch below can tell the caller whether a
+  // bill actually landed — reporting billCreated:false after a successful
+  // insert would invite the user to save again and create a duplicate.
+  let billCreated = false
+
+  try {
+    const supabase = await createServiceClient()
+
+    // ---- 1. Pre-flight: is this transaction still untracked? -------------
+    // Mirrors get_untracked_bank_transactions()'s own definition of untracked
+    // (no auto_applied/confirmed log row). Runs BEFORE createBill so a stale
+    // page can't leave an orphan bill behind.
+    const { data: spentRows, error: spentError } = await supabase
+      .from('finance_reconciliation_log')
+      .select('id')
+      .eq('bank_bs_id', bsId)
+      .in('status', ['auto_applied', 'confirmed'])
+      .limit(1)
+
+    if (spentError) {
+      console.error('createBillFromBankTransaction spent-check error:', spentError)
+      return { success: false, billCreated: false, reconciled: false, error: spentError.message }
+    }
+    if (spentRows && spentRows.length > 0) {
+      return {
+        success: false,
+        billCreated: false,
+        reconciled: false,
+        error:
+          'This bank transaction has already been reconciled against another bill. Refresh the finance page.',
+      }
+    }
+
+    // ---- 2. Read the bank transaction's own figures ----------------------
+    // The seed log row is an audit record of what the BANK said, so amount /
+    // date / description come from banksync, never from the client (the user
+    // can edit the amount in the sheet, and that edit must not rewrite the
+    // bank side of the audit trail). Same source the panel itself renders.
+    const { data: txnRows, error: txnError } = await supabase.rpc(
+      'get_untracked_bank_transactions'
+    )
+
+    if (txnError) {
+      console.error('createBillFromBankTransaction txn-lookup error:', txnError)
+      return { success: false, billCreated: false, reconciled: false, error: txnError.message }
+    }
+
+    const txn = ((txnRows ?? []) as BankTransaction[]).find((t) => Number(t.bs_id) === Number(bsId))
+
+    if (!txn) {
+      return {
+        success: false,
+        billCreated: false,
+        reconciled: false,
+        error:
+          'That bank transaction is no longer untracked. Refresh the finance page and try again.',
+      }
+    }
+
+    // ---- 3. Create the bill ---------------------------------------------
+    const billResult = await createBill({
+      name: bill.name,
+      vendor_id: bill.vendor_id || undefined,
+      amount: bill.amount,
+      due_date: bill.due_date,
+      status: bill.status,
+      payment_method: bill.payment_method ?? undefined,
+      payment_ref: bill.payment_ref ?? undefined,
+      paid_date: bill.paid_date ?? undefined,
+      amount_paid: bill.amount_paid ?? undefined,
+      notes: bill.notes ?? undefined,
+      created_by: userId,
+    })
+
+    if (!billResult.success || !billResult.data) {
+      return {
+        success: false,
+        billCreated: false,
+        reconciled: false,
+        error: billResult.error ?? 'Failed to create bill',
+      }
+    }
+
+    const newBill = billResult.data
+    billCreated = true
+
+    // ---- 4. Seed the pending_review log row ------------------------------
+    // suggested_payment_method: assign_reconciliation_match() hard-rejects
+    // 'check' with error_code='check_requires_ref' — a defensive guard for a
+    // path that has no payment_ref to work with. Our bill DOES carry its own
+    // check number, so we seed a non-check method to get past that guard and
+    // restore the real method on the audit row immediately after the assign
+    // succeeds (step 6). Without the restore, a finance audit row would
+    // permanently claim 'ach' for a check. The RPC itself is not modified.
+    const billMethod = normalizePaymentMethod(bill.payment_method)
+    const seedMethod = billMethod === 'check' ? 'ach' : billMethod
+
+    const { data: seedRow, error: seedError } = await supabase
+      .from('finance_reconciliation_log')
+      .insert({
+        bank_bs_id: bsId,
+        bill_id: newBill.id,
+        match_type: 'manual_override',
+        // Raw signed banksync amount (outflows are negative), same convention
+        // as reconcile_non_check_debits(). The RPC does ABS() on it.
+        bank_amount: txn.amount,
+        bill_amount: newBill.amount,
+        bank_date: txn.txn_date,
+        bank_description: txn.description,
+        status: 'pending_review',
+        suggested_payment_method: seedMethod,
+      })
+      .select('id')
+      .single()
+
+    if (seedError || !seedRow) {
+      console.error('createBillFromBankTransaction seed error:', seedError)
+      return {
+        success: true,
+        billCreated: true,
+        reconciled: false,
+        warning: `Bill created, but it could not be linked to the bank transaction: ${
+          seedError?.message ?? 'could not record the link'
+        }`,
+      }
+    }
+
+    // ---- 5. Apply the match atomically -----------------------------------
+    const assignResult = await assignReconciliationMatch(seedRow.id, newBill.id)
+
+    if (!assignResult.success) {
+      // Keep the bill — it's the user's data and re-entering it is worse than
+      // an unlinked bill. Remove the seed row so it doesn't surface as a
+      // phantom "match proposed" in the reconciliation UI. Guarded on
+      // pending_review so we can never delete a row another process moved on
+      // (e.g. a concurrent assign for the same bank_bs_id dismissed ours,
+      // which is exactly the 'not_pending' rejection).
+      const { error: cleanupError } = await supabase
+        .from('finance_reconciliation_log')
+        .delete()
+        .eq('id', seedRow.id)
+        .eq('status', 'pending_review')
+
+      if (cleanupError) {
+        console.error('createBillFromBankTransaction seed-cleanup error:', cleanupError)
+      }
+
+      return {
+        success: true,
+        billCreated: true,
+        reconciled: false,
+        warning: `Bill created, but it could not be linked to the bank transaction: ${
+          assignResult.error ?? 'unknown error'
+        }`,
+      }
+    }
+
+    // ---- 6. Restore the real payment method on the audit row --------------
+    // See step 4. Non-fatal: the money is already applied correctly on the
+    // bill itself; this only corrects the audit row's descriptive field.
+    if (billMethod !== seedMethod) {
+      const { error: methodError } = await supabase
+        .from('finance_reconciliation_log')
+        .update({ suggested_payment_method: billMethod })
+        .eq('id', seedRow.id)
+
+      if (methodError) {
+        console.error('createBillFromBankTransaction method-restore error:', methodError)
+      }
+    }
+
+    return { success: true, billCreated: true, reconciled: true }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('createBillFromBankTransaction error:', err)
+    if (billCreated) {
+      return {
+        success: true,
+        billCreated: true,
+        reconciled: false,
+        warning: `Bill created, but it could not be linked to the bank transaction: ${msg}`,
+      }
+    }
+    return { success: false, billCreated: false, reconciled: false, error: msg }
   }
 }

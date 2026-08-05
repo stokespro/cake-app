@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -99,6 +99,8 @@ import {
   getVendors,
 } from '@/actions/finance'
 import type { Bill, BillStatus, BillTemplate, Vendor } from '@/actions/finance'
+import { createBillFromBankTransaction } from '@/app/dashboard/finance/_actions/bank'
+import { derivePrefillPayment } from '@/app/dashboard/finance/_lib/bank-prefill'
 import { VendorCombobox } from '@/components/finance/vendor-combobox'
 
 // -----------------------------------------------------------------------
@@ -211,8 +213,25 @@ type ViewMode = 'table' | 'card'
 // Main page
 // -----------------------------------------------------------------------
 
+// useSearchParams() requires a Suspense boundary in the App Router, so the
+// page body lives in BillsPageContent and the default export only wraps it.
 export default function BillsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64">
+          <div className="text-muted-foreground">Loading bills...</div>
+        </div>
+      }
+    >
+      <BillsPageContent />
+    </Suspense>
+  )
+}
+
+function BillsPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, isLoading: authLoading } = useAuth()
 
   const [month, setMonth] = useState(currentMonthStr())
@@ -243,6 +262,14 @@ export default function BillsPage() {
   })
   const [billSaving, setBillSaving] = useState(false)
   const [billFormErrors, setBillFormErrors] = useState<BillFormErrors>({})
+
+  // SPRO-77: set when the create sheet was opened from an untracked bank
+  // expense (Finance overview → "Create Bill"). While set, saving a NEW bill
+  // goes through createBillFromBankTransaction() so the bill is also
+  // reconciled against that bank transaction. Cleared as soon as an attempt
+  // has been made, and by openNewBillSheet(), so a later manual bill can never
+  // be wrongly reconciled.
+  const [pendingBankBsId, setPendingBankBsId] = useState<number | null>(null)
 
   // Delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -276,6 +303,60 @@ export default function BillsPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage, month])
+
+  // SPRO-77: open the create sheet prefilled from an untracked bank expense.
+  // Read the params exactly ONCE — the ref guard means no later re-render (or
+  // the router.replace() below, which itself changes searchParams) can reopen
+  // the sheet after the user has closed it.
+  const prefillConsumed = useRef(false)
+
+  useEffect(() => {
+    if (prefillConsumed.current) return
+
+    const name = searchParams.get('prefill_name')
+    if (!name) return
+
+    prefillConsumed.current = true
+
+    const amount = searchParams.get('prefill_amount') ?? ''
+    const dueDate = searchParams.get('prefill_due_date') ?? ''
+    const memo = searchParams.get('prefill_memo') ?? ''
+    const desc = searchParams.get('prefill_desc') ?? ''
+    const bsIdRaw = searchParams.get('prefill_bs_id')
+    const bsId = bsIdRaw != null && bsIdRaw !== '' ? Number(bsIdRaw) : NaN
+
+    // Payment method comes from the bank description: a check keeps its parsed
+    // check number, and a check with an unparsable number still records as a
+    // check with a blank ref so the sheet's own validation asks for it.
+    const { payment_method, payment_ref } = derivePrefillPayment(desc || memo)
+
+    setEditingBill(null)
+    setBillForm({
+      name,
+      vendor_id: '',            // vendor is a deliberate manual choice
+      amount,
+      due_date: dueDate,
+      status: 'paid',           // the money has already left the bank
+      payment_method,
+      payment_ref,
+      paid_date: dueDate || new Date().toISOString().substring(0, 10),
+      amount_paid: '',
+      notes: memo,
+    })
+    setBillFormErrors({})
+    setPendingBankBsId(Number.isFinite(bsId) ? bsId : null)
+    setBillSheetOpen(true)
+
+    // Show the month the new bill will land in (period_month is derived from
+    // due_date server-side), otherwise it can be created into a month the user
+    // isn't looking at and appear to have vanished.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+      setMonth(`${dueDate.substring(0, 7)}-01`)
+    }
+
+    // Drop the params so a refresh (or a back-navigation) doesn't re-fire this.
+    router.replace('/dashboard/finance/bills', { scroll: false })
+  }, [searchParams, router])
 
   const fetchData = async () => {
     setLoading(true)
@@ -331,6 +412,8 @@ export default function BillsPage() {
 
   const openNewBillSheet = () => {
     setEditingBill(null)
+    // Never carry a bank link over into a manually-started bill.
+    setPendingBankBsId(null)
     setBillForm({
       name: '',
       vendor_id: '',
@@ -349,6 +432,9 @@ export default function BillsPage() {
 
   const openEditBillSheet = (bill: Bill) => {
     setEditingBill(bill)
+    // Defence in depth: the edit path never reads pendingBankBsId, but an
+    // abandoned prefill must not survive into any other save.
+    setPendingBankBsId(null)
     setBillForm({
       name: bill.name,
       vendor_id: bill.vendor_id ?? '',
@@ -434,6 +520,45 @@ export default function BillsPage() {
           return
         }
         toast.success('Bill updated')
+      } else if (pendingBankBsId !== null) {
+        // SPRO-77: created from an untracked bank expense — create AND
+        // reconcile in one server action. Same field mapping as the plain
+        // create below (createBill derives the full amount_paid for 'paid';
+        // only 'partial' passes an explicit amount_paid).
+        const result = await createBillFromBankTransaction({
+          bsId: pendingBankBsId,
+          bill: {
+            name: billForm.name.trim(),
+            vendor_id: billForm.vendor_id || undefined,
+            amount,
+            due_date: billForm.due_date,
+            status: billForm.status,
+            payment_method: needsPayment ? billForm.payment_method || null : undefined,
+            payment_ref: needsPayment ? billForm.payment_ref.trim() || undefined : undefined,
+            paid_date: needsPayment ? billForm.paid_date || null : undefined,
+            amount_paid: needsPayment && billForm.status === 'partial'
+              ? parseFloat(billForm.amount_paid)
+              : undefined,
+            notes: billForm.notes.trim() || undefined,
+          },
+        })
+
+        // Once a bill exists, drop the bank link so a second save can never
+        // retry it. On an outright failure nothing was created, so the link
+        // intent is kept for the retry.
+        if (result.billCreated) setPendingBankBsId(null)
+
+        if (!result.success) {
+          toast.error(result.error || 'Failed to create bill')
+          return
+        }
+        if (result.reconciled) {
+          toast.success('Bill created and matched to the bank transaction')
+        } else {
+          toast.warning(
+            result.warning || 'Bill created, but it could not be linked to the bank transaction'
+          )
+        }
       } else {
         const result = await createBill({
           name: billForm.name.trim(),

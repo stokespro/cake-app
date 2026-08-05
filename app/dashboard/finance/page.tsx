@@ -1402,7 +1402,9 @@ function UntrackedExpensesPanel({
   onCreateBill,
 }: {
   month: string
-  onCreateBill: (prefill: { name: string; amount: string; due_date: string }) => void
+  /** Receives the whole bank transaction — the bills page needs its bs_id and
+   *  description to prefill the create sheet and auto-reconcile on save. */
+  onCreateBill: (txn: BankTransaction) => void
 }) {
   const [open, setOpen] = useState(false)
   const [transactions, setTransactions] = useState<BankTransaction[]>([])
@@ -1525,13 +1527,7 @@ function UntrackedExpensesPanel({
                                 size="sm"
                                 variant="outline"
                                 className="h-7 text-xs"
-                                onClick={() =>
-                                  onCreateBill({
-                                    name: txn.merchant_name ?? txn.description,
-                                    amount: String(Math.abs(txn.amount)),
-                                    due_date: txn.txn_date,
-                                  })
-                                }
+                                onClick={() => onCreateBill(txn)}
                               >
                                 <Plus className="h-3 w-3 mr-1" />
                                 Create Bill
@@ -1577,13 +1573,6 @@ export default function FinanceOverviewPage() {
 
   // Manual bank sync
   const [syncing, setSyncing] = useState(false)
-
-  // Create-bill prefill state (triggered from UntrackedExpensesPanel)
-  const [billPrefill, setBillPrefill] = useState<{
-    name: string
-    amount: string
-    due_date: string
-  } | null>(null)
 
   const userRole = user?.role ?? 'standard'
   const canManage = userRole === 'admin' || userRole === 'management'
@@ -1709,17 +1698,19 @@ export default function FinanceOverviewPage() {
   }
 
   // Navigate to the bills page with a pre-filled one-off bill via URL params.
-  // The bills page handles the actual create; we just route there.
-  const handleCreateBillFromTransaction = (prefill: {
-    name: string
-    amount: string
-    due_date: string
-  }) => {
-    setBillPrefill(prefill)
+  // The bills page opens its create sheet from these on mount, and on save
+  // links the new bill back to this bank transaction (prefill_bs_id) so the
+  // transaction stops showing as untracked. URLSearchParams handles encoding.
+  const handleCreateBillFromTransaction = (txn: BankTransaction) => {
     const params = new URLSearchParams({
-      prefill_name: prefill.name,
-      prefill_amount: prefill.amount,
-      prefill_due_date: prefill.due_date,
+      prefill_name: txn.merchant_name ?? txn.description,
+      prefill_amount: String(Math.abs(txn.amount)),
+      prefill_due_date: txn.txn_date,
+      prefill_bs_id: String(txn.bs_id),
+      // Raw bank description — used to derive the payment method / check number.
+      prefill_desc: txn.description,
+      // What the bill's notes get seeded with.
+      prefill_memo: txn.original_description ?? txn.description,
     })
     router.push(`/dashboard/finance/bills?${params.toString()}`)
   }
@@ -1735,9 +1726,6 @@ export default function FinanceOverviewPage() {
   if (!canManage) {
     return null
   }
-
-  // Suppress unused-variable warning for billPrefill — used in the handler above
-  void billPrefill
 
   const cashFlow: CashFlowResult | null = summary?.cashFlow
     ? showPipeline
