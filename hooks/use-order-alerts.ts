@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { getOrderAlertDetails, getSkuNames } from '@/actions/packaging-board'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -97,23 +98,6 @@ function playMeow(soundEnabled: boolean) {
 
 const skuNameCache = new Map<string, string>()
 
-async function resolveSkuName(
-  skuId: string,
-  supabase: ReturnType<typeof createClient>
-): Promise<string> {
-  if (skuNameCache.has(skuId)) return skuNameCache.get(skuId)!
-
-  const { data } = await supabase
-    .from('skus')
-    .select('code, name')
-    .eq('id', skuId)
-    .single()
-
-  const label = data ? `${data.name} (${data.code})` : skuId
-  skuNameCache.set(skuId, label)
-  return label
-}
-
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -168,29 +152,15 @@ export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrder
             order_number?: string
           }
 
-          // Fetch customer + all items (with SKU join) in parallel
-          const [customerRes, itemsRes] = await Promise.all([
-            supabase
-              .from('customers')
-              .select('business_name')
-              .eq('id', row.customer_id)
-              .single(),
-            supabase
-              .from('order_items')
-              .select('sku_id, quantity, skus(code, name)')
-              .eq('order_id', row.id),
-          ])
+          // Fetch customer + all items via the server action — the anon
+          // client has no SELECT grant on `customers` or `order_items`/`skus`.
+          const details = await getOrderAlertDetails(row.id)
 
-          const customerName =
-            customerRes.data?.business_name ?? 'Unknown dispensary'
+          const customerName = details?.customerName ?? 'Unknown dispensary'
 
-          const items: OrderItemSnapshot[] = (itemsRes.data ?? []).map((item) => {
-            const skuData = item.skus as unknown as { code: string; name: string } | null
-            const label = skuData ? `${skuData.name} (${skuData.code})` : item.sku_id
-            // Cache it for future diff lookups
-            if (skuData) skuNameCache.set(item.sku_id, label)
-            return { skuId: item.sku_id, skuName: label, quantity: item.quantity }
-          })
+          const items: OrderItemSnapshot[] = details?.items ?? []
+          // Cache resolved names for future diff lookups
+          for (const item of items) skuNameCache.set(item.skuId, item.skuName)
 
           const event: AlertEvent = {
             type: 'new_order',
@@ -257,25 +227,23 @@ export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrder
 
         if (changes.length === 0) return
 
-        // Fetch customer + order number
-        const { data: order } = await supabase
-          .from('orders')
-          .select('order_number, customer_id, customers(business_name)')
-          .eq('id', orderId)
-          .single()
-
-        const customerRaw = order?.customers as unknown as { business_name: string } | null
-        const customerName = customerRaw?.business_name ?? 'Unknown dispensary'
-
-        // Resolve all unique sku IDs to names
+        // Resolve all unique sku IDs referenced by the diff
         const allSkuIds = new Set<string>()
         for (const c of changes) {
           if (c.oldSkuId) allSkuIds.add(c.oldSkuId)
           if (c.newSkuId) allSkuIds.add(c.newSkuId)
         }
-        await Promise.all(
-          Array.from(allSkuIds).map((id) => resolveSkuName(id, supabase))
-        )
+
+        // Fetch customer/order number + sku names via server actions — the
+        // anon client has no SELECT grant on `customers` or `skus`.
+        const [details, skuNames] = await Promise.all([
+          getOrderAlertDetails(orderId),
+          getSkuNames(Array.from(allSkuIds)),
+        ])
+
+        const customerName = details?.customerName ?? 'Unknown dispensary'
+        const orderNumber = details?.orderNumber ?? undefined
+        for (const [id, name] of Object.entries(skuNames)) skuNameCache.set(id, name)
 
         // Build human-readable diff
         const diff: ItemDiff[] = []
@@ -329,14 +297,14 @@ export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrder
           type: 'order_edited',
           orderId,
           customerName,
-          orderNumber: order?.order_number,
+          orderNumber,
           diff,
         }
 
         meow()
         onAlertRef.current(event)
 
-        const label = order?.order_number ? ` #${order.order_number}` : ''
+        const label = orderNumber ? ` #${orderNumber}` : ''
         toast.warning(`Order${label} edited — ${customerName} · ${diff.length} change${diff.length !== 1 ? 's' : ''}`, {
           duration: 6000,
         })
