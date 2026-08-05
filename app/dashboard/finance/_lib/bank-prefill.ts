@@ -91,3 +91,149 @@ export function derivePrefillPayment(description: string | null | undefined): {
   }
   return { payment_method: 'ach', payment_ref: '' }
 }
+
+// =======================================================================
+// Duplicate-bill detection (SPRO-77 round 2)
+// =======================================================================
+// Live testing found the real hazard in "Create Bill from an untracked bank
+// expense": the transaction may ALREADY have a bill on record that the
+// reconciliation matcher structurally cannot see. bs_id 1083 ($22,815,
+// "TRANSFER FROM X5514 TO X1210 JTS POS BILL JULY") has a paid "PSO - large"
+// bill for the same amount — reconcile_non_check_debits() gates on a vendor
+// keyword appearing in the description, and the bank's typo ("POS BILL" for
+// "PSO BILL") means the keyword never matches. Creating a bill from that
+// transaction silently produces a SECOND paid $22,815 liability.
+//
+// This window is deliberately AMOUNT + DATE ONLY — no vendor-keyword gating.
+// Replicating the matcher's own gating here would reproduce exactly the blind
+// spot the warning exists to cover. It is intentionally loose: it is advisory
+// (plus a server-side "are you sure" gate), and a human decides.
+
+/** Two amounts are "the same money" within a cent. */
+export const DUPLICATE_AMOUNT_TOLERANCE = 0.01
+
+/**
+ * Days either side of the bank transaction date to look for an existing bill.
+ * Same 45-day window reconcile_non_check_debits() and getMatchCandidates()
+ * use, so the warning covers at least everything the matcher would consider.
+ */
+export const DUPLICATE_WINDOW_DAYS = 45
+
+/** Most candidates ever shown/returned. Beyond this the list stops being useful. */
+export const DUPLICATE_CANDIDATE_LIMIT = 10
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** An existing bill that might already cover a given bank transaction. */
+export interface DuplicateBillCandidate {
+  id: string
+  name: string
+  vendor_name: string | null
+  amount: number
+  due_date: string
+  status: string
+  payment_ref: string | null
+}
+
+/**
+ * Parses a 'YYYY-MM-DD' date at UTC midnight. Returns null for anything that
+ * isn't exactly that shape (including real Date-parseable strings such as
+ * '2026-08' or a full timestamp) — callers treat null as "unusable date" and
+ * refuse to run the duplicate check rather than silently comparing against
+ * an Invalid Date, which would make every comparison false and quietly
+ * disable the safeguard.
+ */
+export function parseIsoDateUtc(date: string | null | undefined): Date | null {
+  if (!date || !ISO_DATE_RE.test(date)) return null
+  const parsed = new Date(`${date}T00:00:00Z`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/**
+ * Whole days from `from` to `to` (positive = `to` is later). Null if either
+ * date is unusable.
+ */
+export function daysBetweenIsoDates(from: string, to: string): number | null {
+  const a = parseIsoDateUtc(from)
+  const b = parseIsoDateUtc(to)
+  if (!a || !b) return null
+  return Math.round((b.getTime() - a.getTime()) / MS_PER_DAY)
+}
+
+/**
+ * The inclusive due_date window to search for a duplicate bill, as ISO date
+ * strings ready to hand to PostgREST gte/lte. Null when the transaction date
+ * is unusable.
+ */
+export function duplicateDateWindow(
+  txnDate: string,
+  windowDays: number = DUPLICATE_WINDOW_DAYS
+): { minDate: string; maxDate: string } | null {
+  const anchor = parseIsoDateUtc(txnDate)
+  if (!anchor) return null
+  const offset = windowDays * MS_PER_DAY
+  return {
+    minDate: new Date(anchor.getTime() - offset).toISOString().substring(0, 10),
+    maxDate: new Date(anchor.getTime() + offset).toISOString().substring(0, 10),
+  }
+}
+
+/**
+ * True when a bill amount matches a bank amount within the tolerance. Signs are
+ * ignored — banksync stores outflows negative, finance_bills.amount is positive.
+ *
+ * Compared in integer cents, not as floats: `Math.abs(100 - 100.01)` is
+ * 0.010000000000005 in IEEE-754, so a plain `<= 0.01` would reject an
+ * exactly-one-cent difference that Postgres NUMERIC (which the DB-side window
+ * uses) accepts. Same input, two different answers, and the disagreeing case is
+ * the boundary this tolerance exists to include.
+ */
+export function amountsMatch(billAmount: number, bankAmount: number): boolean {
+  const cents = (n: number) => Math.round(Math.abs(n) * 100)
+  return Math.abs(cents(billAmount) - cents(bankAmount)) <= cents(DUPLICATE_AMOUNT_TOLERANCE)
+}
+
+/**
+ * Orders duplicate candidates by how close their due date is to the bank
+ * transaction date (nearest first) and caps the list. Candidates with an
+ * unparsable due date sort last rather than being dropped — a bill that
+ * matches the amount is worth showing even if its date is odd.
+ *
+ * Ties keep their incoming relative order (Array.prototype.sort is stable),
+ * so the caller's own secondary ordering survives.
+ */
+export function rankDuplicateCandidates<T extends { due_date: string }>(
+  candidates: T[],
+  txnDate: string,
+  limit: number = DUPLICATE_CANDIDATE_LIMIT
+): T[] {
+  const distance = (c: T): number => {
+    const days = daysBetweenIsoDates(txnDate, c.due_date)
+    return days === null ? Number.POSITIVE_INFINITY : Math.abs(days)
+  }
+  return [...candidates].sort((a, b) => distance(a) - distance(b)).slice(0, limit)
+}
+
+/**
+ * Drops candidates already reconciled (auto_applied/confirmed) against a
+ * DIFFERENT bank transaction than the one being checked — the recurring-bill
+ * false positive. Rent is $5,000/month; June's bill is already linked to
+ * June's debit, so July's untracked debit falls inside the amount+date window
+ * and would otherwise surface June's ALREADY-SPOKEN-FOR bill as if it were a
+ * duplicate of July's payment, telling the user to "match to it instead" of
+ * creating July's bill — exactly backwards advice.
+ *
+ * Pure Set-based filter, split out of findDuplicateBillCandidates()
+ * (_actions/bank.ts) purely so the filtering behavior — not the query that
+ * feeds it — can be unit-tested without a DB round trip. Mirrors
+ * getMatchCandidates()'s identical exclusion (same file, ~line 674) for the
+ * same reason: a candidate spoken for elsewhere is never a real duplicate.
+ */
+export function excludeReconciledElsewhere<T extends { id: string }>(
+  candidates: T[],
+  excludedIds: Iterable<string>
+): T[] {
+  const excluded = new Set(excludedIds)
+  return candidates.filter((c) => !excluded.has(c.id))
+}

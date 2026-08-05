@@ -4,6 +4,16 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { requireFinance } from '@/lib/auth/session'
 import { createBill, markBillPaid } from '@/actions/finance'
 import type { BillStatus } from '@/actions/finance'
+import {
+  derivePrefillPayment,
+  duplicateDateWindow,
+  excludeReconciledElsewhere,
+  rankDuplicateCandidates,
+  DUPLICATE_AMOUNT_TOLERANCE,
+} from '@/app/dashboard/finance/_lib/bank-prefill'
+import type { DuplicateBillCandidate } from '@/app/dashboard/finance/_lib/bank-prefill'
+
+type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
 // ============================================================
 // TYPES
@@ -1007,23 +1017,489 @@ export async function getUntrackedBankTransactions(month: string): Promise<{
 }
 
 // ============================================================
+// Shared building blocks for the untracked-transaction flows
+// ============================================================
+// createBillFromBankTransaction() and linkBillToBankTransaction() differ only
+// in whether the target bill is created first. Everything else — the
+// bank_txn_spent pre-flight, reading the bank side of the audit trail, and the
+// seed-then-assign dance around assign_reconciliation_match() — is shared so
+// the two can never drift into having different guarantees.
+
+/**
+ * Refuses early if this bank transaction has already been reconciled
+ * (auto_applied or confirmed) against ANY bill. Mirrors
+ * get_untracked_bank_transactions()'s own definition of "untracked" and the
+ * RPC's `bank_txn_spent` guard. Running it BEFORE creating anything means a
+ * stale page can't leave an orphan bill behind.
+ */
+async function isBankTransactionSpent(
+  supabase: ServiceClient,
+  bsId: number
+): Promise<{ spent: boolean; error?: string }> {
+  const { data, error } = await supabase
+    .from('finance_reconciliation_log')
+    .select('id')
+    .eq('bank_bs_id', bsId)
+    .in('status', ['auto_applied', 'confirmed'])
+    .limit(1)
+
+  if (error) {
+    console.error('isBankTransactionSpent error:', error)
+    return { spent: false, error: error.message }
+  }
+  return { spent: (data?.length ?? 0) > 0 }
+}
+
+/**
+ * Reads one still-untracked transaction's own figures from banksync. The seed
+ * log row is an audit record of what the BANK said, so amount / date /
+ * description must come from here and never from the client (the user can edit
+ * the amount in the sheet, and that edit must not rewrite the bank side of the
+ * audit trail).
+ */
+async function readUntrackedBankTransaction(
+  supabase: ServiceClient,
+  bsId: number
+): Promise<{ txn?: BankTransaction; error?: string }> {
+  const { data, error } = await supabase.rpc('get_untracked_bank_transactions')
+
+  if (error) {
+    console.error('readUntrackedBankTransaction error:', error)
+    return { error: error.message }
+  }
+
+  const txn = ((data ?? []) as BankTransaction[]).find((t) => Number(t.bs_id) === Number(bsId))
+
+  if (!txn) {
+    return {
+      error: 'That bank transaction is no longer untracked. Refresh the finance page and try again.',
+    }
+  }
+  return { txn }
+}
+
+// ---- Duplicate detection ------------------------------------------------
+// Deliberately amount + date ONLY. reconcile_non_check_debits() additionally
+// requires a vendor keyword from the bill/vendor name to appear in the bank
+// description; that gating is exactly why bs_id 1083 ($22,815, "TRANSFER FROM
+// X5514 TO X1210 JTS POS BILL JULY") shows as untracked despite its paid
+// "PSO - large" bill — the bank's "POS BILL" typo defeats the "PSO BILL"
+// keyword. Replicating the matcher's gating here would rebuild the blind spot
+// this check exists to cover. It is intentionally loose and advisory: a human
+// decides, and createBillFromBankTransaction() only requires them to say so.
+//
+// EXCLUSION (post-measurement fix): a candidate already reconciled
+// (auto_applied/confirmed) against a DIFFERENT bank transaction is never a
+// real duplicate of THIS one — it's the recurring-bill case. Rent is
+// $5,000/month; June's bill is already linked to June's debit, so July's
+// untracked debit would otherwise pull June's bill into the amount+date
+// window and tell the user to "match to it instead" of creating July's bill,
+// which is exactly the wrong advice. Same exclusion getMatchCandidates() uses
+// (see its comment block above, ~line 491) and for the identical reason —
+// mirrored here rather than reimplemented differently so the two paths can't
+// silently diverge on what counts as "already spoken for". Measured against
+// production (read-only): this exclusion drops the candidate set from 73
+// pairs / 38 transactions-with-a-banner to 14 pairs / 11 transactions.
+
+/** Cap on rows pulled before ranking. The amount window makes >100 unrealistic. */
+const DUPLICATE_SCAN_LIMIT = 100
+
+type DuplicateBillRow = {
+  id: string
+  name: string
+  amount: number
+  due_date: string
+  status: string
+  payment_ref: string | null
+  vendor: { name: string } | { name: string }[] | null
+}
+
+async function findDuplicateBillCandidates(
+  supabase: ServiceClient,
+  bsId: number,
+  txn: Pick<BankTransaction, 'amount' | 'txn_date'>
+): Promise<{ data?: DuplicateBillCandidate[]; error?: string }> {
+  const window = duplicateDateWindow(txn.txn_date)
+
+  if (!window) {
+    // Unreachable with real data (txn_date is a DATE column) but must not be
+    // swallowed: silently skipping the check is how a duplicate gets created.
+    return {
+      error: `Could not read the bank transaction date ("${txn.txn_date}"), so existing bills could not be checked for a duplicate.`,
+    }
+  }
+
+  const bankAmount = Math.abs(Number(txn.amount))
+
+  const { data, error } = await supabase
+    .from('finance_bills')
+    .select('id, name, amount, due_date, status, payment_ref, vendor:finance_vendors(name)')
+    .neq('status', 'void')
+    .gte('amount', bankAmount - DUPLICATE_AMOUNT_TOLERANCE)
+    .lte('amount', bankAmount + DUPLICATE_AMOUNT_TOLERANCE)
+    .gte('due_date', window.minDate)
+    .lte('due_date', window.maxDate)
+    .order('due_date', { ascending: false })
+    .limit(DUPLICATE_SCAN_LIMIT)
+
+  if (error) {
+    console.error('findDuplicateBillCandidates error:', error)
+    return { error: error.message }
+  }
+
+  const rows = (data ?? []) as DuplicateBillRow[]
+
+  // Bills already reconciled (auto_applied/confirmed) against a DIFFERENT bank
+  // transaction than this one — never real duplicates of THIS transaction. See
+  // EXCLUSION comment above. Bounded to the candidate ids just fetched (never
+  // unbounded — PostgREST silently caps at 1000 rows with no error, mirroring
+  // getMatchCandidates()'s own reasoning) and computed AFTER fetching
+  // candidates so the exclusion query never competes with DUPLICATE_SCAN_LIMIT.
+  const candidateIds = rows.map((r) => r.id)
+  const excludedBillIds = new Set<string>()
+
+  if (candidateIds.length > 0) {
+    const { data: reconciledElsewhere, error: reconciledError } = await supabase
+      .from('finance_reconciliation_log')
+      .select('bill_id')
+      .in('bill_id', candidateIds)
+      .in('status', ['auto_applied', 'confirmed'])
+      .neq('bank_bs_id', bsId)
+
+    if (reconciledError) {
+      console.error('findDuplicateBillCandidates reconciled-elsewhere error:', reconciledError)
+      return { error: reconciledError.message }
+    }
+
+    for (const r of reconciledElsewhere ?? []) {
+      if (r.bill_id) excludedBillIds.add(r.bill_id)
+    }
+  }
+
+  const candidates: DuplicateBillCandidate[] = excludeReconciledElsewhere(rows, excludedBillIds).map((r) => {
+    const vendorData = r.vendor
+    const vendorName = Array.isArray(vendorData) ? (vendorData[0]?.name ?? null) : (vendorData?.name ?? null)
+    return {
+      id: r.id,
+      name: r.name,
+      vendor_name: vendorName,
+      amount: Number(r.amount),
+      due_date: r.due_date,
+      status: r.status,
+      payment_ref: r.payment_ref,
+    }
+  })
+
+  return { data: rankDuplicateCandidates(candidates, txn.txn_date) }
+}
+
+// ---- Seed + assign ------------------------------------------------------
+
+interface SeedAndAssignInput {
+  bsId: number
+  billId: string
+  /** finance_bills.amount for the audit row's bill_amount column. */
+  billAmount: number
+  /**
+   * The payment method that should end up on the AUDIT row. 'check' is seeded
+   * as 'ach' and restored after the assign — see below.
+   */
+  auditPaymentMethod: string | null | undefined
+  txn: BankTransaction
+}
+
+/**
+ * Pairs a bank transaction with a bill through assign_reconciliation_match().
+ *
+ * That RPC takes an EXISTING finance_reconciliation_log row and requires
+ * status='pending_review'; an untracked transaction may have no row for this
+ * pair at all. So we seed one (or revive an existing non-applied one) and run
+ * the RPC on it. Every cross-bill guard inside the RPC (bank_txn_spent,
+ * already_reconciled, auto_applied_conflict) plus pg_advisory_xact_lock
+ * (bank_bs_id) still executes — none of them is bypassed.
+ *
+ * Why the pair may already have a row: get_untracked_bank_transactions()
+ * excludes only auto_applied/confirmed rows, so a transaction with a
+ * *pending_review* proposal (or a previously *dismissed* one) still shows as
+ * untracked. A blind INSERT would then hit uq_reconciliation_bank_bill and
+ * fail with a unique violation on exactly the bill the user picked. The
+ * caller's spent pre-flight guarantees any row we find here is pending_review
+ * or dismissed, never auto_applied/confirmed, and the UPDATE is status-guarded
+ * to that set anyway.
+ *
+ * On failure the seed is undone (deleted if we inserted it, restored to its
+ * prior values if we revived one) so a rejected attempt can never leave a
+ * phantom proposal behind. Both undo paths are guarded on the row still being
+ * pending_review, so we never clobber a row another process has moved on.
+ */
+async function seedAndAssignReconciliation(
+  supabase: ServiceClient,
+  { bsId, billId, billAmount, auditPaymentMethod, txn }: SeedAndAssignInput
+): Promise<{ success: boolean; error?: string; errorCode?: AssignMatchErrorCode }> {
+  // assign_reconciliation_match() hard-rejects suggested_payment_method='check'
+  // with error_code='check_requires_ref' — a defensive guard for a path that
+  // has no payment_ref to work with. Seed a non-check method to get past it and
+  // restore the real one on the audit row once the assign succeeds. Without the
+  // restore, a finance audit row would permanently claim 'ach' for a check.
+  // The RPC itself is not modified.
+  const trueMethod = normalizePaymentMethod(auditPaymentMethod)
+  const seedMethod = trueMethod === 'check' ? 'ach' : trueMethod
+
+  const seedFields = {
+    match_type: 'manual_override',
+    // Raw signed banksync amount (outflows are negative), same convention as
+    // reconcile_non_check_debits(). The RPC does ABS() on it.
+    bank_amount: txn.amount,
+    bill_amount: billAmount,
+    bank_date: txn.txn_date,
+    bank_description: txn.description,
+    status: 'pending_review',
+    suggested_payment_method: seedMethod,
+  }
+
+  const { data: existingRows, error: existingError } = await supabase
+    .from('finance_reconciliation_log')
+    .select('id, status, match_type, bank_amount, bill_amount, bank_date, bank_description, suggested_payment_method')
+    .eq('bank_bs_id', bsId)
+    .eq('bill_id', billId)
+    .limit(1)
+
+  if (existingError) {
+    console.error('seedAndAssignReconciliation existing-row lookup error:', existingError)
+    return { success: false, error: existingError.message }
+  }
+
+  const existing = existingRows?.[0] ?? null
+
+  let logId: string
+  let undoSeed: () => Promise<void>
+
+  if (existing) {
+    const { error: reviveError } = await supabase
+      .from('finance_reconciliation_log')
+      .update(seedFields)
+      .eq('id', existing.id)
+      // Never touch a row that is (or became) auto_applied/confirmed. If this
+      // matches nothing, the RPC below rejects with not_pending /
+      // auto_applied_conflict and the undo is a no-op — safe either way.
+      .in('status', ['pending_review', 'dismissed'])
+
+    if (reviveError) {
+      console.error('seedAndAssignReconciliation revive error:', reviveError)
+      return { success: false, error: reviveError.message }
+    }
+
+    logId = existing.id
+    undoSeed = async () => {
+      const { error: restoreError } = await supabase
+        .from('finance_reconciliation_log')
+        .update({
+          match_type: existing.match_type,
+          bank_amount: existing.bank_amount,
+          bill_amount: existing.bill_amount,
+          bank_date: existing.bank_date,
+          bank_description: existing.bank_description,
+          status: existing.status,
+          suggested_payment_method: existing.suggested_payment_method,
+        })
+        .eq('id', existing.id)
+        .eq('status', 'pending_review')
+
+      if (restoreError) {
+        console.error('seedAndAssignReconciliation seed-restore error:', restoreError)
+      }
+    }
+  } else {
+    const { data: seedRow, error: seedError } = await supabase
+      .from('finance_reconciliation_log')
+      .insert({ bank_bs_id: bsId, bill_id: billId, ...seedFields })
+      .select('id')
+      .single()
+
+    if (seedError || !seedRow) {
+      console.error('seedAndAssignReconciliation seed error:', seedError)
+      return { success: false, error: seedError?.message ?? 'could not record the link' }
+    }
+
+    logId = seedRow.id
+    undoSeed = async () => {
+      const { error: cleanupError } = await supabase
+        .from('finance_reconciliation_log')
+        .delete()
+        .eq('id', logId)
+        .eq('status', 'pending_review')
+
+      if (cleanupError) {
+        console.error('seedAndAssignReconciliation seed-cleanup error:', cleanupError)
+      }
+    }
+  }
+
+  const assignResult = await assignReconciliationMatch(logId, billId)
+
+  if (!assignResult.success) {
+    await undoSeed()
+    return {
+      success: false,
+      error: assignResult.error ?? 'unknown error',
+      errorCode: assignResult.errorCode,
+    }
+  }
+
+  // Restore the real payment method on the audit row. Non-fatal: the money is
+  // already applied; this only corrects the row's descriptive field.
+  if (trueMethod !== seedMethod) {
+    const { error: methodError } = await supabase
+      .from('finance_reconciliation_log')
+      .update({ suggested_payment_method: trueMethod })
+      .eq('id', logId)
+
+    if (methodError) {
+      console.error('seedAndAssignReconciliation method-restore error:', methodError)
+    }
+  }
+
+  return { success: true }
+}
+
+// ============================================================
+// getDuplicateBillCandidates
+// ============================================================
+// SPRO-77 (live testing): advisory check behind the "a bill for this amount
+// already exists" warning on the Create Bill sheet. See
+// findDuplicateBillCandidates() above for why this ignores vendor keywords.
+
+export async function getDuplicateBillCandidates(bsId: number): Promise<{
+  success: boolean
+  data?: DuplicateBillCandidate[]
+  error?: string
+}> {
+  const auth = await requireFinance()
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  if (!Number.isFinite(bsId)) {
+    return { success: false, error: 'A bank transaction is required' }
+  }
+
+  try {
+    const supabase = await createServiceClient()
+
+    const { txn, error: txnError } = await readUntrackedBankTransaction(supabase, bsId)
+    if (!txn) return { success: false, error: txnError }
+
+    const { data, error } = await findDuplicateBillCandidates(supabase, bsId, txn)
+    if (error) return { success: false, error }
+
+    return { success: true, data: data ?? [] }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    return { success: false, error: msg }
+  }
+}
+
+// ============================================================
+// linkBillToBankTransaction
+// ============================================================
+// SPRO-77 (live testing): "Match to this bill instead" on the duplicate
+// warning. Same guarded path as createBillFromBankTransaction() with the
+// create step removed — the bill already exists.
+//
+// The target bill may be UNPAID, in which case assign_reconciliation_match()
+// takes its non-paid branch and sets status / amount_paid / paid_date /
+// payment_method from the BANK figures. That is correct and is exactly what
+// the existing manual-match UI (getMatchCandidates → assignReconciliationMatch)
+// already does.
+
+export async function linkBillToBankTransaction(input: {
+  bsId: number
+  billId: string
+}): Promise<{ success: boolean; error?: string; errorCode?: AssignMatchErrorCode }> {
+  const auth = await requireFinance()
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  const { bsId, billId } = input
+
+  if (!Number.isFinite(bsId)) {
+    return { success: false, error: 'A bank transaction is required' }
+  }
+  if (!billId) {
+    return { success: false, error: 'A target bill is required' }
+  }
+
+  try {
+    const supabase = await createServiceClient()
+
+    // ---- 1. Pre-flight: is this transaction still unspent? ----------------
+    const { spent, error: spentError } = await isBankTransactionSpent(supabase, bsId)
+    if (spentError) return { success: false, error: spentError }
+    if (spent) {
+      return {
+        success: false,
+        error:
+          'This bank transaction has already been reconciled against another bill. Refresh the finance page.',
+        errorCode: 'bank_txn_spent',
+      }
+    }
+
+    // ---- 2. Read the bank transaction's own figures ------------------------
+    const { txn, error: txnError } = await readUntrackedBankTransaction(supabase, bsId)
+    if (!txn) return { success: false, error: txnError }
+
+    // ---- 3. Read the target bill ------------------------------------------
+    // Needed for the audit row's bill_amount. The void/missing checks are
+    // duplicated inside the RPC (which is the authority, under a row lock);
+    // doing them here only buys a clearer message before anything is written.
+    const { data: bill, error: billError } = await supabase
+      .from('finance_bills')
+      .select('id, amount, status')
+      .eq('id', billId)
+      .single()
+
+    if (billError || !bill) {
+      return { success: false, error: billError?.message ?? 'Bill not found', errorCode: 'bill_not_found' }
+    }
+    if (bill.status === 'void') {
+      return {
+        success: false,
+        error: 'Cannot match a bank transaction to a voided bill',
+        errorCode: 'bill_void',
+      }
+    }
+
+    // ---- 4. Seed + assign --------------------------------------------------
+    // suggested_payment_method describes what the BANK says, so it comes from
+    // the description, exactly as reconcile_non_check_debits() derives its own.
+    const { payment_method } = derivePrefillPayment(txn.description)
+
+    return await seedAndAssignReconciliation(supabase, {
+      bsId,
+      billId,
+      billAmount: Number(bill.amount),
+      auditPaymentMethod: payment_method,
+      txn,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('linkBillToBankTransaction error:', err)
+    return { success: false, error: msg }
+  }
+}
+
+// ============================================================
 // createBillFromBankTransaction
 // ============================================================
 // SPRO-77: "Create Bill" on an untracked bank expense. Creates the bill AND
 // links it to the bank transaction so the transaction stops showing as
 // untracked.
 //
-// Why this doesn't just call assign_reconciliation_match() directly:
-// that RPC takes an EXISTING finance_reconciliation_log row id and requires
-// status='pending_review'. An untracked transaction has no log row at all.
-// So we seed a pending_review row for (bank_bs_id, newBillId) and then run the
-// RPC on it. The seed can never collide — the bill id is brand new and the
-// unique key is (bank_bs_id, bill_id) — and every cross-bill guard inside the
-// RPC (bank_txn_spent, already_reconciled, auto_applied_conflict) plus
-// pg_advisory_xact_lock(bank_bs_id) still executes. We never bypass them.
+// The link itself goes through seedAndAssignReconciliation() — see there for
+// why assign_reconciliation_match() can't just be called directly and why
+// every guard inside it still executes. Nothing is bypassed.
 //
 // Failure model, in order of what the user cares about:
 //   - already reconciled elsewhere  -> nothing is created at all
+//   - a bill for this money already exists (and the user hasn't said "create it
+//     anyway") -> nothing is created at all, candidates returned
 //   - bill created, link failed     -> KEEP the bill (it's the user's data),
 //                                      delete the seed row so it can't render
 //                                      as a phantom proposal, warn the user
@@ -1035,10 +1511,22 @@ export interface CreateBillFromBankTransactionResult {
   reconciled: boolean
   error?: string
   warning?: string
+  /**
+   * Set only when the duplicate guard refused. Present ⇒ nothing was created.
+   * Re-submit with allowDuplicate:true to create the bill anyway.
+   */
+  duplicates?: DuplicateBillCandidate[]
 }
 
 export async function createBillFromBankTransaction(input: {
   bsId: number
+  /**
+   * The user has seen the existing bills for this amount and still wants a new
+   * one. Two identical bills in a month is legitimate, so this is a
+   * confirmation, not a block — but it must be an explicit one: a client that
+   * never sets this flag cannot create a duplicate by accident.
+   */
+  allowDuplicate?: boolean
   bill: {
     name: string
     amount: number
@@ -1060,7 +1548,7 @@ export async function createBillFromBankTransaction(input: {
   // Use server-derived userId — never trust a client-supplied value
   const userId = auth.session.userId
 
-  const { bsId, bill } = input
+  const { bsId, bill, allowDuplicate } = input
 
   if (!Number.isFinite(bsId)) {
     return {
@@ -1080,21 +1568,12 @@ export async function createBillFromBankTransaction(input: {
     const supabase = await createServiceClient()
 
     // ---- 1. Pre-flight: is this transaction still untracked? -------------
-    // Mirrors get_untracked_bank_transactions()'s own definition of untracked
-    // (no auto_applied/confirmed log row). Runs BEFORE createBill so a stale
-    // page can't leave an orphan bill behind.
-    const { data: spentRows, error: spentError } = await supabase
-      .from('finance_reconciliation_log')
-      .select('id')
-      .eq('bank_bs_id', bsId)
-      .in('status', ['auto_applied', 'confirmed'])
-      .limit(1)
+    const { spent, error: spentError } = await isBankTransactionSpent(supabase, bsId)
 
     if (spentError) {
-      console.error('createBillFromBankTransaction spent-check error:', spentError)
-      return { success: false, billCreated: false, reconciled: false, error: spentError.message }
+      return { success: false, billCreated: false, reconciled: false, error: spentError }
     }
-    if (spentRows && spentRows.length > 0) {
+    if (spent) {
       return {
         success: false,
         billCreated: false,
@@ -1105,32 +1584,45 @@ export async function createBillFromBankTransaction(input: {
     }
 
     // ---- 2. Read the bank transaction's own figures ----------------------
-    // The seed log row is an audit record of what the BANK said, so amount /
-    // date / description come from banksync, never from the client (the user
-    // can edit the amount in the sheet, and that edit must not rewrite the
-    // bank side of the audit trail). Same source the panel itself renders.
-    const { data: txnRows, error: txnError } = await supabase.rpc(
-      'get_untracked_bank_transactions'
-    )
-
-    if (txnError) {
-      console.error('createBillFromBankTransaction txn-lookup error:', txnError)
-      return { success: false, billCreated: false, reconciled: false, error: txnError.message }
-    }
-
-    const txn = ((txnRows ?? []) as BankTransaction[]).find((t) => Number(t.bs_id) === Number(bsId))
+    const { txn, error: txnError } = await readUntrackedBankTransaction(supabase, bsId)
 
     if (!txn) {
-      return {
-        success: false,
-        billCreated: false,
-        reconciled: false,
-        error:
-          'That bank transaction is no longer untracked. Refresh the finance page and try again.',
+      return { success: false, billCreated: false, reconciled: false, error: txnError }
+    }
+
+    // ---- 3. Duplicate guard ----------------------------------------------
+    // The matcher's vendor-keyword gating means an untracked transaction can
+    // already have a bill on record (bs_id 1083 / "PSO - large", $22,815).
+    // Creating one here would silently double the liability. Refuse unless the
+    // caller has explicitly said "create it anyway" — the client's flag is a
+    // convenience, this is the actual gate. Fails CLOSED: if the check itself
+    // errors we refuse rather than create a possible duplicate.
+    if (!allowDuplicate) {
+      const { data: duplicates, error: duplicateError } = await findDuplicateBillCandidates(
+        supabase,
+        bsId,
+        txn
+      )
+
+      if (duplicateError) {
+        return { success: false, billCreated: false, reconciled: false, error: duplicateError }
+      }
+
+      if (duplicates && duplicates.length > 0) {
+        return {
+          success: false,
+          billCreated: false,
+          reconciled: false,
+          duplicates,
+          error:
+            duplicates.length === 1
+              ? `A bill for this amount already exists ("${duplicates[0].name}"). Match the bank transaction to it, or confirm you want a second bill.`
+              : `${duplicates.length} bills for this amount already exist. Match the bank transaction to one, or confirm you want another bill.`,
+        }
       }
     }
 
-    // ---- 3. Create the bill ---------------------------------------------
+    // ---- 4. Create the bill ---------------------------------------------
     const billResult = await createBill({
       name: bill.name,
       vendor_id: bill.vendor_id || undefined,
@@ -1157,88 +1649,29 @@ export async function createBillFromBankTransaction(input: {
     const newBill = billResult.data
     billCreated = true
 
-    // ---- 4. Seed the pending_review log row ------------------------------
-    // suggested_payment_method: assign_reconciliation_match() hard-rejects
-    // 'check' with error_code='check_requires_ref' — a defensive guard for a
-    // path that has no payment_ref to work with. Our bill DOES carry its own
-    // check number, so we seed a non-check method to get past that guard and
-    // restore the real method on the audit row immediately after the assign
-    // succeeds (step 6). Without the restore, a finance audit row would
-    // permanently claim 'ach' for a check. The RPC itself is not modified.
-    const billMethod = normalizePaymentMethod(bill.payment_method)
-    const seedMethod = billMethod === 'check' ? 'ach' : billMethod
+    // ---- 5. Seed the log row and apply the match atomically ---------------
+    // The bill is brand new, so seedAndAssignReconciliation() always takes its
+    // insert path here — the (bank_bs_id, bill_id) pair cannot already exist.
+    const linkResult = await seedAndAssignReconciliation(supabase, {
+      bsId,
+      billId: newBill.id,
+      billAmount: newBill.amount,
+      // The user's own choice in the sheet, which carries its own check number.
+      auditPaymentMethod: bill.payment_method,
+      txn,
+    })
 
-    const { data: seedRow, error: seedError } = await supabase
-      .from('finance_reconciliation_log')
-      .insert({
-        bank_bs_id: bsId,
-        bill_id: newBill.id,
-        match_type: 'manual_override',
-        // Raw signed banksync amount (outflows are negative), same convention
-        // as reconcile_non_check_debits(). The RPC does ABS() on it.
-        bank_amount: txn.amount,
-        bill_amount: newBill.amount,
-        bank_date: txn.txn_date,
-        bank_description: txn.description,
-        status: 'pending_review',
-        suggested_payment_method: seedMethod,
-      })
-      .select('id')
-      .single()
-
-    if (seedError || !seedRow) {
-      console.error('createBillFromBankTransaction seed error:', seedError)
-      return {
-        success: true,
-        billCreated: true,
-        reconciled: false,
-        warning: `Bill created, but it could not be linked to the bank transaction: ${
-          seedError?.message ?? 'could not record the link'
-        }`,
-      }
-    }
-
-    // ---- 5. Apply the match atomically -----------------------------------
-    const assignResult = await assignReconciliationMatch(seedRow.id, newBill.id)
-
-    if (!assignResult.success) {
+    if (!linkResult.success) {
       // Keep the bill — it's the user's data and re-entering it is worse than
-      // an unlinked bill. Remove the seed row so it doesn't surface as a
-      // phantom "match proposed" in the reconciliation UI. Guarded on
-      // pending_review so we can never delete a row another process moved on
-      // (e.g. a concurrent assign for the same bank_bs_id dismissed ours,
-      // which is exactly the 'not_pending' rejection).
-      const { error: cleanupError } = await supabase
-        .from('finance_reconciliation_log')
-        .delete()
-        .eq('id', seedRow.id)
-        .eq('status', 'pending_review')
-
-      if (cleanupError) {
-        console.error('createBillFromBankTransaction seed-cleanup error:', cleanupError)
-      }
-
+      // an unlinked bill. The seed row has already been cleaned up so it can't
+      // surface as a phantom "match proposed" in the reconciliation UI.
       return {
         success: true,
         billCreated: true,
         reconciled: false,
         warning: `Bill created, but it could not be linked to the bank transaction: ${
-          assignResult.error ?? 'unknown error'
+          linkResult.error ?? 'unknown error'
         }`,
-      }
-    }
-
-    // ---- 6. Restore the real payment method on the audit row --------------
-    // See step 4. Non-fatal: the money is already applied correctly on the
-    // bill itself; this only corrects the audit row's descriptive field.
-    if (billMethod !== seedMethod) {
-      const { error: methodError } = await supabase
-        .from('finance_reconciliation_log')
-        .update({ suggested_payment_method: billMethod })
-        .eq('id', seedRow.id)
-
-      if (methodError) {
-        console.error('createBillFromBankTransaction method-restore error:', methodError)
       }
     }
 

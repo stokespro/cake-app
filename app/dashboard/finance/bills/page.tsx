@@ -99,8 +99,14 @@ import {
   getVendors,
 } from '@/actions/finance'
 import type { Bill, BillStatus, BillTemplate, Vendor } from '@/actions/finance'
-import { createBillFromBankTransaction } from '@/app/dashboard/finance/_actions/bank'
+import {
+  createBillFromBankTransaction,
+  getDuplicateBillCandidates,
+  linkBillToBankTransaction,
+} from '@/app/dashboard/finance/_actions/bank'
 import { derivePrefillPayment } from '@/app/dashboard/finance/_lib/bank-prefill'
+import type { DuplicateBillCandidate } from '@/app/dashboard/finance/_lib/bank-prefill'
+import { Checkbox } from '@/components/ui/checkbox'
 import { VendorCombobox } from '@/components/finance/vendor-combobox'
 
 // -----------------------------------------------------------------------
@@ -271,6 +277,19 @@ function BillsPageContent() {
   // be wrongly reconciled.
   const [pendingBankBsId, setPendingBankBsId] = useState<number | null>(null)
 
+  // SPRO-77 (live testing): existing non-void bills for the same amount within
+  // 45 days of the bank transaction. The reconciliation matcher gates on a
+  // vendor keyword appearing in the bank description, so a real bill can exist
+  // for a transaction the matcher still reports as untracked (bs_id 1083's
+  // $22,815 "PSO - large" bill, defeated by the bank's "POS BILL" typo) — and
+  // creating a bill from it would double the liability. Advisory here; the
+  // server refuses outright unless allowDuplicate is set.
+  const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateBillCandidate[]>([])
+  const [duplicateChecking, setDuplicateChecking] = useState(false)
+  // Explicit "yes, I really want a second bill" — gates the Save button.
+  const [duplicateAck, setDuplicateAck] = useState(false)
+  const [linkingBillId, setLinkingBillId] = useState<string | null>(null)
+
   // Delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingBill, setDeletingBill] = useState<Bill | null>(null)
@@ -310,6 +329,12 @@ function BillsPageContent() {
   // the sheet after the user has closed it.
   const prefillConsumed = useRef(false)
 
+  // Invalidation token for the in-flight duplicate check. Bumped whenever the
+  // sheet stops being about that bank transaction (closed, or reopened for
+  // something else), so a slow response can never paint a warning onto — and
+  // disable the Save button of — an unrelated bill.
+  const duplicateRequestRef = useRef(0)
+
   useEffect(() => {
     if (prefillConsumed.current) return
 
@@ -345,7 +370,29 @@ function BillsPageContent() {
     })
     setBillFormErrors({})
     setPendingBankBsId(Number.isFinite(bsId) ? bsId : null)
+    setDuplicateCandidates([])
+    setDuplicateAck(false)
     setBillSheetOpen(true)
+
+    // Look for a bill that already covers this money, in the background — the
+    // sheet is usable immediately and the warning appears when the answer
+    // arrives. A failure here is not surfaced: it only costs the user the
+    // heads-up, and createBillFromBankTransaction() runs the same check
+    // server-side and refuses on its own.
+    if (Number.isFinite(bsId)) {
+      const token = ++duplicateRequestRef.current
+      setDuplicateChecking(true)
+      getDuplicateBillCandidates(bsId)
+        .then((res) => {
+          if (duplicateRequestRef.current !== token) return
+          if (res.success && res.data) setDuplicateCandidates(res.data)
+          else if (!res.success) console.error('Duplicate bill check failed:', res.error)
+        })
+        .catch((err) => console.error('Duplicate bill check failed:', err))
+        .finally(() => {
+          if (duplicateRequestRef.current === token) setDuplicateChecking(false)
+        })
+    }
 
     // Show the month the new bill will land in (period_month is derived from
     // due_date server-side), otherwise it can be created into a month the user
@@ -410,10 +457,27 @@ function BillsPageContent() {
   // Bill form (create / edit)
   // -----------------------------------------------------------------------
 
+  // Everything tying the sheet to a bank transaction. Cleared whenever the
+  // sheet is opened for something else, and when it closes, so a stale
+  // duplicate warning (or a stale bank link) can never apply to the next bill.
+  const clearBankPrefillState = () => {
+    // Abandon any in-flight duplicate check along with the state it would land in.
+    duplicateRequestRef.current += 1
+    setPendingBankBsId(null)
+    setDuplicateCandidates([])
+    setDuplicateAck(false)
+    setDuplicateChecking(false)
+  }
+
+  const handleBillSheetOpenChange = (open: boolean) => {
+    setBillSheetOpen(open)
+    if (!open) clearBankPrefillState()
+  }
+
   const openNewBillSheet = () => {
     setEditingBill(null)
     // Never carry a bank link over into a manually-started bill.
-    setPendingBankBsId(null)
+    clearBankPrefillState()
     setBillForm({
       name: '',
       vendor_id: '',
@@ -434,7 +498,7 @@ function BillsPageContent() {
     setEditingBill(bill)
     // Defence in depth: the edit path never reads pendingBankBsId, but an
     // abandoned prefill must not survive into any other save.
-    setPendingBankBsId(null)
+    clearBankPrefillState()
     setBillForm({
       name: bill.name,
       vendor_id: bill.vendor_id ?? '',
@@ -527,6 +591,9 @@ function BillsPageContent() {
         // only 'partial' passes an explicit amount_paid).
         const result = await createBillFromBankTransaction({
           bsId: pendingBankBsId,
+          // Only ever true off an explicit tick in the duplicate warning. The
+          // server runs the same check regardless and refuses without it.
+          allowDuplicate: duplicateCandidates.length > 0 && duplicateAck,
           bill: {
             name: billForm.name.trim(),
             vendor_id: billForm.vendor_id || undefined,
@@ -547,6 +614,21 @@ function BillsPageContent() {
         // retry it. On an outright failure nothing was created, so the link
         // intent is kept for the retry.
         if (result.billCreated) setPendingBankBsId(null)
+
+        // The server found an existing bill for this money. Either the
+        // background check hadn't answered yet, or one appeared between opening
+        // the sheet and saving. Show the same warning rather than a bare error
+        // toast — the useful action is "match to that bill", not "try again".
+        if (result.duplicates && result.duplicates.length > 0) {
+          setDuplicateCandidates(result.duplicates)
+          setDuplicateAck(false)
+          toast.warning(
+            result.duplicates.length === 1
+              ? 'A bill for this amount already exists — review it above'
+              : 'Bills for this amount already exist — review them above'
+          )
+          return
+        }
 
         if (!result.success) {
           toast.error(result.error || 'Failed to create bill')
@@ -582,12 +664,50 @@ function BillsPageContent() {
         toast.success('Bill created')
       }
       setBillSheetOpen(false)
+      // Closing programmatically doesn't fire the sheet's onOpenChange, so the
+      // bank-prefill state (including any duplicate warning) is dropped here.
+      clearBankPrefillState()
       fetchData()
     } catch (err) {
       console.error('Error saving bill:', err)
       toast.error('Failed to save bill')
     } finally {
       setBillSaving(false)
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // SPRO-77: match the bank transaction to a bill that already exists,
+  // instead of creating a second one. No bill is created or edited by the
+  // user here — the server pairs the two through the same guarded
+  // assign_reconciliation_match() path the manual matcher uses, which also
+  // applies the bank's payment figures if the bill was still unpaid.
+  // -----------------------------------------------------------------------
+
+  const handleLinkToExistingBill = async (candidate: DuplicateBillCandidate) => {
+    if (pendingBankBsId === null) return
+
+    setLinkingBillId(candidate.id)
+    try {
+      const result = await linkBillToBankTransaction({
+        bsId: pendingBankBsId,
+        billId: candidate.id,
+      })
+
+      if (!result.success) {
+        toast.error(result.error || 'Failed to match the bank transaction to that bill')
+        return
+      }
+
+      toast.success(`Matched to ${candidate.name}`)
+      setBillSheetOpen(false)
+      clearBankPrefillState()
+      fetchData()
+    } catch (err) {
+      console.error('Error matching bank transaction to bill:', err)
+      toast.error('Failed to match the bank transaction to that bill')
+    } finally {
+      setLinkingBillId(null)
     }
   }
 
@@ -613,6 +733,7 @@ function BillsPageContent() {
       toast.success(`"${deletingBill.name}" deleted`)
       setDeleteDialogOpen(false)
       setBillSheetOpen(false)
+      clearBankPrefillState()
       fetchData()
     } catch (err) {
       console.error('Error deleting bill:', err)
@@ -1200,7 +1321,7 @@ function BillsPageContent() {
       </Collapsible>
 
       {/* Add / Edit Bill Sheet */}
-      <Sheet open={billSheetOpen} onOpenChange={setBillSheetOpen}>
+      <Sheet open={billSheetOpen} onOpenChange={handleBillSheetOpenChange}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{editingBill ? 'Edit Bill' : 'Add Bill'}</SheetTitle>
@@ -1208,6 +1329,68 @@ function BillsPageContent() {
               {editingBill ? `Editing bill for ${getMonthLabel(month)}` : `New one-off bill for ${getMonthLabel(month)}`}
             </SheetDescription>
           </SheetHeader>
+
+          {/* SPRO-77 duplicate warning — scrolls with the form (the sheet body
+              is the scroll container), never fixed, so it can't push the fields
+              off-screen on a phone. */}
+          {duplicateCandidates.length > 0 && (
+            <div className="mt-4 rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    {duplicateCandidates.length === 1
+                      ? 'A bill for this amount already exists'
+                      : `${duplicateCandidates.length} bills for this amount already exist`}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                    Match this bank transaction to one of them instead of recording the same
+                    money twice.
+                  </p>
+                </div>
+              </div>
+
+              <ul className="mt-2.5 space-y-2">
+                {duplicateCandidates.map((c) => (
+                  <li
+                    key={c.id}
+                    className="rounded border border-amber-200 dark:border-amber-900 bg-background/70 p-2"
+                  >
+                    <p className="text-sm font-medium truncate">{c.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {c.vendor_name ?? 'No vendor'} &middot; {formatMoney(c.amount)} &middot; Due{' '}
+                      {format(parseISO(c.due_date), 'MMM d, yyyy')} &middot; {c.status}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 h-7 w-full text-xs border-amber-400 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                      onClick={() => handleLinkToExistingBill(c)}
+                      disabled={billSaving || linkingBillId !== null}
+                    >
+                      {linkingBillId === c.id ? 'Matching...' : 'Match to this bill'}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+
+              <label
+                htmlFor="duplicate-ack"
+                className="mt-2.5 flex items-start gap-2 cursor-pointer"
+              >
+                <Checkbox
+                  id="duplicate-ack"
+                  checked={duplicateAck}
+                  onCheckedChange={(v) => setDuplicateAck(v === true)}
+                  disabled={billSaving || linkingBillId !== null}
+                  className="mt-0.5 border-amber-500 data-[state=checked]:bg-amber-600"
+                />
+                <span className="text-xs text-amber-800 dark:text-amber-300">
+                  This is a separate bill — create it anyway
+                </span>
+              </label>
+            </div>
+          )}
 
           <div className="space-y-4 pt-6">
             <div className="space-y-2">
@@ -1450,11 +1633,33 @@ function BillsPageContent() {
               />
             </div>
 
+            {/* Creating anyway stays possible — two identical bills in a month
+                is legitimate — but it has to be deliberate. */}
+            {duplicateCandidates.length > 0 && !duplicateAck && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Match to an existing bill above, or tick &quot;create it anyway&quot; to record a
+                second one.
+              </p>
+            )}
+
             <div className="flex gap-2 pt-2">
-              <Button className="flex-1" onClick={handleSaveBill} disabled={billSaving}>
+              <Button
+                className="flex-1"
+                onClick={handleSaveBill}
+                disabled={
+                  billSaving ||
+                  linkingBillId !== null ||
+                  duplicateChecking ||
+                  (duplicateCandidates.length > 0 && !duplicateAck)
+                }
+              >
                 {billSaving ? 'Saving...' : editingBill ? 'Save Changes' : 'Create Bill'}
               </Button>
-              <Button variant="outline" onClick={() => setBillSheetOpen(false)} disabled={billSaving}>
+              <Button
+                variant="outline"
+                onClick={() => handleBillSheetOpenChange(false)}
+                disabled={billSaving || linkingBillId !== null}
+              >
                 Cancel
               </Button>
             </div>
