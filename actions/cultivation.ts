@@ -519,6 +519,149 @@ export async function startTask(taskId: string): Promise<
   return {}
 }
 
+export interface ReopenTaskResult {
+  title: string
+  newDueDate: string
+  /** true if due_date was recomputed from the cycle's current milestones. */
+  reanchored: boolean
+}
+
+// Reopening a completed/skipped task is guarded by COMPLETE_ROLES — the same
+// set that can complete one. This is deliberate: reopening only withdraws a
+// claim that work was done, it never asserts one, so it is strictly less
+// destructive than completeTask. The person who fat-fingers a completion
+// (e.g. marks the wrong room's task done) needs to be able to undo it
+// themselves without escalating to an admin — gating this behind MANAGE_ROLES
+// would turn a one-tap correction into a support ticket. Don't tighten this
+// later without weighing that tradeoff.
+export async function reopenTask(taskId: string): Promise<
+  (ReopenTaskResult & { error?: never }) | { error: string }
+> {
+  const auth = await requireRole(COMPLETE_ROLES)
+  if (!auth.authorized) return { error: auth.reason }
+
+  const db = await createServiceClient()
+
+  // 1. Fetch + validate the task server-side. Never trust client-provided
+  // status — re-derive everything from the DB.
+  const { data: task, error: fetchErr } = await db
+    .from('cultivation_tasks')
+    .select('id, title, status, phase, day_number, task_type, due_date, room_cycle_id, completed_at')
+    .eq('id', taskId)
+    .maybeSingle()
+
+  if (fetchErr) {
+    console.error('[cultivation] reopenTask fetch error:', fetchErr)
+    return { error: 'Failed to load task' }
+  }
+  if (!task) {
+    return { error: 'Task not found' }
+  }
+  if (task.status !== 'completed' && task.status !== 'skipped') {
+    return { error: 'Only a completed or skipped task can be reopened' }
+  }
+
+  // 2. If this task belongs to a cycle, the cycle must still be active —
+  // rewriting closed-cycle history is deliberately unsupported, consistent
+  // with updateCycle.
+  let cycle: {
+    status: string
+    dome_start: string | null
+    veg_start: string | null
+    flower_start: string | null
+    harvest_date: string | null
+    dry_start: string | null
+    trim_start: string | null
+  } | null = null
+
+  if (task.room_cycle_id) {
+    const { data: cycleRow, error: cycleErr } = await db
+      .from('room_cycles')
+      .select('status, dome_start, veg_start, flower_start, harvest_date, dry_start, trim_start')
+      .eq('id', task.room_cycle_id)
+      .maybeSingle()
+
+    if (cycleErr) {
+      console.error('[cultivation] reopenTask cycle fetch error:', cycleErr)
+      return { error: 'Failed to load cycle' }
+    }
+    if (!cycleRow || cycleRow.status !== 'active') {
+      return { error: 'This task belongs to a cycle that has ended and cannot be reopened' }
+    }
+    cycle = cycleRow
+  }
+
+  // 3. Re-anchor the due date from the cycle's *current* milestones when
+  // possible — this is the main value-add: a task completed against an old
+  // schedule comes back on the corrected date automatically, so the user
+  // doesn't have to work it out by hand.
+  let newDueDate = task.due_date
+  let reanchored = false
+  const isRetimeable =
+    task.task_type === 'scheduled' &&
+    !!task.phase &&
+    (STAGE_ORDER as string[]).includes(task.phase) &&
+    task.day_number != null
+
+  if (isRetimeable && cycle) {
+    const milestones: CycleMilestones = {
+      dome: cycle.dome_start ?? '',
+      veg: cycle.veg_start ?? '',
+      flower: cycle.flower_start ?? '',
+      harvest: cycle.harvest_date ?? '',
+      dry: cycle.dry_start ?? '',
+      trim: cycle.trim_start ?? '',
+    }
+    const milestoneDate = milestones[task.phase as PipelineStage]
+    if (milestoneDate) {
+      newDueDate = resolveTaskDueDate(milestones, task.phase as string, task.day_number as number)
+      reanchored = true
+    }
+  }
+
+  // 4. Resolve the acting user's display name for the breadcrumb. Fall back
+  // to a generic label rather than failing the whole action if the lookup
+  // errors — the reopen itself should still succeed.
+  const { data: actingUser } = await db
+    .from('users')
+    .select('name')
+    .eq('id', auth.session.userId)
+    .maybeSingle()
+  const actingName = actingUser?.name ?? 'a team member'
+
+  const now = new Date()
+  const nowStr = now.toISOString().split('T')[0]
+
+  // There is no `reopened_by` column, and this feature ships without a
+  // migration — completion_notes is the pragmatic home for the breadcrumb:
+  // the task is no longer completed, so the field is otherwise unused right
+  // now, it already renders in the task detail UI, and completeTask
+  // naturally overwrites it the next time the task is genuinely completed.
+  const priorCompletedDate = task.completed_at ? task.completed_at.split('T')[0] : null
+  const breadcrumb = priorCompletedDate
+    ? `Reopened by ${actingName} on ${nowStr} (was completed ${priorCompletedDate})`
+    : `Reopened by ${actingName} on ${nowStr}`
+
+  const { error: updateErr } = await db
+    .from('cultivation_tasks')
+    .update({
+      status: 'pending',
+      completed_at: null,
+      completed_by: null,
+      due_date: newDueDate,
+      completion_notes: breadcrumb,
+      updated_at: now.toISOString(),
+    })
+    .eq('id', taskId)
+
+  if (updateErr) {
+    console.error('[cultivation] reopenTask update error:', updateErr)
+    return { error: 'Failed to reopen task' }
+  }
+
+  return { title: task.title, newDueDate, reanchored }
+}
+
 export async function deleteTask(taskId: string): Promise<
   { error?: never } | { error: string }
 > {
