@@ -2,8 +2,10 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { requireFinance } from '@/lib/auth/session'
-import { createBill, markBillPaid } from '@/actions/finance'
-import type { BillStatus } from '@/actions/finance'
+import { createBill, applyReconciledBillPayment } from '@/actions/finance'
+import type { BillStatus, PaymentErrorCode as BillPaymentErrorCode } from '@/actions/finance'
+import { VALID_PAYMENT_METHODS, stripPaymentErrorPrefix } from '@/lib/finance/bill-payments'
+import type { PaymentMethod } from '@/lib/finance/bill-payments'
 import {
   derivePrefillPayment,
   duplicateDateWindow,
@@ -255,73 +257,71 @@ export async function getReconciliationLog(
 // rules are defined once).
 // ============================================================
 
-const VALID_BILL_METHODS = ['card', 'ach', 'check', 'cash'] as const
-
 /**
  * Normalize a reconciliation-derived payment method to a value accepted by
- * finance_bills.payment_method (card | ach | check | cash). Reconciliation
+ * finance_bill_payments.payment_method (card | ach | check | cash). Reconciliation
  * keyword detection can yield 'transfer', 'wire', 'ach_transfer', or null —
  * none of which are valid bill payment methods. Map transfer/wire variants
  * → 'ach'; anything else not in the valid set → 'ach'.
+ *
+ * Mirrors the CASE in supabase/migrations/20260728130000_assign_reconciliation_match_rpc.sql:305-309
+ * exactly (that SQL comment reads "Mirror normalizePaymentMethod() in
+ * bank.ts exactly." — keep both in lockstep on any future change).
  */
-function normalizePaymentMethod(raw: string | null | undefined): string {
+function normalizePaymentMethod(raw: string | null | undefined): PaymentMethod {
   const rawMethod = raw ?? ''
   return rawMethod === 'transfer' || rawMethod === 'wire' || rawMethod === 'ach_transfer'
     ? 'ach'
-    : (VALID_BILL_METHODS as readonly string[]).includes(rawMethod)
-      ? rawMethod
+    : (VALID_PAYMENT_METHODS as readonly string[]).includes(rawMethod)
+      ? (rawMethod as PaymentMethod)
       : 'ach'
 }
 
 /**
- * Applies a bank-derived payment to a bill:
- *   - bill.status === 'paid' → backfill only missing paid_date / payment_method /
- *     amount_paid (never overwrite an existing paid bill's figures — amendments E+F).
- *   - otherwise               → markBillPaid at the bank amount/date/method.
+ * Applies a bank-derived payment to a bill by recording a
+ * finance_bill_payments row via applyReconciledBillPayment() (SPRO-82).
+ *
+ * The old "bill.status === 'paid' → backfill only missing fields" branch is
+ * gone: it existed only because the pre-ledger schema could hold exactly one
+ * payment per bill, so an already-paid bill had nowhere to put a second one
+ * without clobbering the first. Now every bank-derived payment is its own
+ * ledger row — applyReconciledBillPayment()/the DB trigger accumulate onto
+ * amount_paid rather than overwrite it, and the overpay guard (spec A2)
+ * rejects anything that would push the bill's total past its amount, mapped
+ * to errorCode 'would_overpay' here for the caller to surface.
+ *
+ * FIX 1 (SPRO-82 adversarial review): this used to call recordBillPayment(),
+ * whose insert hardcodes bank_bs_id: null / source: 'manual' — so a payment
+ * created by confirming a match here never got bank_bs_id stamped and sat in
+ * "Payments Awaiting Bank Match" forever. applyReconciledBillPayment() is the
+ * dedicated bank-linked write path; `bankBsId` is always the caller's own
+ * server-verified finance_reconciliation_log row, never client input.
  */
 async function applyBillPayment(
-  supabase: Awaited<ReturnType<typeof createServiceClient>>,
   billId: string,
   bankAmount: number,
   bankDate: string,
-  payMethod: string
-): Promise<{ success: boolean; error?: string }> {
-  const { data: bill, error: billFetchError } = await supabase
-    .from('finance_bills')
-    .select('status, paid_date, amount_paid, payment_method')
-    .eq('id', billId)
-    .single()
-
-  if (billFetchError || !bill) {
-    return { success: false, error: billFetchError?.message ?? 'Bill not found' }
-  }
-
-  if (bill.status === 'paid') {
-    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
-    if (!bill.paid_date)                              patch.paid_date = bankDate
-    if (!bill.payment_method)                         patch.payment_method = payMethod
-    if (!bill.amount_paid || Number(bill.amount_paid) === 0) patch.amount_paid = bankAmount
-
-    const { error: patchError } = await supabase
-      .from('finance_bills')
-      .update(patch)
-      .eq('id', billId)
-
-    if (patchError) {
-      console.error('applyBillPayment backfill error:', patchError)
-      return { success: false, error: patchError.message }
-    }
-    return { success: true }
-  }
-
-  const payResult = await markBillPaid(billId, {
-    amount_paid: bankAmount,
+  payMethod: PaymentMethod,
+  bankBsId: number
+): Promise<{ success: boolean; error?: string; errorCode?: BillPaymentErrorCode }> {
+  const payResult = await applyReconciledBillPayment({
+    bill_id: billId,
+    amount: bankAmount,
     paid_date: bankDate,
     payment_method: payMethod,
+    bank_bs_id: bankBsId,
   })
 
   if (!payResult.success) {
-    return { success: false, error: payResult.error ?? 'Failed to mark bill paid' }
+    // payResult.error is already sentinel-free (applyReconciledBillPayment()
+    // strips BILL_OVERPAY:/BILL_VOID: at its own return points) — stripped
+    // again here anyway so this helper is safe even if its upstream ever
+    // changes.
+    return {
+      success: false,
+      error: payResult.error ? stripPaymentErrorPrefix(payResult.error) : 'Failed to record bill payment',
+      errorCode: payResult.errorCode,
+    }
   }
   return { success: true }
 }
@@ -329,17 +329,22 @@ async function applyBillPayment(
 // ============================================================
 // confirmReconciliationMatch
 // ============================================================
-// Handles all pending_review match types via bill's CURRENT status (amendment F):
-//   - bill.status === 'paid' → backfill missing paid_date / payment_method / amount_paid (amendments E+F)
-//   - bill.status !== 'paid' → markBillPaid at bank amount/date/method (covers check_amount_mismatch,
-//     card_amount_vendor, amount_only, already_paid_non_check when bill not yet paid)
+// Handles every pending_review match type the same way (SPRO-82): records a
+// finance_bill_payments row at the bank amount/date/method via
+// applyBillPayment()/recordBillPayment() (covers check_amount_mismatch,
+// card_amount_vendor, amount_only, already_paid_non_check regardless of the
+// bill's current status — a 'paid' bill can still legitimately receive
+// another payment now). The old amendment E/F "bill.status === 'paid' →
+// backfill only missing fields" special case is gone along with the single-
+// payment-per-bill limitation that required it — see applyBillPayment()'s
+// own comment above.
 //
 // After confirming, dismisses all other pending_review rows for the same
 // bank_bs_id OR bill_id (amendment D).
 
 export async function confirmReconciliationMatch(
   logId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; errorCode?: BillPaymentErrorCode }> {
   const auth = await requireFinance()
   if (!auth.authorized) return { success: false, error: auth.reason }
 
@@ -399,9 +404,10 @@ export async function confirmReconciliationMatch(
       }
 
       // Amendment F: key off the bill's CURRENT status, not the stored match_type
-      const payResult = await applyBillPayment(supabase, logRow.bill_id, bankAmount, bankDate, payMethod)
+      const payResult = await applyBillPayment(logRow.bill_id, bankAmount, bankDate, payMethod, logRow.bank_bs_id)
       if (!payResult.success) {
-        return { success: false, error: payResult.error }
+        // applyBillPayment() already strips BILL_OVERPAY:/BILL_VOID: — see there.
+        return { success: false, error: payResult.error, errorCode: payResult.errorCode }
       }
     }
 
@@ -761,17 +767,27 @@ export async function getMatchCandidates(
 // and 'bank_txn_spent' specifically mean the CALLER'S VIEW IS STALE (someone
 // else reconciled this bill/transaction between page load and this click),
 // so those two also trigger a data refresh, not just an error toast.
+//
+// SPRO-82: 'already_reconciled' is now UNREACHABLE — the RPC's rewrite
+// (spec A5) deletes that guard entirely, because a bill may now be settled
+// by several bank transactions (that removal is the central unblock of this
+// ticket). Left in the union rather than removed so any in-flight client
+// still checking for it doesn't hit a type error. 'would_overpay' is new:
+// the RPC's payment insert is wrapped in `BEGIN ... EXCEPTION WHEN
+// check_violation` and maps a 'BILL_OVERPAY:' message (spec A2's overpay
+// guard) to this code.
 export type AssignMatchErrorCode =
   | 'log_not_found'
   | 'not_pending'
   | 'target_required'
   | 'bill_not_found'
   | 'bill_void'
-  | 'already_reconciled'
+  | 'already_reconciled' // SPRO-82: unreachable — see comment above
   | 'bank_txn_spent'
   | 'auto_applied_conflict'
   | 'invalid_amount'
   | 'check_requires_ref'
+  | 'would_overpay'
 
 interface AssignReconciliationMatchRpcResult {
   success: boolean
@@ -810,9 +826,15 @@ export async function assignReconciliationMatch(
     const row = (Array.isArray(data) ? data[0] : data) as AssignReconciliationMatchRpcResult | undefined
 
     if (!row?.success) {
+      // row.error_message is the RPC's raw SQLERRM (spec A5) — for a
+      // would_overpay/bill_void rejection this is literally
+      // 'BILL_OVERPAY: ...'/'BILL_VOID: ...' text straight from the
+      // exception, unlike every other error path in this file which has
+      // already been through a TS layer. Strip it here, at the one place it
+      // first reaches application code.
       return {
         success: false,
-        error: row?.error_message ?? 'Failed to assign match',
+        error: row?.error_message ? stripPaymentErrorPrefix(row.error_message) : 'Failed to assign match',
         errorCode: row?.error_code ?? undefined,
       }
     }
@@ -969,6 +991,90 @@ export async function getProposedTransactions(month: string): Promise<{
         bank_date: r.bank_date,
         bank_description: r.bank_description,
         suggested_payment_method: r.suggested_payment_method ?? null,
+      }
+    })
+
+    return { success: true, data: rows }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    return { success: false, error: msg }
+  }
+}
+
+// ============================================================
+// getUnreconciledPayments
+// ============================================================
+// SPRO-82: the visible answer to the ticket's first sentence — a payment
+// recorded manually (source='manual', e.g. "Payroll - Josh $1,000 partial")
+// sits here with bank_bs_id IS NULL until a bank transaction is matched to
+// it via confirmReconciliationMatch()/assignReconciliationMatch(). Scoped to
+// a calendar month by paid_date, same convention as getProposedTransactions().
+
+export interface UnreconciledPayment {
+  id: string
+  bill_id: string
+  bill_name: string
+  vendor_name: string | null
+  amount: number
+  paid_date: string
+  payment_method: string
+  payment_ref: string | null
+  source: 'manual' | 'bank_auto' | 'bank_manual'
+  notes: string | null
+}
+
+export async function getUnreconciledPayments(month: string): Promise<{
+  success: boolean
+  data?: UnreconciledPayment[]
+  error?: string
+}> {
+  const auth = await requireFinance()
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  try {
+    const supabase = await createServiceClient()
+
+    // Scope to the given month by YYYY-MM prefix on paid_date, same pattern
+    // as getProposedTransactions()'s bank_date scoping above.
+    const monthStart = month // 'YYYY-MM-01'
+    const [year, mon] = month.split('-').map(Number)
+    const endDate = new Date(year, mon, 1) // first day of next month
+    const monthEnd = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-01`
+
+    const { data, error } = await supabase
+      .from('finance_bill_payments')
+      .select(`
+        id, bill_id, amount, paid_date, payment_method, payment_ref, source, notes,
+        bill:finance_bills(name, vendor:finance_vendors(name))
+      `)
+      .is('bank_bs_id', null)
+      .gte('paid_date', monthStart)
+      .lt('paid_date', monthEnd)
+      .order('paid_date', { ascending: false })
+
+    if (error) {
+      console.error('getUnreconciledPayments error:', error)
+      return { success: false, error: error.message }
+    }
+
+    type BillJoin = { name: string; vendor: { name: string } | { name: string }[] | null }
+
+    const rows: UnreconciledPayment[] = (data ?? []).map((r) => {
+      const billData = r.bill as BillJoin | BillJoin[] | null
+      const bill = Array.isArray(billData) ? billData[0] : billData
+      const vendorData = bill?.vendor ?? null
+      const vendorName = Array.isArray(vendorData) ? (vendorData[0]?.name ?? null) : (vendorData?.name ?? null)
+      return {
+        id: r.id,
+        bill_id: r.bill_id,
+        bill_name: bill?.name ?? 'Unknown bill',
+        vendor_name: vendorName,
+        amount: Number(r.amount),
+        paid_date: r.paid_date,
+        payment_method: r.payment_method,
+        payment_ref: r.payment_ref,
+        source: r.source as UnreconciledPayment['source'],
+        notes: r.notes,
       }
     })
 
@@ -1404,10 +1510,12 @@ export async function getDuplicateBillCandidates(bsId: number): Promise<{
 // warning. Same guarded path as createBillFromBankTransaction() with the
 // create step removed — the bill already exists.
 //
-// The target bill may be UNPAID, in which case assign_reconciliation_match()
-// takes its non-paid branch and sets status / amount_paid / paid_date /
-// payment_method from the BANK figures. That is correct and is exactly what
-// the existing manual-match UI (getMatchCandidates → assignReconciliationMatch)
+// The target bill may already be paid or partial — SPRO-82's
+// assign_reconciliation_match() (spec A5) no longer special-cases that: it
+// always upserts a finance_bill_payments row at the bank figures, and the
+// recompute trigger derives finance_bills' status/amount_paid/paid_date/
+// payment_method from the ledger. That is correct and is exactly what the
+// existing manual-match UI (getMatchCandidates → assignReconciliationMatch)
 // already does.
 
 export async function linkBillToBankTransaction(input: {
@@ -1545,8 +1653,11 @@ export async function createBillFromBankTransaction(input: {
     return { success: false, billCreated: false, reconciled: false, error: auth.reason }
   }
 
-  // Use server-derived userId — never trust a client-supplied value
-  const userId = auth.session.userId
+  // FIX 5 (SPRO-82 adversarial review): no longer need a locally-derived
+  // userId here — createBill() below derives created_by from its own
+  // requireFinance() session, and seedAndAssignReconciliation() /
+  // assignReconciliationMatch() derive applied_by from theirs. auth.authorized
+  // above is still the actual gate.
 
   const { bsId, bill, allowDuplicate } = input
 
@@ -1634,7 +1745,9 @@ export async function createBillFromBankTransaction(input: {
       paid_date: bill.paid_date ?? undefined,
       amount_paid: bill.amount_paid ?? undefined,
       notes: bill.notes ?? undefined,
-      created_by: userId,
+      // FIX 5 (SPRO-82 adversarial review): createBill() no longer accepts
+      // created_by from its caller — it derives it server-side from its own
+      // requireFinance() session.
     })
 
     if (!billResult.success || !billResult.data) {

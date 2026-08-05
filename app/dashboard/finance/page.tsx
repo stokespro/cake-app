@@ -57,9 +57,18 @@ import {
   getProposedTransactions,
   getMatchCandidates,
   assignReconciliationMatch,
+  getUnreconciledPayments,
 } from './_actions/bank'
 import type { MonthSummary, WeeklySummary, BillReviewDetail } from '@/actions/finance'
-import type { ReconciliationLogRow, BankTransaction, ProposedTransaction, MatchCandidate } from './_actions/bank'
+import type {
+  ReconciliationLogRow,
+  BankTransaction,
+  ProposedTransaction,
+  MatchCandidate,
+  UnreconciledPayment,
+} from './_actions/bank'
+import { getBillPayments } from '@/actions/finance'
+import type { BillPayment } from '@/actions/finance'
 import {
   Sheet,
   SheetContent,
@@ -530,6 +539,12 @@ function BillReviewSheet({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // SPRO-82: the bill's full payment history, not just the single derived
+  // "amount paid" figure on the bill row — a bill can hold several payments
+  // now (finance_bill_payments).
+  const [payments, setPayments] = useState<BillPayment[]>([])
+  const [paymentsLoading, setPaymentsLoading] = useState(false)
+
   // "Not the right bill?" candidate search state
   const [candidatesOpen, setCandidatesOpen] = useState(false)
   const [candidates, setCandidates] = useState<MatchCandidate[]>([])
@@ -554,6 +569,25 @@ function BillReviewSheet({
         setError(res.error ?? 'Failed to load bill detail')
       }
       setLoading(false)
+    })
+  }, [open, row?.bill_id])
+
+  // Load payment history alongside the bill detail — independent fetch/error
+  // state so a payments-list failure never blocks rendering the bill itself.
+  useEffect(() => {
+    if (!open || !row?.bill_id) {
+      setPayments([])
+      return
+    }
+    const billId = row.bill_id
+    setPaymentsLoading(true)
+    getBillPayments(billId).then((res) => {
+      if (res.success) {
+        setPayments(res.data ?? [])
+      } else {
+        console.error('Error loading bill payments:', res.error)
+      }
+      setPaymentsLoading(false)
     })
   }, [open, row?.bill_id])
 
@@ -650,6 +684,14 @@ function BillReviewSheet({
         // surfaces as 'not_pending' (the winner's both-sides dismissal flips
         // the loser's row status before the loser re-reads it), not
         // 'bank_txn_spent'. Same stale-view situation, same handling.
+        //
+        // SPRO-82: 'would_overpay' is deliberately NOT in this list. Unlike
+        // the codes above, the bank transaction and log row are still exactly
+        // as they were — the chosen CANDIDATE bill just doesn't have enough
+        // remaining balance. The toast above already surfaces the server's
+        // own wording (which names both figures); closing/refetching here
+        // would just discard the "Not the right bill?" search the user was
+        // already in the middle of for no reason.
         if (
           result.errorCode === 'auto_applied_conflict' ||
           result.errorCode === 'bank_txn_spent' ||
@@ -799,11 +841,11 @@ function BillReviewSheet({
                         value={<span className="font-mono">{formatMoney(bill.amount)}</span>}
                       />
                       <DetailRow
-                        label="Amount paid"
+                        label="Remaining"
                         value={
-                          bill.amount_paid > 0
-                            ? <span className="font-mono text-green-700">{formatMoney(bill.amount_paid)}</span>
-                            : <span className="text-muted-foreground">$0.00</span>
+                          bill.amount - bill.amount_paid > 0
+                            ? <span className="font-mono text-amber-700 dark:text-amber-400">{formatMoney(bill.amount - bill.amount_paid)}</span>
+                            : <span className="font-mono text-green-700">$0.00</span>
                         }
                       />
                     </div>
@@ -817,23 +859,51 @@ function BillReviewSheet({
                         value={format(parseISO(bill.period_month), 'MMMM yyyy')}
                       />
                     </div>
-                    {bill.paid_date && (
-                      <DetailRow
-                        label="Paid date"
-                        value={format(parseISO(bill.paid_date), 'MMM d, yyyy')}
-                      />
-                    )}
-                    {bill.payment_method && (
-                      <DetailRow
-                        label="Payment method"
-                        value={<span className="capitalize">{bill.payment_method}</span>}
-                      />
-                    )}
-                    {bill.payment_ref && (
-                      <DetailRow label="Payment ref" value={bill.payment_ref} />
-                    )}
                     {bill.notes && (
                       <DetailRow label="Notes" value={bill.notes} />
+                    )}
+                  </div>
+
+                  {/* SPRO-82: full payment history (finance_bill_payments), not
+                      just the single derived "amount paid" figure the bill row
+                      used to show — a bill can hold several payments now. */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Payment History
+                    </h4>
+                    {paymentsLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading payments...</p>
+                    ) : payments.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">No payments recorded yet.</p>
+                    ) : (
+                      <div className="rounded-md border divide-y">
+                        {payments.map((p) => (
+                          <div key={p.id} className="px-3 py-2 flex items-start justify-between gap-2">
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap text-sm">
+                                <span className="font-medium font-mono">{formatMoney(p.amount)}</span>
+                                <span className="text-muted-foreground">
+                                  {format(parseISO(p.paid_date), 'MMM d, yyyy')}
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground capitalize">
+                                {p.payment_method}
+                                {p.payment_ref && <span className="ml-1">#{p.payment_ref}</span>}
+                              </div>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] px-1 py-0 shrink-0 ${
+                                p.bank_bs_id !== null
+                                  ? 'text-green-700 border-green-300 dark:text-green-400'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              {p.bank_bs_id !== null ? 'Reconciled' : 'Awaiting bank match'}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1112,6 +1182,14 @@ function ReconciliationPanel() {
       const result = await confirmReconciliationMatch(logId)
       if (!result.success) {
         toast.error(result.error ?? 'Failed to confirm')
+        // SPRO-82: 'would_overpay' means the bill's remaining balance no
+        // longer covers this bank amount (e.g. another payment landed on it
+        // since the row was proposed) — the underlying data is stale in the
+        // same way 'auto_applied_conflict'/'bank_txn_spent' are, so refetch
+        // rather than leaving a doomed "Confirm" button on screen.
+        if (result.errorCode === 'would_overpay') {
+          await fetchLog()
+        }
         return
       }
       toast.success('Match confirmed')
@@ -1537,6 +1615,146 @@ function UntrackedExpensesPanel({
                         </TableRow>
                       )
                     })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+// -----------------------------------------------------------------------
+// UnreconciledPaymentsPanel
+// -----------------------------------------------------------------------
+// SPRO-82: the visible answer to the ticket's first sentence — a payment
+// recorded manually (e.g. "Payroll - Josh $1,000 partial") sits here with no
+// bank match until reconciliation (automatic via reconcile_cleared_checks/
+// reconcile_non_check_debits, or manual via the Check Reconciliation panel
+// above) links a bank transaction to it. Read-only: matching itself happens
+// from the bank side (ReconciliationPanel), not from this list.
+
+function UnreconciledPaymentsPanel({ month }: { month: string }) {
+  const [open, setOpen] = useState(false)
+  const [payments, setPayments] = useState<UnreconciledPayment[]>([])
+  const [loading, setLoading] = useState(false)
+  const [fetched, setFetched] = useState(false)
+
+  const fetchPayments = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await getUnreconciledPayments(month)
+      if (res.success) setPayments(res.data ?? [])
+      else console.error('Error fetching unreconciled payments:', res.error)
+    } catch (err) {
+      console.error('Error fetching unreconciled payments:', err)
+    } finally {
+      setLoading(false)
+      setFetched(true)
+    }
+  }, [month])
+
+  // Re-fetch when month changes (reset fetched so the panel reloads on next
+  // open, or immediately if already open) — same pattern as
+  // UntrackedExpensesPanel above.
+  useEffect(() => {
+    setFetched(false)
+    setPayments([])
+    if (open) {
+      fetchPayments()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month])
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (next && !fetched) {
+      fetchPayments()
+    }
+  }
+
+  return (
+    <Collapsible open={open} onOpenChange={handleOpenChange}>
+      <CollapsibleTrigger asChild>
+        <Button variant="outline" className="w-full justify-between">
+          <span className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Payments Awaiting Bank Match
+            {payments.length > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {payments.length}
+              </Badge>
+            )}
+          </span>
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <Card className="mt-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Payments Awaiting Bank Match</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Payments recorded on a bill (manually, or from a bank sync) that have not yet been
+              matched to a specific bank transaction. Reconciles automatically once the matching
+              transaction clears, or via Check Reconciliation above.
+            </p>
+          </CardHeader>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>
+            ) : payments.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                <CheckCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                Every payment this month is matched to a bank transaction
+              </div>
+            ) : (
+              <div className="overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="hidden sm:table-cell w-[90px]">Date</TableHead>
+                      <TableHead>Bill</TableHead>
+                      <TableHead className="hidden sm:table-cell">Method</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="hidden md:table-cell">Source</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payments.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="hidden sm:table-cell text-xs text-muted-foreground whitespace-nowrap">
+                          {format(parseISO(p.paid_date), 'MMM d, yyyy')}
+                        </TableCell>
+                        <TableCell className="text-sm max-w-[220px]">
+                          <span className="truncate block font-medium">{p.bill_name}</span>
+                          {p.vendor_name && (
+                            <span className="text-xs text-muted-foreground">{p.vendor_name}</span>
+                          )}
+                          {/* Mobile: show date + method as sub-text */}
+                          <div className="sm:hidden text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                            <span className="block">{format(parseISO(p.paid_date), 'MMM d, yyyy')}</span>
+                            <span className="block capitalize">
+                              {p.payment_method}
+                              {p.payment_ref && <span className="ml-1">#{p.payment_ref}</span>}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs text-muted-foreground capitalize">
+                          {p.payment_method}
+                          {p.payment_ref && <span className="ml-1">#{p.payment_ref}</span>}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-mono">
+                          {formatMoney(p.amount)}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <Badge variant="outline" className="text-xs capitalize text-muted-foreground">
+                            {p.source.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -2088,6 +2306,10 @@ export default function FinanceOverviewPage() {
         month={month}
         onCreateBill={handleCreateBillFromTransaction}
       />
+
+      {/* Payments recorded but not yet matched to a bank transaction (collapsed
+          by default) — SPRO-82, always visible */}
+      <UnreconciledPaymentsPanel month={month} />
     </div>
   )
 }

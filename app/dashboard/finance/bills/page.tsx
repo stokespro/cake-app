@@ -93,6 +93,7 @@ import {
   createBill,
   updateBill,
   deleteBill,
+  setBillVoid,
   instantiateBillsFromTemplates,
   getBillsForMonth,
   getTemplatesWithVendors,
@@ -108,6 +109,13 @@ import { derivePrefillPayment } from '@/app/dashboard/finance/_lib/bank-prefill'
 import type { DuplicateBillCandidate } from '@/app/dashboard/finance/_lib/bank-prefill'
 import { Checkbox } from '@/components/ui/checkbox'
 import { VendorCombobox } from '@/components/finance/vendor-combobox'
+import {
+  BillPaymentsPanel,
+  PaymentFormFields,
+  emptyPaymentForm,
+  validatePaymentFormLocal,
+} from '@/components/finance/bill-payments-panel'
+import type { PaymentFormState, PaymentFormErrors } from '@/components/finance/bill-payments-panel'
 
 // -----------------------------------------------------------------------
 // Helpers
@@ -176,16 +184,16 @@ function BillStatusBadge({ status }: { status: BillStatus }) {
 // Types for local form state
 // -----------------------------------------------------------------------
 
+// SPRO-82: status/amount_paid/paid_date/payment_method/payment_ref are now
+// derived-by-trigger columns on finance_bills (see updateBill()'s own
+// comment in actions/finance.ts) — this form only ever edits the bill's own
+// fields. Payments are edited through BillPaymentsPanel (existing bills) or
+// the "Already paid" affordance below (new bills only).
 interface BillFormData {
   name: string
   vendor_id: string
   amount: string
   due_date: string
-  status: BillStatus
-  payment_method: string
-  payment_ref: string
-  paid_date: string
-  amount_paid: string
   notes: string
 }
 
@@ -193,25 +201,7 @@ interface BillFormErrors {
   name?: string
   amount?: string
   due_date?: string
-  payment_method?: string
-  payment_ref?: string
-  paid_date?: string
-  amount_paid?: string
 }
-
-const PAYMENT_METHODS = [
-  { value: 'card', label: 'Debit Card' },
-  { value: 'ach', label: 'ACH' },
-  { value: 'check', label: 'Check' },
-  { value: 'cash', label: 'Cash' },
-]
-
-const BILL_STATUSES: { value: BillStatus; label: string }[] = [
-  { value: 'unpaid', label: 'Unpaid' },
-  { value: 'partial', label: 'Partial' },
-  { value: 'paid', label: 'Paid' },
-  { value: 'void', label: 'Void' },
-]
 
 type ViewMode = 'table' | 'card'
 
@@ -259,15 +249,21 @@ function BillsPageContent() {
     vendor_id: '',
     amount: '',
     due_date: '',
-    status: 'unpaid',
-    payment_method: '',
-    payment_ref: '',
-    paid_date: new Date().toISOString().substring(0, 10),
-    amount_paid: '',
     notes: '',
   })
   const [billSaving, setBillSaving] = useState(false)
   const [billFormErrors, setBillFormErrors] = useState<BillFormErrors>({})
+  const [voidToggling, setVoidToggling] = useState(false)
+
+  // SPRO-82 (C1): new-bill-only "Already paid" affordance. Editing bills no
+  // longer edits payments inline (that's BillPaymentsPanel below) — but
+  // creating a brand-new bill still needs a simple one-payment shortcut so a
+  // bill that was already paid before it was entered (including the SPRO-77
+  // bank-prefill flow) doesn't need a separate "add payment" round trip right
+  // after creation.
+  const [newBillPaid, setNewBillPaid] = useState(false)
+  const [newBillPayment, setNewBillPayment] = useState<PaymentFormState>(() => emptyPaymentForm())
+  const [newBillPaymentErrors, setNewBillPaymentErrors] = useState<PaymentFormErrors>({})
 
   // SPRO-77: set when the create sheet was opened from an untracked bank
   // expense (Finance overview → "Create Bill"). While set, saving a NEW bill
@@ -361,14 +357,21 @@ function BillsPageContent() {
       vendor_id: '',            // vendor is a deliberate manual choice
       amount,
       due_date: dueDate,
-      status: 'paid',           // the money has already left the bank
-      payment_method,
-      payment_ref,
-      paid_date: dueDate || new Date().toISOString().substring(0, 10),
-      amount_paid: '',
       notes: memo,
     })
     setBillFormErrors({})
+    // SPRO-82: the money has already left the bank, so prefill a single
+    // "already paid" payment instead of a status:'paid' bill field — same
+    // full amount, editable down if it turns out to be a partial.
+    setNewBillPaid(true)
+    setNewBillPayment({
+      amount,
+      paid_date: dueDate || new Date().toISOString().substring(0, 10),
+      payment_method,
+      payment_ref,
+      notes: '',
+    })
+    setNewBillPaymentErrors({})
     setPendingBankBsId(Number.isFinite(bsId) ? bsId : null)
     setDuplicateCandidates([])
     setDuplicateAck(false)
@@ -429,6 +432,25 @@ function BillsPageContent() {
     }
   }
 
+  // SPRO-82: re-fetches just the bills list (amount_paid/status/paid_date are
+  // derived-by-trigger from finance_bill_payments) after a payment is
+  // added/edited/deleted in BillPaymentsPanel, and keeps `editingBill` — a
+  // point-in-time snapshot the sheet is still showing — in sync so the
+  // read-only status badge and the "Remaining" line update live without the
+  // user having to close and reopen the sheet.
+  const refreshAfterPaymentChange = async () => {
+    const res = await getBillsForMonth(month)
+    if (!res.success || !res.data) {
+      console.error('Error refreshing bills after payment change:', res.error)
+      return
+    }
+    setBills(res.data)
+    setEditingBill((prev) => {
+      if (!prev) return prev
+      return res.data!.find((b) => b.id === prev.id) ?? prev
+    })
+  }
+
   // -----------------------------------------------------------------------
   // Filtering
   // -----------------------------------------------------------------------
@@ -467,6 +489,11 @@ function BillsPageContent() {
     setDuplicateCandidates([])
     setDuplicateAck(false)
     setDuplicateChecking(false)
+    // The "Already paid" affordance only ever applies to the NEW-bill flow
+    // that was just abandoned — never let it survive into the next sheet.
+    setNewBillPaid(false)
+    setNewBillPayment(emptyPaymentForm())
+    setNewBillPaymentErrors({})
   }
 
   const handleBillSheetOpenChange = (open: boolean) => {
@@ -483,11 +510,6 @@ function BillsPageContent() {
       vendor_id: '',
       amount: '',
       due_date: '',
-      status: 'unpaid',
-      payment_method: '',
-      payment_ref: '',
-      paid_date: new Date().toISOString().substring(0, 10),
-      amount_paid: '',
       notes: '',
     })
     setBillFormErrors({})
@@ -504,20 +526,39 @@ function BillsPageContent() {
       vendor_id: bill.vendor_id ?? '',
       amount: String(bill.amount),
       due_date: bill.due_date,
-      status: bill.status,
-      payment_method: bill.payment_method ?? '',
-      payment_ref: bill.payment_ref ?? '',
-      paid_date: bill.paid_date ?? new Date().toISOString().substring(0, 10),
-      amount_paid: bill.amount_paid > 0 ? String(bill.amount_paid) : '',
       notes: bill.notes ?? '',
     })
     setBillFormErrors({})
     setBillSheetOpen(true)
   }
 
+  const handleToggleVoid = async () => {
+    if (!editingBill) return
+    const nextVoid = editingBill.status !== 'void'
+    setVoidToggling(true)
+    try {
+      const result = await setBillVoid(editingBill.id, nextVoid)
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'Failed to update bill status')
+        return
+      }
+      toast.success(nextVoid ? 'Bill voided' : 'Bill un-voided')
+      const updated = result.data
+      setEditingBill(updated)
+      setBills((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
+    } catch (err) {
+      console.error('Error toggling bill void state:', err)
+      toast.error('Failed to update bill status')
+    } finally {
+      setVoidToggling(false)
+    }
+  }
+
   const handleSaveBill = async () => {
     const amount = parseFloat(billForm.amount)
-    const needsPayment = billForm.status === 'paid' || billForm.status === 'partial'
+    // "Already paid" only applies to a brand-new bill — editing goes through
+    // BillPaymentsPanel instead (spec C1).
+    const recordingNewPayment = !editingBill && newBillPaid
 
     // Collect all field errors up front so we can show them inline
     const errors: BillFormErrors = {}
@@ -532,33 +573,25 @@ function BillsPageContent() {
       errors.due_date = 'Due date is required'
     }
 
-    if (needsPayment) {
-      if (!billForm.payment_method) {
-        errors.payment_method = 'Payment method is required'
-      }
-      if (billForm.payment_method === 'check' && !billForm.payment_ref.trim()) {
-        errors.payment_ref = 'Check number is required when paying by check'
-      }
-      if (!billForm.paid_date) {
-        errors.paid_date = 'Payment date is required'
-      }
-      if (billForm.status === 'partial') {
-        const amtPaid = parseFloat(billForm.amount_paid)
-        if (isNaN(amtPaid) || amtPaid <= 0) {
-          errors.amount_paid = 'Amount paid must be greater than 0'
-        } else if (!isNaN(amount) && amtPaid >= amount) {
-          errors.amount_paid = 'Amount paid must be less than the bill amount'
-        }
+    const paymentErrors: PaymentFormErrors = recordingNewPayment
+      ? validatePaymentFormLocal(newBillPayment)
+      : {}
+    if (recordingNewPayment && !paymentErrors.amount) {
+      const paidAmt = parseFloat(newBillPayment.amount)
+      if (!isNaN(amount) && paidAmt > amount) {
+        paymentErrors.amount = 'Amount paid cannot exceed the bill amount'
       }
     }
 
-    if (Object.keys(errors).length > 0) {
+    if (Object.keys(errors).length > 0 || Object.keys(paymentErrors).length > 0) {
       setBillFormErrors(errors)
+      setNewBillPaymentErrors(paymentErrors)
       toast.error('Please fix the highlighted fields')
       return
     }
 
     setBillFormErrors({})
+    setNewBillPaymentErrors({})
 
     setBillSaving(true)
     try {
@@ -568,27 +601,29 @@ function BillsPageContent() {
           vendor_id: billForm.vendor_id || null,
           amount,
           due_date: billForm.due_date,
-          status: billForm.status,
-          payment_method: needsPayment ? billForm.payment_method || null : null,
-          payment_ref: needsPayment ? billForm.payment_ref.trim() || null : null,
-          paid_date: needsPayment ? billForm.paid_date || null : null,
-          amount_paid: needsPayment && billForm.status === 'partial'
-            ? parseFloat(billForm.amount_paid)
-            : needsPayment && billForm.status === 'paid'
-              ? amount
-              : undefined,
           notes: billForm.notes.trim() || null,
         })
         if (!result.success) {
-          toast.error(result.error || 'Failed to update bill')
+          // SPRO-82: reducing the amount below what's already been paid comes
+          // back as errorCode 'would_overpay' — surface the server's own
+          // wording on the amount field (spec: "surface that inline on the
+          // amount field") rather than a bare toast, and keep the sheet open
+          // with the user's input intact.
+          if (result.errorCode === 'would_overpay') {
+            setBillFormErrors((p) => ({ ...p, amount: result.error }))
+          } else {
+            toast.error(result.error || 'Failed to update bill')
+          }
           return
         }
         toast.success('Bill updated')
       } else if (pendingBankBsId !== null) {
         // SPRO-77: created from an untracked bank expense — create AND
-        // reconcile in one server action. Same field mapping as the plain
-        // create below (createBill derives the full amount_paid for 'paid';
-        // only 'partial' passes an explicit amount_paid).
+        // reconcile in one server action. status is always 'partial' here
+        // (SPRO-82): createBill()'s 'partial' branch uses the payment amount
+        // the user actually entered as amount_paid, whether or not it equals
+        // the full bill amount — the DB trigger derives the correct
+        // 'paid'/'partial' status from the payment either way.
         const result = await createBillFromBankTransaction({
           bsId: pendingBankBsId,
           // Only ever true off an explicit tick in the duplicate warning. The
@@ -599,13 +634,11 @@ function BillsPageContent() {
             vendor_id: billForm.vendor_id || undefined,
             amount,
             due_date: billForm.due_date,
-            status: billForm.status,
-            payment_method: needsPayment ? billForm.payment_method || null : undefined,
-            payment_ref: needsPayment ? billForm.payment_ref.trim() || undefined : undefined,
-            paid_date: needsPayment ? billForm.paid_date || null : undefined,
-            amount_paid: needsPayment && billForm.status === 'partial'
-              ? parseFloat(billForm.amount_paid)
-              : undefined,
+            status: newBillPaid ? 'partial' : 'unpaid',
+            payment_method: newBillPaid ? newBillPayment.payment_method || null : undefined,
+            payment_ref: newBillPaid ? newBillPayment.payment_ref.trim() || undefined : undefined,
+            paid_date: newBillPaid ? newBillPayment.paid_date || null : undefined,
+            amount_paid: newBillPaid ? parseFloat(newBillPayment.amount) : undefined,
             notes: billForm.notes.trim() || undefined,
           },
         })
@@ -631,6 +664,10 @@ function BillsPageContent() {
         }
 
         if (!result.success) {
+          // createBillFromBankTransaction()'s return type has no errorCode —
+          // a would_overpay rejection (e.g. amount typed above the bill
+          // amount slipping past the client check) still lands here as a
+          // plain toast rather than an inline field error.
           toast.error(result.error || 'Failed to create bill')
           return
         }
@@ -647,18 +684,47 @@ function BillsPageContent() {
           vendor_id: billForm.vendor_id || undefined,
           amount,
           due_date: billForm.due_date,
-          status: billForm.status,
-          payment_method: needsPayment ? billForm.payment_method || null : undefined,
-          payment_ref: needsPayment ? billForm.payment_ref.trim() || undefined : undefined,
-          paid_date: needsPayment ? billForm.paid_date || null : undefined,
-          amount_paid: needsPayment && billForm.status === 'partial'
-            ? parseFloat(billForm.amount_paid)
-            : undefined,
+          status: recordingNewPayment ? 'partial' : 'unpaid',
+          payment_method: recordingNewPayment ? newBillPayment.payment_method || null : undefined,
+          payment_ref: recordingNewPayment ? newBillPayment.payment_ref.trim() || undefined : undefined,
+          paid_date: recordingNewPayment ? newBillPayment.paid_date || null : undefined,
+          amount_paid: recordingNewPayment ? parseFloat(newBillPayment.amount) : undefined,
           notes: billForm.notes.trim() || undefined,
-          created_by: user?.id,
+          // FIX 5 (SPRO-82 adversarial review): created_by is no longer part
+          // of createBill()'s input — the server derives it from its own
+          // session. Every caller is requireFinance()-gated regardless, so
+          // this was attribution risk, not an access-control hole, but there
+          // is no reason to accept it from the client at all.
         })
         if (!result.success) {
-          toast.error(result.error || 'Failed to create bill')
+          // FIX 4 (SPRO-82 adversarial review): createBill() deliberately
+          // KEEPS the bill when the follow-up payment insert fails (see its
+          // own doc comment in actions/finance.ts) — result.data is the
+          // already-created bill in that case. Previously this branch just
+          // toasted the error and returned with editingBill still null, so
+          // clicking Save again created a SECOND bill for the same money
+          // (an invisible-until-refresh duplicate). Mirror
+          // createBillFromBankTransaction's own billCreated/warning pattern
+          // (handled above): add the bill to local state and switch the
+          // sheet into "editing that bill" mode so a retry goes through
+          // updateBill()/BillPaymentsPanel instead of createBill() again —
+          // the user can then never double-create by retrying.
+          if (result.data) {
+            const createdBill = result.data
+            setBills((prev) => [...prev, createdBill])
+            openEditBillSheet(createdBill)
+            toast.warning(
+              result.error
+                ? `Bill created, but the payment could not be recorded: ${result.error}`
+                : 'Bill created, but the payment could not be recorded. Retry the payment below.'
+            )
+            return
+          }
+          if (result.errorCode === 'would_overpay') {
+            setNewBillPaymentErrors((p) => ({ ...p, amount: result.error }))
+          } else {
+            toast.error(result.error || 'Failed to create bill')
+          }
           return
         }
         toast.success('Bill created')
@@ -1104,11 +1170,14 @@ function BillsPageContent() {
                     <TableHead className="hidden sm:table-cell">Due</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="hidden sm:table-cell text-right">Paid</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right">Remaining</TableHead>
                     <TableHead className="w-[60px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredBills.map((bill) => (
+                  {filteredBills.map((bill) => {
+                    const remaining = Math.max(bill.amount - bill.amount_paid, 0)
+                    return (
                     <TableRow key={bill.id}>
                       <TableCell className="font-medium">
                         {bill.name}
@@ -1118,6 +1187,11 @@ function BillsPageContent() {
                           <span className="block">Due {format(parseISO(bill.due_date), 'MMM d, yyyy')}</span>
                           {bill.amount_paid > 0 && (
                             <span className="block text-green-600">{formatMoney(bill.amount_paid)} paid</span>
+                          )}
+                          {bill.status !== 'void' && remaining > 0 && (
+                            <span className="block text-amber-700 dark:text-amber-400">
+                              {formatMoney(remaining)} remaining
+                            </span>
                           )}
                         </div>
                         {bill.notes && (
@@ -1136,6 +1210,9 @@ function BillsPageContent() {
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-right text-sm">
                         {bill.amount_paid > 0 ? formatMoney(bill.amount_paid) : '—'}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-right text-sm">
+                        {bill.status === 'void' ? '—' : formatMoney(remaining)}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -1160,7 +1237,8 @@ function BillsPageContent() {
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -1169,7 +1247,9 @@ function BillsPageContent() {
       ) : (
         /* Card view — mobile */
         <div className="space-y-3">
-          {filteredBills.map((bill) => (
+          {filteredBills.map((bill) => {
+            const remaining = Math.max(bill.amount - bill.amount_paid, 0)
+            return (
             <Card key={bill.id}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -1182,10 +1262,15 @@ function BillsPageContent() {
                       {bill.vendor?.name && <span>{bill.vendor.name}</span>}
                       <span>Due {format(parseISO(bill.due_date), 'MMM d, yyyy')}</span>
                     </div>
-                    <div className="mt-2 flex items-center gap-4 text-sm">
+                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                       <span className="font-semibold">{formatMoney(bill.amount)}</span>
                       {bill.amount_paid > 0 && (
                         <span className="text-green-600">{formatMoney(bill.amount_paid)} paid</span>
+                      )}
+                      {bill.status !== 'void' && remaining > 0 && (
+                        <span className="text-amber-700 dark:text-amber-400">
+                          {formatMoney(remaining)} remaining
+                        </span>
                       )}
                     </div>
                     {bill.notes && (
@@ -1215,7 +1300,8 @@ function BillsPageContent() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -1461,165 +1547,95 @@ function BillsPageContent() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="bill-status">Status</Label>
-              <Select
-                value={billForm.status}
-                onValueChange={(v) => {
-                  const newStatus = v as BillStatus
-                  // Clear payment fields when switching away from paid/partial
-                  if (newStatus !== 'paid' && newStatus !== 'partial') {
-                    setBillForm((p) => ({
-                      ...p,
-                      status: newStatus,
-                      payment_method: '',
-                      payment_ref: '',
-                      paid_date: new Date().toISOString().substring(0, 10),
-                      amount_paid: '',
-                    }))
-                    setBillFormErrors((p) => ({
-                      ...p,
-                      payment_method: undefined,
-                      payment_ref: undefined,
-                      paid_date: undefined,
-                      amount_paid: undefined,
-                    }))
-                  } else {
-                    setBillForm((p) => ({ ...p, status: newStatus }))
-                  }
-                }}
-              >
-                <SelectTrigger id="bill-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {BILL_STATUSES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Payment fields — shown only when status = paid or partial */}
-            {(billForm.status === 'paid' || billForm.status === 'partial') && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="bill-payment-method">Payment Method *</Label>
-                  <Select
-                    value={billForm.payment_method || ''}
-                    onValueChange={(v) => {
-                      setBillForm((p) => ({ ...p, payment_method: v }))
-                      if (billFormErrors.payment_method) setBillFormErrors((p) => ({ ...p, payment_method: undefined }))
-                      // Also clear check number error if switching away from check
-                      if (v !== 'check' && billFormErrors.payment_ref) setBillFormErrors((p) => ({ ...p, payment_ref: undefined }))
-                    }}
+            {/* SPRO-82: status is derived from the payment ledger by a DB
+                trigger — read-only badge, not an editable field. Voiding is
+                its own action (setBillVoid), separate from payments. */}
+            {editingBill && (
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <BillStatusBadge status={editingBill.status} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={billSaving || voidToggling}
+                    onClick={handleToggleVoid}
                   >
-                    <SelectTrigger
-                      id="bill-payment-method"
-                      className={cn(billFormErrors.payment_method && 'border-red-500')}
-                    >
-                      <SelectValue placeholder="Select method (required)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAYMENT_METHODS.map((m) => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {billFormErrors.payment_method && (
-                    <p className="text-red-500 text-xs mt-1">{billFormErrors.payment_method}</p>
-                  )}
+                    {voidToggling
+                      ? 'Updating...'
+                      : editingBill.status === 'void'
+                        ? 'Un-void Bill'
+                        : 'Void Bill'}
+                  </Button>
                 </div>
+              </div>
+            )}
 
-                {billForm.payment_method === 'check' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="bill-check-number">Check Number *</Label>
-                    <Input
-                      id="bill-check-number"
-                      placeholder="e.g. 1234"
-                      value={billForm.payment_ref}
-                      onChange={(e) => {
-                        setBillForm((p) => ({ ...p, payment_ref: e.target.value }))
-                        if (billFormErrors.payment_ref) setBillFormErrors((p) => ({ ...p, payment_ref: undefined }))
-                      }}
-                      className={cn(billFormErrors.payment_ref && 'border-red-500')}
-                    />
-                    {billFormErrors.payment_ref && (
-                      <p className="text-red-500 text-xs mt-1">{billFormErrors.payment_ref}</p>
-                    )}
-                  </div>
-                )}
+            {/* SPRO-82: a bill can hold several payments now — this section
+                replaces the old single status/payment-method/amount-paid
+                fields above. */}
+            {editingBill && (
+              <BillPaymentsPanel
+                bill={editingBill}
+                disabled={billSaving}
+                onPaymentsChanged={refreshAfterPaymentChange}
+              />
+            )}
 
-                {billForm.payment_method && billForm.payment_method !== 'check' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="bill-payment-ref">Reference (optional)</Label>
-                    <Input
-                      id="bill-payment-ref"
-                      placeholder="e.g. ACH ref, last 4..."
-                      value={billForm.payment_ref}
-                      onChange={(e) => setBillForm((p) => ({ ...p, payment_ref: e.target.value }))}
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="bill-paid-date">Payment Date *</Label>
-                  <Input
-                    id="bill-paid-date"
-                    type="date"
-                    value={billForm.paid_date}
-                    onChange={(e) => {
-                      setBillForm((p) => ({ ...p, paid_date: e.target.value }))
-                      if (billFormErrors.paid_date) setBillFormErrors((p) => ({ ...p, paid_date: undefined }))
+            {/* New bill only: a simple optional "already paid" shortcut that
+                records ONE payment on save, so a bill entered after the fact
+                (or prefilled from an untracked bank expense, SPRO-77) doesn't
+                need a separate "add payment" step right after creation.
+                Editing an existing bill's payments always goes through
+                BillPaymentsPanel above instead. */}
+            {!editingBill && (
+              <div className="space-y-3 rounded-md border p-3">
+                <label htmlFor="new-bill-paid" className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    id="new-bill-paid"
+                    checked={newBillPaid}
+                    onCheckedChange={(v) => {
+                      const checked = v === true
+                      setNewBillPaid(checked)
+                      if (checked) {
+                        setNewBillPayment((p) => ({
+                          ...p,
+                          amount: p.amount || billForm.amount,
+                        }))
+                      } else {
+                        setNewBillPaymentErrors({})
+                      }
                     }}
-                    className={cn(billFormErrors.paid_date && 'border-red-500')}
                   />
-                  {billFormErrors.paid_date && (
-                    <p className="text-red-500 text-xs mt-1">{billFormErrors.paid_date}</p>
-                  )}
-                </div>
+                  <span className="text-sm font-medium">Already paid</span>
+                </label>
 
-                {billForm.status === 'partial' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="bill-amount-paid">Amount Paid *</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                      <Input
-                        id="bill-amount-paid"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={billForm.amount_paid}
-                        onChange={(e) => {
-                          setBillForm((p) => ({ ...p, amount_paid: e.target.value }))
-                          if (billFormErrors.amount_paid) setBillFormErrors((p) => ({ ...p, amount_paid: undefined }))
-                        }}
-                        className={cn('pl-7', billFormErrors.amount_paid && 'border-red-500')}
-                      />
-                    </div>
-                    {billFormErrors.amount_paid ? (
-                      <p className="text-red-500 text-xs mt-1">{billFormErrors.amount_paid}</p>
-                    ) : (
-                      billForm.amount && billForm.amount_paid && !isNaN(parseFloat(billForm.amount_paid)) && !isNaN(parseFloat(billForm.amount)) && parseFloat(billForm.amount_paid) < parseFloat(billForm.amount) && (
+                {newBillPaid && (
+                  <div className="space-y-3 pl-1">
+                    <PaymentFormFields
+                      idPrefix="new-bill-payment"
+                      form={newBillPayment}
+                      setForm={setNewBillPayment}
+                      errors={newBillPaymentErrors}
+                      setErrors={setNewBillPaymentErrors}
+                      disabled={billSaving}
+                      hideNotes
+                    />
+                    {newBillPaymentErrors.amount === undefined &&
+                      billForm.amount &&
+                      newBillPayment.amount &&
+                      !isNaN(parseFloat(newBillPayment.amount)) &&
+                      !isNaN(parseFloat(billForm.amount)) &&
+                      parseFloat(newBillPayment.amount) < parseFloat(billForm.amount) && (
                         <p className="text-xs text-muted-foreground">
-                          Balance remaining: {formatMoney(parseFloat(billForm.amount) - parseFloat(billForm.amount_paid))}
+                          Balance remaining: {formatMoney(parseFloat(billForm.amount) - parseFloat(newBillPayment.amount))}
                         </p>
-                      )
-                    )}
+                      )}
                   </div>
                 )}
-
-                {billForm.status === 'paid' && billForm.amount && (
-                  <p className="text-xs text-muted-foreground">
-                    Full amount {formatMoney(parseFloat(billForm.amount) || 0)} will be recorded as paid.
-                  </p>
-                )}
-              </>
+              </div>
             )}
 
             <div className="space-y-2">

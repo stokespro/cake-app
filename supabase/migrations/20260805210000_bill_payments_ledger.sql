@@ -22,24 +22,35 @@
 --   2. One bank transaction still maps to at most one bill (the
 --      bank_txn_spent guard in assign_reconciliation_match() stays).
 --   3. Overpayment is a hard DB-enforced block (payments may never sum past
---      finance_bills.amount) — see fn_finance_bill_payments_guard_overpay().
+--      finance_bills.amount) — see fn_finance_bill_payments_guard_overpay()
+--      AND fn_finance_bills_guard_amount_reduction() (the latter closes the
+--      complementary TOCTOU race on the finance_bills.amount write path
+--      itself — see that function's header comment).
 --   4. Existing mis-applied bills are NOT data-fixed here. Joshua reassigns
 --      them by hand once this ships.
 --
 -- Objects created/changed in this file:
 --   1. TABLE    finance_bill_payments (+ indexes)
 --   2. FUNCTION fn_finance_bill_payments_guard_overpay()  (BEFORE trigger)
---   3. FUNCTION recompute_bill_totals(p_bill_id UUID)
+--   3. FUNCTION fn_finance_bills_guard_amount_reduction() (BEFORE UPDATE OF
+--      amount trigger on finance_bills) — DB backstop closing the TOCTOU gap
+--      where a concurrent payment could commit between updateBill()'s TS
+--      read-then-write, letting amount fall below amount_paid.
+--   4. FUNCTION recompute_bill_totals(p_bill_id UUID)
 --      FUNCTION fn_finance_bill_payments_recompute()      (AFTER trigger)
---   4. Backfill: 189 pre-existing paid/partial bills -> finance_bill_payments,
+--   5. Backfill: 189 pre-existing paid/partial bills -> finance_bill_payments,
 --      guarded by RAISE EXCEPTION preconditions and a post-backfill
---      reconciling-pass verification (all-or-nothing).
---   5. FUNCTION assign_reconciliation_match() — rewritten: deletes the
+--      reconciling pass that verifies amount_paid, status, AND paid_date all
+--      match their pre-backfill values (all-or-nothing); the INSERT itself
+--      is idempotent (skips bills that already have a payment row), so a
+--      re-application is a no-op rather than relying solely on the
+--      verification rollback to catch it.
+--   6. FUNCTION assign_reconciliation_match() — rewritten: deletes the
 --      "already_reconciled" (bill-keyed) guard, writes an upsert into
 --      finance_bill_payments instead of finance_bills directly.
---   6. FUNCTION reconcile_cleared_checks() — rewritten: matches against
+--   7. FUNCTION reconcile_cleared_checks() — rewritten: matches against
 --      finance_bill_payments rows, not bills directly.
---   7. FUNCTION reconcile_non_check_debits() — amount comparison now uses
+--   8. FUNCTION reconcile_non_check_debits() — amount comparison now uses
 --      the bill's remaining balance for unpaid/partial bills; drops the
 --      dead 'scheduled' status from both phases' filters.
 --
@@ -193,6 +204,108 @@ COMMENT ON FUNCTION public.fn_finance_bill_payments_guard_overpay() IS
   'push the bill''s total payments past its amount, or if the bill is void. The TS layer '
   '(actions/finance.ts, Phase B) pattern-matches these prefixes to return errorCode ''would_overpay'' '
   '/ ''bill_void'' instead of a raw Postgres error.';
+
+
+-- ============================================================
+-- A2b. AMOUNT-REDUCTION GUARD — BEFORE UPDATE OF amount ON finance_bills
+-- ============================================================
+-- Hardening fix (adversarial review of this migration): the overpay guard
+-- above only fires on writes to finance_bill_payments. Nothing stopped
+-- `UPDATE finance_bills SET amount = ...` from shrinking a bill's amount
+-- below what has already been paid against it. actions/finance.ts
+-- updateBill() checks this in TS (read amount_paid, compare, then write) but
+-- that is a read-then-write with no row lock — a classic TOCTOU race:
+--
+--   Bill amount $1,000, amount_paid $0. Admin A calls updateBill(amount:
+--   $100) — passes the TS check (amount_paid is still 0 at read time).
+--   Concurrently, Admin B (or the reconciliation cron) records a $900
+--   payment — valid at that moment, since amount is still $1,000, and it
+--   commits first (and, via the AFTER trigger below, writes amount_paid =
+--   900 to this same bill). A's stale UPDATE then lands, unopposed.
+--   Final state: amount $100, amount_paid $900. Overpaid, with nothing in
+--   the DB to have caught it.
+--
+-- Overpayment being impossible is a hard product requirement (SPRO-82 spec,
+-- locked decision #3) — a TS-only, lock-free check is not a sufficient
+-- enforcement point for a hard requirement. This trigger is the DB backstop
+-- for that same rule on the finance_bills.amount write path, mirroring
+-- fn_finance_bill_payments_guard_overpay()'s BILL_OVERPAY: prefix
+-- convention so the existing TS mapPaymentDbErrorCode()/
+-- stripPaymentErrorPrefix() handling (lib/finance/bill-payments.ts)
+-- classifies it as errorCode 'would_overpay' with no TS change required.
+--
+-- Scope: `BEFORE UPDATE OF amount` (column-list trigger) plus a `WHEN
+-- (OLD.amount IS DISTINCT FROM NEW.amount)` clause — belt AND braces, so
+-- this can only ever fire on a write that actually changes the value, never
+-- as a side effect of an UPDATE statement that happens to also touch other
+-- columns. This matters because recompute_bill_totals() (A3 below) itself
+-- runs `UPDATE public.finance_bills SET amount_paid = ..., status = ...,
+-- paid_date = ..., payment_method = ..., payment_ref = ..., updated_at =
+-- now() WHERE id = p_bill_id` — it never sets amount, so this trigger does
+-- not fire for that statement and cannot deadlock or reject the very
+-- recompute that keeps the ledger honest.
+--
+-- Verified against every other writer of finance_bills in this codebase:
+--   - INSERT paths (createBill in actions/finance.ts) are unaffected — this
+--     is an UPDATE-only trigger.
+--   - setBillVoid() (actions/finance.ts) writes only status/updated_at
+--     (and, when un-voiding, reads amount/amount_paid but never writes
+--     amount) — does not fire this trigger.
+--   - assign_reconciliation_match() (A5 below) and reconcile_cleared_checks()
+--     (A6 below) write finance_bill_payments only; finance_bills is touched
+--     solely via recompute_bill_totals(), which never sets amount.
+--   - app/dashboard/finance/_actions/bank.ts has no direct `.update()` of
+--     finance_bills.amount anywhere (confirmed by inspection) — every write
+--     there is either to finance_reconciliation_log or routed through the
+--     RPCs/recompute above.
+--   - updateBill() (actions/finance.ts) is the ONLY legitimate writer of
+--     finance_bills.amount, and it is exactly the path this trigger is
+--     meant to backstop — its own TS pre-check becomes redundant-but-safe
+--     defense in depth once this trigger exists, not a load-bearing guard.
+
+CREATE OR REPLACE FUNCTION public.fn_finance_bills_guard_amount_reduction()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- amount is NUMERIC (exact) on both sides — plain < is correct, no float
+  -- epsilon needed.
+  IF NEW.amount < OLD.amount_paid THEN
+    RAISE EXCEPTION 'BILL_OVERPAY: Cannot reduce the bill amount to %, below the % already recorded in payments. Delete or reduce a payment first.',
+      NEW.amount, OLD.amount_paid
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- Row-level UPDATE ... FOR UPDATE / trigger firing on finance_bills is
+-- already serialized per-row by Postgres's own MVCC row locking (the second
+-- writer's UPDATE blocks until the first commits, then re-evaluates OLD
+-- against the now-committed row) — no explicit SELECT ... FOR UPDATE is
+-- needed here the way the overpay guard above needs one against a
+-- *different* table's aggregate.
+DROP TRIGGER IF EXISTS trg_finance_bills_guard_amount_reduction ON public.finance_bills;
+CREATE TRIGGER trg_finance_bills_guard_amount_reduction
+  BEFORE UPDATE OF amount ON public.finance_bills
+  FOR EACH ROW
+  WHEN (OLD.amount IS DISTINCT FROM NEW.amount)
+  EXECUTE FUNCTION public.fn_finance_bills_guard_amount_reduction();
+
+REVOKE ALL ON FUNCTION public.fn_finance_bills_guard_amount_reduction() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.fn_finance_bills_guard_amount_reduction() TO service_role;
+
+COMMENT ON FUNCTION public.fn_finance_bills_guard_amount_reduction() IS
+  'SPRO-82 hardening: BEFORE UPDATE OF amount trigger on finance_bills (fires only when amount '
+  'actually changes — WHEN (OLD.amount IS DISTINCT FROM NEW.amount)). DB backstop for updateBill()''s '
+  'own TS pre-check, closing a TOCTOU race where a concurrent payment could commit between '
+  'updateBill()''s read and its write. Refuses (RAISE EXCEPTION, prefix BILL_OVERPAY:, same '
+  'convention as fn_finance_bill_payments_guard_overpay()) if the new amount would fall below '
+  'OLD.amount_paid. Does not fire for recompute_bill_totals()''s UPDATE (A3 below), which never sets '
+  'amount, nor for any INSERT path.';
 
 
 -- ============================================================
@@ -402,12 +515,23 @@ BEGIN
   END IF;
 END $$;
 
--- Snapshot pre-backfill amount_paid for every bill in scope, so the
--- reconciling pass below can prove the trigger-derived total matches what
--- was already on the row before this migration touched anything.
+-- Snapshot pre-backfill amount_paid, status, AND paid_date for every bill in
+-- scope, so the reconciling pass below can prove ALL THREE trigger-derived
+-- values match what was already on the row before this migration touched
+-- anything — not just amount_paid. recompute_bill_totals() derives
+-- amount_paid, status, paid_date, payment_method, and payment_ref together
+-- from the same SUM/latest-row computation; checking only amount_paid would
+-- let a status- or paid_date-derivation bug slip through undetected even
+-- though the header above claims this pass proves "the derived values
+-- match" (plural). payment_method/payment_ref are intentionally not
+-- snapshotted: with exactly one payment row per bill (this backfill inserts
+-- one row per bill, never more), the "latest payment" is trivially that row,
+-- so payment_method/payment_ref are copied from the same source columns
+-- they're being compared against and cannot independently diverge the way a
+-- derived status or a tie-broken paid_date could.
 DROP TABLE IF EXISTS tmp_spro82_prebackfill;
 CREATE TEMP TABLE tmp_spro82_prebackfill AS
-SELECT id, amount_paid AS pre_amount_paid
+SELECT id, amount_paid AS pre_amount_paid, status AS pre_status, paid_date AS pre_paid_date
 FROM public.finance_bills
 WHERE amount_paid > 0 AND status <> 'void';
 
@@ -423,6 +547,14 @@ ALTER TABLE public.finance_bill_payments DISABLE TRIGGER USER;
 -- earliest (by bank_date, then created_at) wins; Joshua reassigns the
 -- remainder by hand afterwards (locked decision #4). That is expected and
 -- must not be treated as an error.
+--
+-- Idempotency (hardening fix): guarded by `WHERE NOT EXISTS (... a payment
+-- already exists for this bill)` so re-running this migration is an
+-- explicit no-op rather than inserting a second payment row per bill. The
+-- transaction wrapper (BEGIN/COMMIT around the whole file) plus the
+-- verification block below already catch a duplicate insert and roll the
+-- whole migration back — that was already fail-safe — but this makes
+-- re-application a clean no-op instead of relying on that rollback.
 INSERT INTO public.finance_bill_payments
   (bill_id, amount, paid_date, payment_method, payment_ref, bank_bs_id, source, created_by, created_at)
 SELECT b.id, b.amount_paid, b.paid_date, b.payment_method, b.payment_ref,
@@ -431,7 +563,10 @@ SELECT b.id, b.amount_paid, b.paid_date, b.payment_method, b.payment_ref,
          ORDER BY r.bank_date NULLS LAST, r.created_at LIMIT 1),
        'manual', b.created_by, b.created_at
 FROM public.finance_bills b
-WHERE b.amount_paid > 0 AND b.status <> 'void';
+WHERE b.amount_paid > 0 AND b.status <> 'void'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.finance_bill_payments p WHERE p.bill_id = b.id
+  );
 
 ALTER TABLE public.finance_bill_payments ENABLE TRIGGER USER;
 
@@ -441,9 +576,23 @@ ALTER TABLE public.finance_bill_payments ENABLE TRIGGER USER;
 -- without actually re-touching finance_bill_payments).
 SELECT public.recompute_bill_totals(id) FROM tmp_spro82_prebackfill;
 
--- Verify: the recomputed amount_paid must exactly match what was already
--- on the bill before the backfill touched anything. Any mismatch means the
--- backfill and the recompute trigger disagree — abort the whole migration.
+-- Verify: the recomputed amount_paid, status, AND paid_date must all
+-- exactly match what was already on the bill before the backfill touched
+-- anything. recompute_bill_totals() derives all three (plus
+-- payment_method/payment_ref) from the same computation, so checking only
+-- amount_paid would let a status- or paid_date-derivation bug slip through
+-- silently — checking all three is what actually proves "the derived values
+-- match" (plural), as this migration's header claims. Any mismatch means
+-- the backfill and the recompute trigger disagree — abort the whole
+-- migration rather than loosen this check.
+--
+-- Verified against live production data before this hardening pass: 0 of
+-- the 189 in-scope bills' stored `status` disagrees with the
+-- amount_paid-vs-amount derivation recompute_bill_totals() applies, and all
+-- 189 already have a non-null paid_date (enforced by precondition 1 above)
+-- equal to their own single backfilled payment's paid_date — so this
+-- stricter check passes cleanly on current production data, same as the
+-- amount_paid-only check it replaces.
 DO $$
 DECLARE
   v_mismatch_count INTEGER;
@@ -451,10 +600,12 @@ BEGIN
   SELECT count(*) INTO v_mismatch_count
   FROM tmp_spro82_prebackfill t
   JOIN public.finance_bills b ON b.id = t.id
-  WHERE b.amount_paid IS DISTINCT FROM t.pre_amount_paid;
+  WHERE b.amount_paid IS DISTINCT FROM t.pre_amount_paid
+     OR b.status      IS DISTINCT FROM t.pre_status
+     OR b.paid_date    IS DISTINCT FROM t.pre_paid_date;
 
   IF v_mismatch_count > 0 THEN
-    RAISE EXCEPTION 'SPRO-82 backfill verification failed: % bill(s) have a trigger-recomputed amount_paid that differs from the pre-backfill value. Aborting migration.', v_mismatch_count;
+    RAISE EXCEPTION 'SPRO-82 backfill verification failed: % bill(s) have a trigger-recomputed amount_paid, status, or paid_date that differs from the pre-backfill value. Aborting migration.', v_mismatch_count;
   END IF;
 END $$;
 

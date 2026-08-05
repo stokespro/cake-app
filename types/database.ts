@@ -979,6 +979,80 @@ export type Database = {
         }
         Relationships: []
       }
+      // Hand-added ahead of migration application (SPRO-82) — mirrors
+      // supabase/migrations/20260805210000_bill_payments_ledger.sql (section A1).
+      // The migration is NOT applied yet (Joshua applies it via Supabase MCP
+      // after this PR merges). MUST be regenerated via
+      // mcp__supabase__generate_typescript_types once it is — this block is a
+      // manual best-effort match to what the generator would produce, not
+      // actual generator output.
+      finance_bill_payments: {
+        Row: {
+          amount: number
+          bank_bs_id: number | null
+          bill_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          paid_date: string
+          payment_method: string
+          payment_ref: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          bank_bs_id?: number | null
+          bill_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          paid_date: string
+          payment_method: string
+          payment_ref?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          bank_bs_id?: number | null
+          bill_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          paid_date?: string
+          payment_method?: string
+          payment_ref?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_bill_payments_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "finance_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_bill_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_bill_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       finance_bill_templates: {
         Row: {
           amount: number | null
