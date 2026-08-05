@@ -8,6 +8,7 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 export type CultivationTaskStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
 export type CultivationTaskType = 'scheduled' | 'adhoc' | 'recurring'
 export type CycleStatus = 'active' | 'completed' | 'cancelled'
+export type CycleEndOutcome = 'completed' | 'cancelled'
 
 export const PHASE_CONFIG: Record<GrowPhase, { label: string; color: string }> = {
   empty:   { label: 'Empty',   color: 'gray' },

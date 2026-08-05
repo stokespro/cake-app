@@ -40,7 +40,12 @@ import {
 import { format, isToday, isPast, startOfWeek, endOfWeek } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { useAuth, canManageCultivation, canCompleteCultivation } from '@/lib/auth-context'
+import {
+  useAuth,
+  canManageCultivation,
+  canCompleteCultivation,
+  canEndCultivationCycle,
+} from '@/lib/auth-context'
 import { GrowRoom, RoomCycle, CultivationTask } from '@/types/cultivation'
 import { PRIORITY_BADGE } from '@/lib/cultivation/helpers'
 import { TaskCompletionSheet } from '@/components/cultivation/task-completion-sheet'
@@ -249,6 +254,7 @@ export default function CultivationPage() {
 
   const isManagement = user ? canManageCultivation(user.role) : false
   const canComplete = user ? canCompleteCultivation(user.role) : false
+  const canEndCycle = user ? canEndCultivationCycle(user.role) : false
 
   // ─── Data fetching ──────────────────────────────────────────────────────────
 
@@ -605,6 +611,7 @@ export default function CultivationPage() {
           room={advanceRoom}
           activeCycles={activeCyclesMap[advanceRoom.id] || []}
           onCompleted={fetchRooms}
+          canEndCycle={canEndCycle}
         />
       )}
 

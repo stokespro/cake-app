@@ -73,6 +73,13 @@ export function canCompleteCultivation(role: UserRole): boolean {
   return ['admin', 'management', 'vault', 'packaging', 'grow'].includes(role);
 }
 
+// Ending a cycle (complete/cancel) is admin-only for now — mirrors
+// END_CYCLE_ROLES in actions/cultivation.ts. Once the trim-management
+// module ships, the trim manager role will close cycles out too. (SPRO-80)
+export function canEndCultivationCycle(role: UserRole): boolean {
+  return role === 'admin';
+}
+
 interface AuthContextType {
   user: SessionUser | null;
   isLoading: boolean;

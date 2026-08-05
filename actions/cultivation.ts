@@ -11,6 +11,7 @@ import type {
   TaskPriority,
   TemplateType,
   CultivationTaskStatus,
+  CycleEndOutcome,
 } from '@/types/cultivation'
 
 // ---------------------------------------------------------------------------
@@ -1097,6 +1098,140 @@ export async function advanceStage(input: AdvanceStageInput): Promise<
     return { error: 'Failed to advance stage' }
   }
   return {}
+}
+
+// ---------------------------------------------------------------------------
+// End Cycle — complete or cancel an active cycle
+// ---------------------------------------------------------------------------
+
+// Cycle termination is admin-only for now. Once the trim-management module
+// ships, the trim manager role will close cycles out. (SPRO-80)
+const END_CYCLE_ROLES = ['admin']
+
+export interface EndCycleInput {
+  roomId: string
+  cycleId: string
+  outcome: CycleEndOutcome
+  actualEndDate: string // 'YYYY-MM-DD'
+  reason: string | null // required (non-empty) when outcome === 'cancelled'
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+export async function endCycle(input: EndCycleInput): Promise<
+  { tasksSkipped: number; roomFreed: boolean; error?: never } | { error: string }
+> {
+  const auth = await requireRole(END_CYCLE_ROLES)
+  if (!auth.authorized) return { error: auth.reason }
+
+  const db = await createServiceClient()
+
+  // 1. Fetch + validate the cycle server-side. Never trust client-provided
+  // status/stage — re-derive everything from the DB.
+  const { data: cycle, error: fetchErr } = await db
+    .from('room_cycles')
+    .select('id, room_id, status, current_stage, start_date, notes')
+    .eq('id', input.cycleId)
+    .maybeSingle()
+
+  if (fetchErr) {
+    console.error('[cultivation] endCycle fetch error:', fetchErr)
+    return { error: 'Failed to load cycle' }
+  }
+  if (!cycle || cycle.room_id !== input.roomId) {
+    return { error: 'Cycle not found for this room' }
+  }
+  if (cycle.status !== 'active') {
+    return { error: 'This cycle has already been ended' }
+  }
+  if (input.outcome === 'completed' && cycle.current_stage !== 'trim') {
+    return { error: 'A cycle can only be completed from the trim stage. Use cancel to end it early.' }
+  }
+  const reason = input.reason?.trim() ?? ''
+  if (input.outcome === 'cancelled' && !reason) {
+    return { error: 'A reason is required to cancel a cycle' }
+  }
+  if (!DATE_ONLY_RE.test(input.actualEndDate)) {
+    return { error: 'Invalid end date' }
+  }
+  if (input.actualEndDate < cycle.start_date) {
+    return { error: 'End date cannot be before the cycle start date' }
+  }
+
+  const now = new Date().toISOString()
+
+  // 2. Update room_cycles — this is the record of truth, so it goes first.
+  let notes = cycle.notes
+  if (input.outcome === 'cancelled') {
+    const cancellationLine = `Cancelled ${input.actualEndDate}: ${reason}`
+    notes = notes ? `${notes}\n\n${cancellationLine}` : cancellationLine
+  }
+
+  const { error: cycleErr } = await db
+    .from('room_cycles')
+    .update({
+      status: input.outcome,
+      actual_end_date: input.actualEndDate,
+      notes,
+      updated_at: now,
+    })
+    .eq('id', input.cycleId)
+
+  if (cycleErr) {
+    console.error('[cultivation] endCycle cycle update error:', cycleErr)
+    return { error: 'Failed to end cycle' }
+  }
+
+  // 3. Skip any still-open tasks tied to this cycle. Best-effort — the cycle
+  // is already closed, so a failure here shouldn't block reporting success.
+  let tasksSkipped = 0
+  const { data: skippedTasks, error: tasksErr } = await db
+    .from('cultivation_tasks')
+    .update({
+      status: 'skipped',
+      completed_at: now,
+      completed_by: auth.session.userId,
+      completion_notes: `Auto-skipped — cycle ${input.outcome} ${input.actualEndDate}`,
+      updated_at: now,
+    })
+    .eq('room_cycle_id', input.cycleId)
+    .in('status', ['pending', 'in_progress'])
+    .select('id')
+
+  if (tasksErr) {
+    console.error('[cultivation] endCycle task skip error:', tasksErr)
+  } else {
+    tasksSkipped = skippedTasks?.length ?? 0
+  }
+
+  // 4. Free the room if no other active cycles remain for it.
+  let roomFreed = false
+  const { data: remainingActive, error: remainingErr } = await db
+    .from('room_cycles')
+    .select('id')
+    .eq('room_id', input.roomId)
+    .eq('status', 'active')
+
+  if (remainingErr) {
+    console.error('[cultivation] endCycle remaining-cycles check error:', remainingErr)
+  } else if ((remainingActive?.length ?? 0) === 0) {
+    const { error: roomErr } = await db
+      .from('grow_rooms')
+      .update({
+        current_phase: 'empty',
+        phase_start_date: null,
+        updated_at: now,
+      })
+      .eq('id', input.roomId)
+
+    if (roomErr) {
+      console.error('[cultivation] endCycle room update error:', roomErr)
+    } else {
+      roomFreed = true
+    }
+  }
+
+  return { tasksSkipped, roomFreed }
 }
 
 // ---------------------------------------------------------------------------
