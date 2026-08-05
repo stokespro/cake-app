@@ -45,11 +45,13 @@ import {
   canManageCultivation,
   canCompleteCultivation,
   canEndCultivationCycle,
+  canEditCultivationCycle,
 } from '@/lib/auth-context'
 import { GrowRoom, RoomCycle, CultivationTask } from '@/types/cultivation'
 import { PRIORITY_BADGE } from '@/lib/cultivation/helpers'
 import { TaskCompletionSheet } from '@/components/cultivation/task-completion-sheet'
 import { StartCycleDialog, AdvanceStageDialog } from '@/components/cultivation/flip-room-dialog'
+import { EditCycleDialog } from '@/components/cultivation/edit-cycle-dialog'
 import { RoomHistorySheet } from '@/components/cultivation/room-history-sheet'
 import { RoomCard } from '@/components/cultivation/room-card'
 import {
@@ -240,6 +242,10 @@ export default function CultivationPage() {
   const [advanceOpen, setAdvanceOpen] = useState(false)
   const [advanceRoom, setAdvanceRoom] = useState<GrowRoom | null>(null)
 
+  // Edit Cycle dialog
+  const [editCycleOpen, setEditCycleOpen] = useState(false)
+  const [editCycleRoom, setEditCycleRoom] = useState<GrowRoom | null>(null)
+
   // History sheet
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyRoom, setHistoryRoom] = useState<GrowRoom | null>(null)
@@ -255,6 +261,7 @@ export default function CultivationPage() {
   const isManagement = user ? canManageCultivation(user.role) : false
   const canComplete = user ? canCompleteCultivation(user.role) : false
   const canEndCycle = user ? canEndCultivationCycle(user.role) : false
+  const canEditCycle = user ? canEditCultivationCycle(user.role) : false
 
   // ─── Data fetching ──────────────────────────────────────────────────────────
 
@@ -359,6 +366,11 @@ export default function CultivationPage() {
   function handleAdvanceStage(room: GrowRoom) {
     setAdvanceRoom(room)
     setAdvanceOpen(true)
+  }
+
+  function handleEditCycle(room: GrowRoom) {
+    setEditCycleRoom(room)
+    setEditCycleOpen(true)
   }
 
   function handleHistory(room: GrowRoom) {
@@ -571,6 +583,7 @@ export default function CultivationPage() {
                 taskCounts={roomCounts}
                 onStartCycle={isManagement ? handleStartCycle : undefined}
                 onAdvanceStage={isManagement ? handleAdvanceStage : undefined}
+                onEditCycle={canEditCycle ? handleEditCycle : undefined}
                 onHistory={handleHistory}
                 onEdit={isManagement ? handleEditRoom : undefined}
                 onDelete={isManagement ? handleDeleteRoom : undefined}
@@ -612,6 +625,18 @@ export default function CultivationPage() {
           activeCycles={activeCyclesMap[advanceRoom.id] || []}
           onCompleted={fetchRooms}
           canEndCycle={canEndCycle}
+        />
+      )}
+
+      {/* Edit Cycle Dialog */}
+      {editCycleRoom && (
+        <EditCycleDialog
+          open={editCycleOpen}
+          onOpenChange={setEditCycleOpen}
+          room={editCycleRoom}
+          activeCycles={activeCyclesMap[editCycleRoom.id] || []}
+          onCompleted={fetchRooms}
+          canEditCycle={canEditCycle}
         />
       )}
 

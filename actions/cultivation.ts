@@ -3,15 +3,18 @@
 import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { generateRecurringTasksCore } from '@/lib/cultivation/generate-recurring-tasks'
-import type {
-  GrowRoom,
-  RoomCycle,
-  CycleTemplate,
-  TemplateTask,
-  TaskPriority,
-  TemplateType,
-  CultivationTaskStatus,
-  CycleEndOutcome,
+import { resolveTaskDueDate, type CycleMilestones } from '@/lib/cultivation/helpers'
+import {
+  STAGE_ORDER,
+  type GrowRoom,
+  type RoomCycle,
+  type CycleTemplate,
+  type TemplateTask,
+  type TaskPriority,
+  type TemplateType,
+  type CultivationTaskStatus,
+  type CycleEndOutcome,
+  type PipelineStage,
 } from '@/types/cultivation'
 
 // ---------------------------------------------------------------------------
@@ -1013,7 +1016,7 @@ export async function startCycle(input: StartCycleInput): Promise<
     .order('day_number')
     .order('sort_order')
 
-  const milestones: Record<string, string> = {
+  const milestones: CycleMilestones = {
     dome: input.domeStart,
     veg: input.vegStart,
     flower: input.flowerStart,
@@ -1025,32 +1028,22 @@ export async function startCycle(input: StartCycleInput): Promise<
   let taskCount = 0
   if (templateTasks && templateTasks.length > 0) {
     const tasksToInsert = templateTasks
-      .filter((tt: TemplateTask) => tt.stage && milestones[tt.stage])
-      .map((tt: TemplateTask) => {
-        const milestoneDate = milestones[tt.stage!]
-        const milestoneDateObj = new Date(milestoneDate + 'T00:00:00')
-        const dueDate = new Date(milestoneDateObj)
-        if (tt.day_number > 0) {
-          dueDate.setDate(dueDate.getDate() + (tt.day_number - 1))
-        } else {
-          dueDate.setDate(dueDate.getDate() + tt.day_number)
-        }
-        return {
-          room_cycle_id: newCycle.id,
-          room_id: input.roomId,
-          template_task_id: tt.id,
-          title: tt.name,
-          description: tt.description,
-          task_type: 'scheduled' as const,
-          phase: tt.stage,
-          day_number: tt.day_number,
-          due_date: dueDate.toISOString().split('T')[0],
-          priority: tt.priority,
-          estimated_minutes: tt.estimated_minutes,
-          status: 'pending' as const,
-          created_by: input.userId,
-        }
-      })
+      .filter((tt: TemplateTask) => tt.stage && milestones[tt.stage as PipelineStage])
+      .map((tt: TemplateTask) => ({
+        room_cycle_id: newCycle.id,
+        room_id: input.roomId,
+        template_task_id: tt.id,
+        title: tt.name,
+        description: tt.description,
+        task_type: 'scheduled' as const,
+        phase: tt.stage,
+        day_number: tt.day_number,
+        due_date: resolveTaskDueDate(milestones, tt.stage!, tt.day_number),
+        priority: tt.priority,
+        estimated_minutes: tt.estimated_minutes,
+        status: 'pending' as const,
+        created_by: input.userId,
+      }))
 
     await db.from('cultivation_tasks').insert(tasksToInsert)
     taskCount = tasksToInsert.length
@@ -1232,6 +1225,218 @@ export async function endCycle(input: EndCycleInput): Promise<
   }
 
   return { tasksSkipped, roomFreed }
+}
+
+// ---------------------------------------------------------------------------
+// Update Cycle — correct milestone dates on an active cycle and re-anchor
+// its still-pending tasks. Never touches completed/skipped tasks, ad-hoc/
+// recurring tasks, current_stage, or grow_rooms. (edit-active-cycle-dates)
+// ---------------------------------------------------------------------------
+
+// Lowercase, human-readable label per stage, used to compose the
+// non-decreasing-date validation errors below (e.g. "Flower start cannot be
+// before veg start").
+const STAGE_DATE_LABEL: Record<PipelineStage, string> = {
+  dome: 'dome start',
+  veg: 'veg start',
+  flower: 'flower start',
+  harvest: 'harvest date',
+  dry: 'dry start',
+  trim: 'trim start',
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+export interface UpdateCycleInput {
+  roomId: string
+  cycleId: string
+  domeStart: string
+  vegStart: string
+  flowerStart: string
+  harvestDate: string
+  dryStart: string
+  trimStart: string
+  notes: string | null
+  dryRun: boolean
+}
+
+export interface UpdateCyclePreview {
+  /** Pending/in_progress scheduled tasks whose due_date would change. */
+  tasksRescheduled: number
+  /** Pending/in_progress scheduled tasks whose due_date is already correct. */
+  tasksUnchanged: number
+  /** Completed/skipped tasks — history, never touched. */
+  tasksPreserved: number
+  /** Non-scheduled or phase-less tasks (ad-hoc/recurring) — left alone. */
+  adhocSkipped: number
+  /** Capped at 50, ordered by new due date. */
+  changes: Array<{ title: string; phase: string; from: string; to: string }>
+}
+
+export async function updateCycle(input: UpdateCycleInput): Promise<
+  (UpdateCyclePreview & { applied: boolean; error?: never }) | { error: string }
+> {
+  // Reuses END_CYCLE_ROLES (admin-only) — correcting cycle history carries
+  // the same blast radius as ending one.
+  const auth = await requireRole(END_CYCLE_ROLES)
+  if (!auth.authorized) return { error: auth.reason }
+
+  const db = await createServiceClient()
+
+  // 1. Fetch + validate the cycle server-side. Never trust client-provided
+  // status — re-derive everything from the DB.
+  const { data: cycle, error: fetchErr } = await db
+    .from('room_cycles')
+    .select('id, room_id, status')
+    .eq('id', input.cycleId)
+    .maybeSingle()
+
+  if (fetchErr) {
+    console.error('[cultivation] updateCycle fetch error:', fetchErr)
+    return { error: 'Failed to load cycle' }
+  }
+  if (!cycle || cycle.room_id !== input.roomId) {
+    return { error: 'Cycle not found for this room' }
+  }
+  if (cycle.status !== 'active') {
+    return { error: 'Only an active cycle can be edited' }
+  }
+
+  // 2. Validate dates.
+  const milestones: CycleMilestones = {
+    dome: input.domeStart,
+    veg: input.vegStart,
+    flower: input.flowerStart,
+    harvest: input.harvestDate,
+    dry: input.dryStart,
+    trim: input.trimStart,
+  }
+
+  for (const stage of STAGE_ORDER) {
+    if (!DATE_ONLY_RE.test(milestones[stage])) {
+      return { error: 'Invalid date' }
+    }
+  }
+
+  for (let i = 1; i < STAGE_ORDER.length; i++) {
+    const prevStage = STAGE_ORDER[i - 1]
+    const currStage = STAGE_ORDER[i]
+    if (milestones[currStage] < milestones[prevStage]) {
+      return {
+        error: `${capitalize(STAGE_DATE_LABEL[currStage])} cannot be before ${STAGE_DATE_LABEL[prevStage]}`,
+      }
+    }
+  }
+
+  // 3. Load the cycle's tasks and partition them: completed/skipped are
+  // preserved history, scheduled pending/in_progress tasks get re-anchored,
+  // everything else (ad-hoc, recurring, phase-less) is left alone.
+  const { data: tasks, error: tasksErr } = await db
+    .from('cultivation_tasks')
+    .select('id, title, phase, day_number, due_date, status, task_type')
+    .eq('room_cycle_id', input.cycleId)
+
+  if (tasksErr) {
+    console.error('[cultivation] updateCycle tasks fetch error:', tasksErr)
+    return { error: 'Failed to load cycle tasks' }
+  }
+
+  let tasksPreserved = 0
+  let tasksUnchanged = 0
+  let adhocSkipped = 0
+  const toUpdate: { id: string; due_date: string }[] = []
+  const changes: Array<{ title: string; phase: string; from: string; to: string }> = []
+
+  for (const task of tasks ?? []) {
+    if (task.status === 'completed' || task.status === 'skipped') {
+      tasksPreserved++
+      continue
+    }
+    // status is 'pending' or 'in_progress' here.
+    const isRetimeable =
+      task.task_type === 'scheduled' &&
+      !!task.phase &&
+      (STAGE_ORDER as string[]).includes(task.phase) &&
+      task.day_number != null
+
+    if (!isRetimeable) {
+      adhocSkipped++
+      continue
+    }
+
+    const newDueDate = resolveTaskDueDate(milestones, task.phase as string, task.day_number as number)
+    if (newDueDate === task.due_date) {
+      tasksUnchanged++
+    } else {
+      toUpdate.push({ id: task.id, due_date: newDueDate })
+      changes.push({ title: task.title, phase: task.phase as string, from: task.due_date, to: newDueDate })
+    }
+  }
+
+  changes.sort((a, b) => (a.to < b.to ? -1 : a.to > b.to ? 1 : 0))
+  const cappedChanges = changes.slice(0, 50)
+
+  const preview: UpdateCyclePreview = {
+    tasksRescheduled: toUpdate.length,
+    tasksUnchanged,
+    tasksPreserved,
+    adhocSkipped,
+    changes: cappedChanges,
+  }
+
+  // dryRun computes and returns the preview — writes nothing. This is what
+  // powers the confirmation step in the UI.
+  if (input.dryRun) {
+    return { ...preview, applied: false }
+  }
+
+  // 4. Apply — update room_cycles (record of truth) first, then the
+  // affected tasks. Mirrors startCycle's start_date/expected_end_date
+  // convention (dome/trim), and deliberately never touches current_stage or
+  // grow_rooms — a room runs concurrent cycles at different stages, and
+  // this action corrects dates, not pipeline position.
+  const now = new Date().toISOString()
+
+  const { error: cycleUpdateErr } = await db
+    .from('room_cycles')
+    .update({
+      dome_start: input.domeStart,
+      veg_start: input.vegStart,
+      flower_start: input.flowerStart,
+      harvest_date: input.harvestDate,
+      dry_start: input.dryStart,
+      trim_start: input.trimStart,
+      start_date: input.domeStart,
+      expected_end_date: input.trimStart,
+      notes: input.notes,
+      updated_at: now,
+    })
+    .eq('id', input.cycleId)
+
+  if (cycleUpdateErr) {
+    console.error('[cultivation] updateCycle cycle update error:', cycleUpdateErr)
+    return { error: 'Failed to update cycle' }
+  }
+
+  if (toUpdate.length > 0) {
+    const results = await Promise.all(
+      toUpdate.map((t) =>
+        db
+          .from('cultivation_tasks')
+          .update({ due_date: t.due_date, updated_at: now })
+          .eq('id', t.id)
+      )
+    )
+    const failed = results.find((r) => r.error)
+    if (failed?.error) {
+      console.error('[cultivation] updateCycle task reschedule error:', failed.error)
+      return { error: 'Cycle dates updated, but failed to reschedule some tasks' }
+    }
+  }
+
+  return { ...preview, applied: true }
 }
 
 // ---------------------------------------------------------------------------

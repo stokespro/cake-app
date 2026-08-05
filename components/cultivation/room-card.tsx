@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Play, FastForward, History, Edit2, Trash2 } from 'lucide-react'
+import { Play, FastForward, History, Edit2, CalendarCog, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
 import { getDayProgress, getPairingLabel, PHASE_BADGE_CLASSES } from '@/lib/cultivation/helpers'
@@ -19,6 +19,8 @@ export interface RoomCardProps {
   taskCounts?: { pending: number; overdue: number }
   onStartCycle?: (room: GrowRoom) => void
   onAdvanceStage?: (room: GrowRoom) => void
+  /** Admin-only — correct milestone dates on an active cycle. Rendered only when activeCycles.length > 0. */
+  onEditCycle?: (room: GrowRoom) => void
   onHistory?: (room: GrowRoom) => void
   onEdit?: (room: GrowRoom) => void
   onDelete?: (room: GrowRoom) => void
@@ -34,6 +36,7 @@ export function RoomCard({
   taskCounts,
   onStartCycle,
   onAdvanceStage,
+  onEditCycle,
   onHistory,
   onEdit,
   onDelete,
@@ -191,7 +194,7 @@ export function RoomCard({
         )}
 
         {/* Action buttons — only rendered when callbacks are provided */}
-        {(onStartCycle || onAdvanceStage || onHistory || onEdit || onDelete) && (
+        {(onStartCycle || onAdvanceStage || onEditCycle || onHistory || onEdit || onDelete) && (
           <div className="flex flex-wrap gap-2 pt-1">
             {onStartCycle && (
               <Button variant="outline" size="sm" onClick={() => onStartCycle(room)}>
@@ -205,6 +208,12 @@ export function RoomCard({
                 Advance Stage
               </Button>
             )}
+            {onEditCycle && activeCycles.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => onEditCycle(room)}>
+                <CalendarCog className="h-4 w-4 mr-1" />
+                Edit Cycle
+              </Button>
+            )}
             {onHistory && (
               <Button variant="ghost" size="sm" onClick={() => onHistory(room)}>
                 <History className="h-4 w-4 mr-1" />
@@ -214,7 +223,7 @@ export function RoomCard({
             {onEdit && (
               <Button variant="ghost" size="sm" onClick={() => onEdit(room)}>
                 <Edit2 className="h-4 w-4 mr-1" />
-                Edit
+                Edit Room
               </Button>
             )}
             {onDelete && (
