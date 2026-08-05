@@ -73,6 +73,15 @@ export function canCompleteCultivation(role: UserRole): boolean {
   return ['admin', 'management', 'vault', 'packaging', 'grow'].includes(role);
 }
 
+// Reopening a completed/skipped task intentionally matches
+// canCompleteCultivation, mirroring COMPLETE_ROLES in actions/cultivation.ts:
+// reopening only withdraws a claim that work was done rather than asserting
+// one, so it's strictly less destructive than completing a task, and the
+// person who fat-fingers a completion must be able to undo it themselves.
+export function canReopenCultivationTask(role: UserRole): boolean {
+  return canCompleteCultivation(role);
+}
+
 // Ending a cycle (complete/cancel) is admin-only for now — mirrors
 // END_CYCLE_ROLES in actions/cultivation.ts. Once the trim-management
 // module ships, the trim manager role will close cycles out too. (SPRO-80)

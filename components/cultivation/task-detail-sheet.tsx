@@ -21,10 +21,11 @@ import {
   User,
   Tag,
   Repeat,
+  RotateCcw,
 } from 'lucide-react'
 import type { CultivationTask, CultivationTaskStatus, TaskPriority } from '@/types/cultivation'
 import type { UserRole } from '@/lib/auth-context'
-import { canManageCultivation, canCompleteCultivation } from '@/lib/auth-context'
+import { canManageCultivation, canCompleteCultivation, canReopenCultivationTask } from '@/lib/auth-context'
 
 const PRIORITY_BADGE: Record<TaskPriority, string> = {
   critical: 'bg-red-600 text-white',
@@ -49,6 +50,7 @@ interface TaskDetailSheetProps {
   onStart: () => void
   onEdit: () => void
   onDelete: () => void
+  onReopen: () => void
 }
 
 export function TaskDetailSheet({
@@ -60,6 +62,7 @@ export function TaskDetailSheet({
   onStart,
   onEdit,
   onDelete,
+  onReopen,
 }: TaskDetailSheetProps) {
   if (!task) return null
 
@@ -72,8 +75,10 @@ export function TaskDetailSheet({
   const statusInfo = STATUS_BADGE[task.status]
   const canComplete = canCompleteCultivation(userRole)
   const canManage = canManageCultivation(userRole)
+  const canReopen = canReopenCultivationTask(userRole)
   const showComplete = canComplete && (task.status === 'pending' || task.status === 'in_progress')
   const showStart = canComplete && task.status === 'pending'
+  const showReopen = canReopen && (task.status === 'completed' || task.status === 'skipped')
 
   const phaseDayLabel =
     task.phase && task.day_number
@@ -253,6 +258,17 @@ export function TaskDetailSheet({
               <Button size="sm" onClick={onComplete}>
                 <CheckCircle className="h-4 w-4 mr-1" />
                 Mark Complete
+              </Button>
+            )}
+            {showReopen && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                onClick={onReopen}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Reopen Task
               </Button>
             )}
             {canManage && (

@@ -70,6 +70,7 @@ import {
   getCultivationUsers,
   startTask,
   deleteTask as deleteTaskAction,
+  reopenTask as reopenTaskAction,
 } from '@/actions/cultivation'
 
 // --- Constants ---
@@ -213,6 +214,8 @@ export default function CultivationTasksPage() {
   const [createEditTask, setCreateEditTask] = useState<CultivationTask | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteTask, setDeleteTask] = useState<CultivationTask | null>(null)
+  const [reopenTaskTarget, setReopenTaskTarget] = useState<CultivationTask | null>(null)
+  const [reopening, setReopening] = useState(false)
 
   const canManage = user ? canManageCultivation(user.role) : false
   const canComplete = user ? canCompleteCultivation(user.role) : false
@@ -528,6 +531,30 @@ export default function CultivationTasksPage() {
     setDetailOpen(false)
     fetchData()
     fetchStats()
+  }
+
+  async function handleReopenTask() {
+    if (!reopenTaskTarget) return
+    setReopening(true)
+    try {
+      const result = await reopenTaskAction(reopenTaskTarget.id)
+      if ('error' in result) {
+        toast.error(result.error)
+        return
+      }
+      const dueLabel = format(parseLocalDate(result.newDueDate), 'MMM d')
+      toast.success(
+        result.reanchored
+          ? `"${result.title}" reopened — now due ${dueLabel}`
+          : `"${result.title}" reopened`
+      )
+      setReopenTaskTarget(null)
+      setDetailOpen(false)
+      fetchData()
+      fetchStats()
+    } finally {
+      setReopening(false)
+    }
   }
 
   function openDetailSheet(task: CultivationTask) {
@@ -1083,6 +1110,10 @@ export default function CultivationTasksPage() {
           setDetailOpen(false)
           detailTask && setDeleteTask(detailTask)
         }}
+        onReopen={() => {
+          setDetailOpen(false)
+          if (detailTask) setReopenTaskTarget(detailTask)
+        }}
       />
 
       {/* Completion Sheet */}
@@ -1126,6 +1157,28 @@ export default function CultivationTasksPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reopen Confirmation */}
+      <AlertDialog open={!!reopenTaskTarget} onOpenChange={(open) => !open && setReopenTaskTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reopen Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              This clears the completion record for &ldquo;{reopenTaskTarget?.title}&rdquo; and
+              returns it to Pending
+              {reopenTaskTarget?.task_type === 'scheduled' && reopenTaskTarget?.phase
+                ? ", with its due date updated to match the room's current schedule."
+                : '.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reopening}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReopenTask} disabled={reopening}>
+              {reopening ? 'Reopening…' : 'Reopen'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
