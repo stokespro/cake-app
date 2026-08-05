@@ -13,7 +13,8 @@ import type {
   ActiveClaimSummary,
   ActiveClaimRecord,
   PackagingUser,
-  OrderAlertDetails,
+  OrderAlertData,
+  OrderAlertItem,
 } from '@/lib/packaging/board-types'
 
 // Roles that can access packaging board actions — generous set so the shared TV
@@ -213,71 +214,162 @@ export async function getPackagingUsers(): Promise<PackagingUser[]> {
 }
 
 // ============================================
-// GET ORDER ALERT DETAILS
+// ORDER ALERTS — signal-then-discover
 // ============================================
-// Enrichment for the packaging-board order-alert bar (hooks/use-order-alerts.ts).
-// The anon/authenticated Supabase role has no SELECT grant on `customers` or
-// `order_items`/`skus`, so those lookups must go through the service-role
-// client server-side rather than the browser client used for the realtime
-// subscription itself.
+// Backs the packaging-board order-alert bar (hooks/use-order-alerts.ts).
+//
+// Root cause of the "Unknown dispensary / 0 items" bug: `orders`/`order_items`
+// have RLS enabled with no SELECT grant for anon/authenticated, so Supabase
+// Realtime delivers postgres_changes events for those tables with the row
+// REDACTED (payload.new/payload.old come back empty, with a 401 in
+// payload.errors). Reading `payload.new.id` off those events (as the prior
+// fix did) hands a lookup `undefined`, producing `id=eq.undefined` — a
+// Postgres 22P02 error — and the "Unknown dispensary" / 0-item fallback.
+//
+// Fix: the browser never reads row content off the payload. Realtime events
+// are used purely as a "something changed, go look" trigger; discovery of
+// WHAT changed happens here, via the service-role client, keyed on DB
+// timestamps rather than anything sourced from the payload.
+//
+// `orders.created_at` marks new orders. `orders.last_edited_at` is the
+// signal for edits — every content-editing path (saveOrder,
+// updateOrderFromSheet) sets it unconditionally, so it's a reliable
+// "this order was touched" marker (unlike `updated_at`, which `saveOrder`
+// doesn't set at all). Note `updateOrderStatus` (plain approve/pack/deliver
+// status flips) also sets `last_edited_at` — the hook only triggers the
+// edited-order check off `order_items` table events (which status-only
+// transitions never fire), not off `orders` UPDATE, to avoid that producing
+// a false "order edited" alert on every status change. See
+// hooks/use-order-alerts.ts for the trigger wiring.
 
-export async function getOrderAlertDetails(orderId: string): Promise<OrderAlertDetails | null> {
-  const auth = await requireRole([...PACKAGING_ROLES])
-  if (!auth.authorized) return null
+const ORDER_ALERT_FETCH_LIMIT = 20
 
-  const supabase = await createServiceClient()
-
-  const [orderRes, itemsRes] = await Promise.all([
-    supabase
-      .from('orders')
-      .select('order_number, customer_id, customers(business_name)')
-      .eq('id', orderId)
-      .single(),
-    supabase
-      .from('order_items')
-      .select('sku_id, quantity, skus(code, name)')
-      .eq('order_id', orderId),
-  ])
-
-  const customerRaw = orderRes.data?.customers as unknown as { business_name: string } | null
+function mapOrderAlertRow(
+  row: {
+    id: string
+    order_number: string | null
+    created_at: string | null
+    last_edited_at: string | null
+    customers: { business_name: string } | { business_name: string }[] | null
+    order_items: { sku_id: string; quantity: number; skus: { code: string; name: string } | { code: string; name: string }[] | null }[] | null
+  },
+  kind: 'new' | 'edited'
+): OrderAlertData {
+  const customerRaw = Array.isArray(row.customers) ? row.customers[0] : row.customers
   const customerName = customerRaw?.business_name ?? 'Unknown dispensary'
 
-  const items = (itemsRes.data ?? []).map((item) => {
-    const skuData = item.skus as unknown as { code: string; name: string } | null
+  const items: OrderAlertItem[] = (row.order_items ?? []).map((item) => {
+    const skuData = Array.isArray(item.skus) ? item.skus[0] : item.skus
     const skuName = skuData ? `${skuData.name} (${skuData.code})` : item.sku_id
     return { skuId: item.sku_id, skuName, quantity: item.quantity }
   })
 
+  const eventAt = (kind === 'new' ? row.created_at : row.last_edited_at) ?? row.created_at ?? new Date(0).toISOString()
+
   return {
-    orderNumber: orderRes.data?.order_number ?? null,
+    orderId: row.id,
+    orderNumber: row.order_number,
     customerName,
     items,
+    kind,
+    eventAt,
   }
 }
 
-// ============================================
-// GET SKU NAMES
-// ============================================
-// Resolves a batch of sku IDs to display names ("name (code)") — used by the
-// order-edited diff path, which may reference a sku from a removed/replaced
-// order_items row that's no longer joinable through getOrderAlertDetails.
+const ORDER_ALERT_SELECT = `
+  id,
+  order_number,
+  created_at,
+  last_edited_at,
+  customers ( business_name ),
+  order_items ( sku_id, quantity, skus ( code, name ) )
+`
 
-export async function getSkuNames(skuIds: string[]): Promise<Record<string, string>> {
+/**
+ * Cheap "what's the newest thing in `orders` right now" lookup, used to
+ * seed the alert bar's high-water mark on mount so it doesn't replay
+ * history — only orders created/edited AFTER this baseline should alert.
+ * Falls back to the request time if the table is empty or the query fails,
+ * which is safe (it just means "nothing older can match").
+ */
+export async function getLatestOrderEventTimestamp(): Promise<string> {
+  const nowIso = new Date().toISOString()
+
   const auth = await requireRole([...PACKAGING_ROLES])
-  if (!auth.authorized) return {}
-  if (skuIds.length === 0) return {}
+  if (!auth.authorized) return nowIso
 
   const supabase = await createServiceClient()
-  const { data } = await supabase
-    .from('skus')
-    .select('id, code, name')
-    .in('id', skuIds)
 
-  const result: Record<string, string> = {}
-  for (const row of data ?? []) {
-    result[row.id] = `${row.name} (${row.code})`
+  const [createdRes, editedRes] = await Promise.all([
+    supabase.from('orders').select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase
+      .from('orders')
+      .select('last_edited_at')
+      .not('last_edited_at', 'is', null)
+      .order('last_edited_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  const candidates = [createdRes.data?.created_at, editedRes.data?.last_edited_at, nowIso].filter(
+    (v): v is string => !!v
+  )
+
+  return candidates.reduce((max, ts) => (ts > max ? ts : max), candidates[0] ?? nowIso)
+}
+
+/**
+ * Discovers orders that are new (created_at > sinceIso) or edited
+ * (last_edited_at > sinceIso) since the caller's high-water mark, fully
+ * enriched with customer name + item list. This is the ONLY source of
+ * order-alert content — see the module doc comment above for why.
+ *
+ * Returned newest-first by eventAt, capped at ORDER_ALERT_FETCH_LIMIT.
+ */
+export async function fetchRecentOrderAlerts({ sinceIso }: { sinceIso: string }): Promise<OrderAlertData[]> {
+  const auth = await requireRole([...PACKAGING_ROLES])
+  if (!auth.authorized) return []
+
+  // Guard against a falsy/malformed high-water mark — never let this fall
+  // through to an unbounded query.
+  if (!sinceIso || Number.isNaN(Date.parse(sinceIso))) return []
+
+  const supabase = await createServiceClient()
+
+  const [createdRes, editedRes] = await Promise.all([
+    supabase
+      .from('orders')
+      .select(ORDER_ALERT_SELECT)
+      .gt('created_at', sinceIso)
+      .order('created_at', { ascending: false })
+      .limit(ORDER_ALERT_FETCH_LIMIT),
+    supabase
+      .from('orders')
+      .select(ORDER_ALERT_SELECT)
+      .gt('last_edited_at', sinceIso)
+      .order('last_edited_at', { ascending: false })
+      .limit(ORDER_ALERT_FETCH_LIMIT),
+  ])
+
+  if (createdRes.error) console.error('[packaging-board] fetchRecentOrderAlerts (new) error:', createdRes.error)
+  if (editedRes.error) console.error('[packaging-board] fetchRecentOrderAlerts (edited) error:', editedRes.error)
+
+  // Dedupe by order id — an order that's both newly created AND edited
+  // within the same window is reported once, as 'new' (it has no prior
+  // state for the client to have already alerted on).
+  const byId = new Map<string, OrderAlertData>()
+
+  for (const row of createdRes.data ?? []) {
+    byId.set(row.id, mapOrderAlertRow(row, 'new'))
   }
-  return result
+  for (const row of editedRes.data ?? []) {
+    if (byId.has(row.id)) continue
+    byId.set(row.id, mapOrderAlertRow(row, 'edited'))
+  }
+
+  return Array.from(byId.values())
+    .sort((a, b) => (a.eventAt < b.eventAt ? 1 : -1))
+    .slice(0, ORDER_ALERT_FETCH_LIMIT)
 }
 
 // ============================================

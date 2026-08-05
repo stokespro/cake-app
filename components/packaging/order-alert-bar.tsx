@@ -27,10 +27,14 @@ export interface StoredAlert {
   type: 'new_order' | 'order_edited'
   orderId: string
   customerName: string
-  orderNumber?: string
-  // new_order fields
+  orderNumber?: string | null
+  // Current item list — populated for both new_order and order_edited alerts
+  // created by the current build (edited alerts no longer carry a
+  // field-level diff; see hooks/use-order-alerts.ts doc comment for why).
   items?: OrderItemSnapshot[]
-  // order_edited fields
+  // Legacy field — only present on alerts a pre-fix build persisted to
+  // localStorage before this device refreshed. Rendered as a fallback so an
+  // old queued alert doesn't crash; never produced going forward.
   diff?: ItemDiff[]
 }
 
@@ -101,8 +105,11 @@ function AlertCard({ alert, onDismiss }: { alert: StoredAlert; onDismiss: (id: s
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   })()
 
-  const summaryText = alert.type === 'new_order'
-    ? `${alert.items?.length ?? 0} item${(alert.items?.length ?? 0) !== 1 ? 's' : ''}`
+  // Post-fix alerts always carry `items` (current item list) for both
+  // new_order and order_edited. `diff` only shows up on alerts a pre-fix
+  // build queued to localStorage before this device refreshed.
+  const summaryText = alert.items
+    ? `${alert.items.length} item${alert.items.length !== 1 ? 's' : ''}`
     : `${alert.diff?.length ?? 0} change${(alert.diff?.length ?? 0) !== 1 ? 's' : ''}`
 
   const orderLabel = alert.orderNumber ? ` #${alert.orderNumber}` : ''
@@ -149,9 +156,11 @@ function AlertCard({ alert, onDismiss }: { alert: StoredAlert; onDismiss: (id: s
       {/* Expanded detail */}
       {expanded && (
         <div className="border-t px-3 pb-3 pt-2 space-y-1.5 bg-muted/20">
-          {alert.type === 'new_order' && alert.items && (
+          {alert.items ? (
             <>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Items ordered</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                {alert.type === 'new_order' ? 'Items ordered' : 'Current items'}
+              </p>
               {alert.items.map((item, i) => (
                 <div key={i} className="flex items-baseline gap-2 text-sm">
                   <span className="text-foreground font-medium">{item.skuName}</span>
@@ -159,15 +168,14 @@ function AlertCard({ alert, onDismiss }: { alert: StoredAlert; onDismiss: (id: s
                 </div>
               ))}
             </>
-          )}
-          {alert.type === 'order_edited' && alert.diff && (
+          ) : alert.diff ? (
             <>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Changes</p>
               {alert.diff.map((d, i) => (
                 <DiffLine key={i} d={d} />
               ))}
             </>
-          )}
+          ) : null}
         </div>
       )}
     </div>
@@ -257,10 +265,14 @@ export function OrderAlertBar({ onDataChange }: OrderAlertBarProps = {}) {
       type: event.type,
       orderId: event.orderId,
       customerName: event.customerName,
-      orderNumber: event.orderNumber,
-      ...(event.type === 'new_order' ? { items: event.items } : { diff: event.diff }),
+      orderNumber: event.orderNumber ?? undefined,
+      items: event.items,
     }
-    setQueue((prev) => [stored, ...prev])
+    // A fresh alert for an order supersedes any existing queued entry for
+    // that same order (whether a "bad" pre-fix "Unknown dispensary" entry
+    // still sitting in localStorage, or an earlier new/edited alert for the
+    // same order) rather than stacking a duplicate.
+    setQueue((prev) => [stored, ...prev.filter((a) => a.orderId !== event.orderId)])
   }, [])
 
   const dismissOne = useCallback((alertId: string) => {

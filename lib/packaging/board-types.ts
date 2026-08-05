@@ -83,19 +83,28 @@ export interface PackagingUser {
 }
 
 // A single line item on an order, resolved for display in the order-alert
-// bar (see actions/packaging-board.ts:getOrderAlertDetails)
+// bar (see actions/packaging-board.ts:fetchRecentOrderAlerts)
 export interface OrderAlertItem {
   skuId: string
   skuName: string // human-readable, e.g. "Blue Dream 3.5g (BD-35)"
   quantity: number
 }
 
-// Enrichment payload for a single order alert (new-order or order-edited
-// toast/panel) — customer name + order number + current item list, resolved
-// server-side via the service-role client since anon cannot read
-// `customers` or `order_items`/`skus` directly.
-export interface OrderAlertDetails {
+// A single order discovered by fetchRecentOrderAlerts — the order-alert bar
+// (hooks/use-order-alerts.ts) uses Realtime postgres_changes events purely
+// as a "something changed, go look" trigger (the anon/authenticated role has
+// no SELECT grant on `orders`/`order_items`, so Realtime delivers those
+// events with the row redacted — payload.new/payload.old are not safe to
+// read). This is the shape returned by the service-role discovery query
+// that replaces reading the payload: "which orders are new or edited since
+// the last time I checked?"
+export interface OrderAlertData {
+  orderId: string
   orderNumber: string | null
   customerName: string
   items: OrderAlertItem[]
+  /** 'new' = created after sinceIso; 'edited' = last_edited_at after sinceIso (and not also new) */
+  kind: 'new' | 'edited'
+  /** DB timestamp (created_at for 'new', last_edited_at for 'edited') this row was matched on — use to advance the high-water mark, never the client clock. */
+  eventAt: string
 }

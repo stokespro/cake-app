@@ -3,7 +3,8 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { getOrderAlertDetails, getSkuNames } from '@/actions/packaging-board'
+import { fetchRecentOrderAlerts, getLatestOrderEventTimestamp } from '@/actions/packaging-board'
+import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,6 +16,10 @@ export interface OrderItemSnapshot {
   quantity: number
 }
 
+// Legacy per-line diff shape. No longer produced by this hook — see the
+// "signal-then-discover" note below — but kept exported so OrderAlertBar can
+// still render alerts persisted to localStorage by a pre-fix build without
+// a type error.
 export interface ItemDiff {
   type: 'added' | 'removed' | 'changed'
   skuName: string
@@ -27,15 +32,16 @@ export type AlertEvent =
       type: 'new_order'
       orderId: string
       customerName: string
-      orderNumber?: string
+      orderNumber?: string | null
       items: OrderItemSnapshot[]
     }
   | {
       type: 'order_edited'
       orderId: string
       customerName: string
-      orderNumber?: string
-      diff: ItemDiff[]
+      orderNumber?: string | null
+      // Current item list, not a diff — see module doc comment.
+      items: OrderItemSnapshot[]
     }
 
 interface UseOrderAlertsOptions {
@@ -52,6 +58,36 @@ interface UseOrderAlertsOptions {
    */
   onDataChange?: () => void
 }
+
+// ---------------------------------------------------------------------------
+// Root cause & fix (SPRO order-alert bug — "Unknown dispensary / 0 items")
+//
+// `orders`/`order_items` have RLS enabled with no SELECT grant for the
+// anon/authenticated role, so Supabase Realtime delivers postgres_changes
+// events for those tables with the row REDACTED — `payload.new`/`payload.old`
+// come back empty (`{}`, with a 401 in `payload.errors`). The previous
+// implementation read `payload.new.id`/`sku_id`/etc directly to identify and
+// enrich the order, which handed downstream lookups `undefined` and produced
+// `id=eq.undefined` (Postgres 22P02) plus the "Unknown dispensary" / 0-item
+// fallback.
+//
+// Fix (mirrors what the Packaging Board already does successfully via
+// usePackagingBoardRealtime + getBoardData on this same page): treat every
+// realtime event as a SIGNAL ONLY. Never read payload.new/payload.old. On a
+// signal, call the service-role server action `fetchRecentOrderAlerts`,
+// which discovers new/edited orders by comparing `orders.created_at` /
+// `orders.last_edited_at` against a client-held high-water mark, and returns
+// them fully enriched (customer name + item list) — no browser-visible
+// query ever touches `customers`/`order_items`/`skus` directly.
+//
+// One consequence: because `order_items` payloads are ALSO redacted (both
+// old and new), a field-level "what specifically changed" diff can no
+// longer be computed client-side (that data simply never reaches the
+// browser). Edited-order alerts therefore show the current customer + item
+// list rather than an added/removed/changed diff — see AlertEvent above.
+// ---------------------------------------------------------------------------
+
+const ORDER_ALERT_DEBOUNCE_MS = 2000
 
 // ---------------------------------------------------------------------------
 // Audio: cat meow via HTML5 Audio
@@ -92,23 +128,24 @@ function playMeow(soundEnabled: boolean) {
 }
 
 // ---------------------------------------------------------------------------
-// SKU name cache (browser-side, lives for the page session)
-// Keyed by sku UUID → "name (code)" display string
-// ---------------------------------------------------------------------------
-
-const skuNameCache = new Map<string, string>()
-
-// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
 /**
  * Subscribes to Supabase Realtime for:
- *   - orders: INSERT  → new order alert with full item list
- *   - orders: UPDATE | DELETE → no toast, just fires onDataChange (status
- *     transitions like Confirmed -> Packed affect the Packaging Board)
- *   - order_items: INSERT | UPDATE | DELETE → diff alert (debounced per
- *     order for the toast) AND an immediate onDataChange signal
+ *   - orders: INSERT       → signals a possible new order (debounced discovery check)
+ *   - orders: UPDATE       → onDataChange only (board refresh); deliberately does
+ *     NOT trigger the alert-discovery check — plain status transitions
+ *     (Confirmed -> Packed -> Delivered via updateOrderStatus) also touch
+ *     `orders.last_edited_at`, and alerting on every one of those would be
+ *     alert-fatigue noise. Only `order_items` table events (which
+ *     status-only transitions never fire) trigger the "edited" check.
+ *   - orders: DELETE       → onDataChange only
+ *   - order_items: INSERT | UPDATE | DELETE → onDataChange, AND signals a
+ *     possible order edit (debounced discovery check) — order_items only
+ *     changes via the order-edit save paths (saveOrder/updateOrderFromSheet),
+ *     never via a plain status change, so this stays a clean "content
+ *     edited" signal even though we can no longer read row content off it.
  *
  * `onDataChange` is intentionally undebounced here — it fires once per raw
  * DB event. Callers that need to collapse a burst of events into a single
@@ -117,8 +154,6 @@ const skuNameCache = new Map<string, string>()
  * Requires:
  *   - orders + order_items in supabase_realtime publication
  *     (migration: 20260615000000_enable_realtime_orders.sql)
- *   - order_items REPLICA IDENTITY FULL for UPDATE old-row values
- *     (migration: 20260615120000_order_items_replica_identity_full.sql)
  */
 export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrderAlertsOptions) {
   const onAlertRef = useRef(onAlert)
@@ -134,56 +169,105 @@ export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrder
     playMeow(soundEnabledRef.current)
   }, [])
 
+  // High-water mark: only orders whose created_at/last_edited_at is AFTER
+  // this get surfaced. Seeded from the DB (not the client clock) on mount so
+  // the page doesn't replay pre-existing order history as alerts. A ref
+  // (not state) since it's read/written from realtime callbacks and must
+  // never trigger a re-render.
+  const highWaterMarkRef = useRef<string | null>(null)
+  // Optimistic client-clock baseline set synchronously on mount, overwritten
+  // by the accurate DB-derived value once getLatestOrderEventTimestamp
+  // resolves. Covers the (small) race where a realtime event fires and its
+  // debounce elapses before the initial server round-trip completes —
+  // without this, sinceIso would be null and the first check would be
+  // skipped rather than silently under- or over-firing.
+  highWaterMarkRef.current ??= new Date().toISOString()
+
+  const runCheck = useCallback(async () => {
+    const sinceIso = highWaterMarkRef.current
+    if (!sinceIso) return
+
+    let alerts
+    try {
+      alerts = await fetchRecentOrderAlerts({ sinceIso })
+    } catch (err) {
+      console.error('[use-order-alerts] fetchRecentOrderAlerts failed:', err)
+      return
+    }
+
+    if (!alerts || alerts.length === 0) return
+
+    // Oldest first, so they unshift into the queue in chronological order
+    // (most recent ends up on top).
+    const chronological = [...alerts].sort((a, b) => (a.eventAt < b.eventAt ? -1 : 1))
+
+    for (const alert of chronological) {
+      const event: AlertEvent = {
+        type: alert.kind === 'new' ? 'new_order' : 'order_edited',
+        orderId: alert.orderId,
+        customerName: alert.customerName,
+        orderNumber: alert.orderNumber,
+        items: alert.items,
+      }
+
+      meow()
+      onAlertRef.current(event)
+      onDataChangeRef.current?.()
+
+      const label = alert.orderNumber ? ` #${alert.orderNumber}` : ''
+      const itemLabel = `${alert.items.length} item${alert.items.length !== 1 ? 's' : ''}`
+      if (alert.kind === 'new') {
+        toast.info(`New order${label} — ${alert.customerName} · ${itemLabel}`, { duration: 6000 })
+      } else {
+        toast.warning(`Order${label} edited — ${alert.customerName} · ${itemLabel}`, { duration: 6000 })
+      }
+    }
+
+    // Advance the high-water mark using DB timestamps only (never the
+    // client clock, to avoid skew between the browser and Postgres).
+    const maxEventAt = chronological.reduce(
+      (max, a) => (a.eventAt > max ? a.eventAt : max),
+      sinceIso
+    )
+    highWaterMarkRef.current = maxEventAt
+  }, [meow])
+
+  const scheduleCheck = useDebouncedCallback(runCheck, ORDER_ALERT_DEBOUNCE_MS)
+  const scheduleCheckRef = useRef(scheduleCheck)
+  useEffect(() => { scheduleCheckRef.current = scheduleCheck }, [scheduleCheck])
+
   useEffect(() => {
+    // Seed the accurate high-water mark from the DB.
+    let cancelled = false
+    getLatestOrderEventTimestamp()
+      .then((ts) => {
+        if (!cancelled) highWaterMarkRef.current = ts
+      })
+      .catch((err) => {
+        console.error('[use-order-alerts] getLatestOrderEventTimestamp failed:', err)
+        // Keep the optimistic client-clock baseline already set above.
+      })
+
     const supabase = createClient()
 
     // ------------------------------------------------------------------
-    // Channel 1: orders INSERT → new order
+    // Channel 1: orders INSERT/UPDATE/DELETE
     // ------------------------------------------------------------------
     const ordersChannel = supabase
-      .channel('pkg-orders-insert')
+      .channel('pkg-orders-changes')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },
-        async (payload) => {
-          const row = payload.new as {
-            id: string
-            customer_id: string
-            order_number?: string
-          }
-
-          // Fetch customer + all items via the server action — the anon
-          // client has no SELECT grant on `customers` or `order_items`/`skus`.
-          const details = await getOrderAlertDetails(row.id)
-
-          const customerName = details?.customerName ?? 'Unknown dispensary'
-
-          const items: OrderItemSnapshot[] = details?.items ?? []
-          // Cache resolved names for future diff lookups
-          for (const item of items) skuNameCache.set(item.skuId, item.skuName)
-
-          const event: AlertEvent = {
-            type: 'new_order',
-            orderId: row.id,
-            customerName,
-            orderNumber: row.order_number,
-            items,
-          }
-
-          meow()
-          onAlertRef.current(event)
+        () => {
           onDataChangeRef.current?.()
-
-          const label = row.order_number ? ` #${row.order_number}` : ''
-          toast.info(`New order${label} — ${customerName} · ${items.length} item${items.length !== 1 ? 's' : ''}`, {
-            duration: 6000,
-          })
+          scheduleCheckRef.current()
         }
       )
       .on(
         // Status transitions (e.g. Confirmed -> Packed -> Delivered) don't
         // produce a toast, but they change what the Packaging Board should
-        // show — signal a data change so subscribers can refetch.
+        // show — signal a data change so subscribers can refetch. Does NOT
+        // schedule an alert-discovery check (see hook doc comment).
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders' },
         () => {
@@ -200,183 +284,26 @@ export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrder
       .subscribe()
 
     // ------------------------------------------------------------------
-    // Channel 2: order_items INSERT | UPDATE | DELETE → diff per order
-    // Debounce 2 s so multi-row saves collapse into one alert.
-    // Accumulate per-row change events in pendingDiffs map.
+    // Channel 2: order_items INSERT | UPDATE | DELETE — signal only.
+    // Debounced together with orders INSERT via the same scheduleCheck, so
+    // a multi-row save collapses into a single discovery round-trip.
     // ------------------------------------------------------------------
-
-    type RowChange = {
-      changeType: 'INSERT' | 'UPDATE' | 'DELETE'
-      oldSkuId?: string
-      oldQty?: number
-      newSkuId?: string
-      newQty?: number
-      itemId: string
-    }
-
-    const pendingDiffs = new Map<string, RowChange[]>()   // orderId → changes
-    const debounceMap = new Map<string, ReturnType<typeof setTimeout>>()
-
-    function scheduleFlush(orderId: string) {
-      if (debounceMap.has(orderId)) clearTimeout(debounceMap.get(orderId)!)
-
-      const timer = setTimeout(async () => {
-        debounceMap.delete(orderId)
-        const changes = pendingDiffs.get(orderId) ?? []
-        pendingDiffs.delete(orderId)
-
-        if (changes.length === 0) return
-
-        // Resolve all unique sku IDs referenced by the diff
-        const allSkuIds = new Set<string>()
-        for (const c of changes) {
-          if (c.oldSkuId) allSkuIds.add(c.oldSkuId)
-          if (c.newSkuId) allSkuIds.add(c.newSkuId)
-        }
-
-        // Fetch customer/order number + sku names via server actions — the
-        // anon client has no SELECT grant on `customers` or `skus`.
-        const [details, skuNames] = await Promise.all([
-          getOrderAlertDetails(orderId),
-          getSkuNames(Array.from(allSkuIds)),
-        ])
-
-        const customerName = details?.customerName ?? 'Unknown dispensary'
-        const orderNumber = details?.orderNumber ?? undefined
-        for (const [id, name] of Object.entries(skuNames)) skuNameCache.set(id, name)
-
-        // Build human-readable diff
-        const diff: ItemDiff[] = []
-
-        for (const c of changes) {
-          if (c.changeType === 'INSERT' && c.newSkuId) {
-            diff.push({
-              type: 'added',
-              skuName: skuNameCache.get(c.newSkuId) ?? c.newSkuId,
-              newQty: c.newQty,
-            })
-          } else if (c.changeType === 'DELETE' && c.oldSkuId) {
-            diff.push({
-              type: 'removed',
-              skuName: skuNameCache.get(c.oldSkuId) ?? c.oldSkuId,
-              oldQty: c.oldQty,
-            })
-          } else if (c.changeType === 'UPDATE') {
-            // SKU swapped (line item replaced) → treat as remove + add
-            if (c.oldSkuId && c.newSkuId && c.oldSkuId !== c.newSkuId) {
-              diff.push({
-                type: 'removed',
-                skuName: skuNameCache.get(c.oldSkuId) ?? c.oldSkuId,
-                oldQty: c.oldQty,
-              })
-              diff.push({
-                type: 'added',
-                skuName: skuNameCache.get(c.newSkuId) ?? c.newSkuId,
-                newQty: c.newQty,
-              })
-            } else if (
-              c.newSkuId &&
-              c.oldQty !== undefined &&
-              c.newQty !== undefined &&
-              c.oldQty !== c.newQty
-            ) {
-              // Quantity changed on same SKU
-              diff.push({
-                type: 'changed',
-                skuName: skuNameCache.get(c.newSkuId) ?? c.newSkuId,
-                oldQty: c.oldQty,
-                newQty: c.newQty,
-              })
-            }
-          }
-        }
-
-        if (diff.length === 0) return  // No meaningful change
-
-        const event: AlertEvent = {
-          type: 'order_edited',
-          orderId,
-          customerName,
-          orderNumber,
-          diff,
-        }
-
-        meow()
-        onAlertRef.current(event)
-
-        const label = orderNumber ? ` #${orderNumber}` : ''
-        toast.warning(`Order${label} edited — ${customerName} · ${diff.length} change${diff.length !== 1 ? 's' : ''}`, {
-          duration: 6000,
-        })
-      }, 2000)
-
-      debounceMap.set(orderId, timer)
-    }
-
     const itemsChannel = supabase
       .channel('pkg-order-items-changes')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'order_items' },
-        (payload) => {
+        { event: '*', schema: 'public', table: 'order_items' },
+        () => {
           onDataChangeRef.current?.()
-          const row = payload.new as { id: string; order_id: string; sku_id: string; quantity: number }
-          const changes = pendingDiffs.get(row.order_id) ?? []
-          changes.push({ changeType: 'INSERT', itemId: row.id, newSkuId: row.sku_id, newQty: row.quantity })
-          pendingDiffs.set(row.order_id, changes)
-          scheduleFlush(row.order_id)
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'order_items' },
-        (payload) => {
-          onDataChangeRef.current?.()
-          const oldRow = payload.old as { id: string; order_id: string; sku_id?: string; quantity?: number }
-          const newRow = payload.new as { id: string; order_id: string; sku_id: string; quantity: number }
-          const orderId = newRow.order_id
-          const changes = pendingDiffs.get(orderId) ?? []
-          changes.push({
-            changeType: 'UPDATE',
-            itemId: newRow.id,
-            oldSkuId: oldRow.sku_id,
-            oldQty: oldRow.quantity,
-            newSkuId: newRow.sku_id,
-            newQty: newRow.quantity,
-          })
-          pendingDiffs.set(orderId, changes)
-          scheduleFlush(orderId)
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'order_items' },
-        (payload) => {
-          onDataChangeRef.current?.()
-          const oldRow = payload.old as { id: string; order_id: string; sku_id?: string; quantity?: number }
-          // order_id may not be in the old payload without REPLICA IDENTITY FULL on orders,
-          // but it IS present because we set REPLICA IDENTITY FULL on order_items.
-          const orderId = oldRow.order_id
-          if (!orderId) return
-          const changes = pendingDiffs.get(orderId) ?? []
-          changes.push({
-            changeType: 'DELETE',
-            itemId: oldRow.id,
-            oldSkuId: oldRow.sku_id,
-            oldQty: oldRow.quantity,
-          })
-          pendingDiffs.set(orderId, changes)
-          scheduleFlush(orderId)
+          scheduleCheckRef.current()
         }
       )
       .subscribe()
 
     return () => {
+      cancelled = true
       supabase.removeChannel(ordersChannel)
       supabase.removeChannel(itemsChannel)
-      debounceMap.forEach((t) => clearTimeout(t))
-      debounceMap.clear()
-      pendingDiffs.clear()
     }
-  }, [meow])
+  }, [])
 }
