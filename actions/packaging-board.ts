@@ -13,6 +13,7 @@ import type {
   ActiveClaimSummary,
   ActiveClaimRecord,
   PackagingUser,
+  OrderAlertDetails,
 } from '@/lib/packaging/board-types'
 
 // Roles that can access packaging board actions — generous set so the shared TV
@@ -209,6 +210,74 @@ export async function getPackagingUsers(): Promise<PackagingUser[]> {
 
   if (error) throw new Error(`Failed to fetch packaging users: ${error.message}`)
   return (data || []) as PackagingUser[]
+}
+
+// ============================================
+// GET ORDER ALERT DETAILS
+// ============================================
+// Enrichment for the packaging-board order-alert bar (hooks/use-order-alerts.ts).
+// The anon/authenticated Supabase role has no SELECT grant on `customers` or
+// `order_items`/`skus`, so those lookups must go through the service-role
+// client server-side rather than the browser client used for the realtime
+// subscription itself.
+
+export async function getOrderAlertDetails(orderId: string): Promise<OrderAlertDetails | null> {
+  const auth = await requireRole([...PACKAGING_ROLES])
+  if (!auth.authorized) return null
+
+  const supabase = await createServiceClient()
+
+  const [orderRes, itemsRes] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('order_number, customer_id, customers(business_name)')
+      .eq('id', orderId)
+      .single(),
+    supabase
+      .from('order_items')
+      .select('sku_id, quantity, skus(code, name)')
+      .eq('order_id', orderId),
+  ])
+
+  const customerRaw = orderRes.data?.customers as unknown as { business_name: string } | null
+  const customerName = customerRaw?.business_name ?? 'Unknown dispensary'
+
+  const items = (itemsRes.data ?? []).map((item) => {
+    const skuData = item.skus as unknown as { code: string; name: string } | null
+    const skuName = skuData ? `${skuData.name} (${skuData.code})` : item.sku_id
+    return { skuId: item.sku_id, skuName, quantity: item.quantity }
+  })
+
+  return {
+    orderNumber: orderRes.data?.order_number ?? null,
+    customerName,
+    items,
+  }
+}
+
+// ============================================
+// GET SKU NAMES
+// ============================================
+// Resolves a batch of sku IDs to display names ("name (code)") — used by the
+// order-edited diff path, which may reference a sku from a removed/replaced
+// order_items row that's no longer joinable through getOrderAlertDetails.
+
+export async function getSkuNames(skuIds: string[]): Promise<Record<string, string>> {
+  const auth = await requireRole([...PACKAGING_ROLES])
+  if (!auth.authorized) return {}
+  if (skuIds.length === 0) return {}
+
+  const supabase = await createServiceClient()
+  const { data } = await supabase
+    .from('skus')
+    .select('id, code, name')
+    .in('id', skuIds)
+
+  const result: Record<string, string> = {}
+  for (const row of data ?? []) {
+    result[row.id] = `${row.name} (${row.code})`
+  }
+  return result
 }
 
 // ============================================

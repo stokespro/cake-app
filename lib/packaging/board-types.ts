@@ -81,3 +81,21 @@ export interface PackagingUser {
   name: string
   role: string
 }
+
+// A single line item on an order, resolved for display in the order-alert
+// bar (see actions/packaging-board.ts:getOrderAlertDetails)
+export interface OrderAlertItem {
+  skuId: string
+  skuName: string // human-readable, e.g. "Blue Dream 3.5g (BD-35)"
+  quantity: number
+}
+
+// Enrichment payload for a single order alert (new-order or order-edited
+// toast/panel) — customer name + order number + current item list, resolved
+// server-side via the service-role client since anon cannot read
+// `customers` or `order_items`/`skus` directly.
+export interface OrderAlertDetails {
+  orderNumber: string | null
+  customerName: string
+  items: OrderAlertItem[]
+}
