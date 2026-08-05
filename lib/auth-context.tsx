@@ -80,6 +80,16 @@ export function canEndCultivationCycle(role: UserRole): boolean {
   return role === 'admin';
 }
 
+// Editing an active cycle's milestone dates is admin-only — mirrors
+// updateCycle's role gate (reuses END_CYCLE_ROLES) in actions/cultivation.ts.
+// Identical to canEndCultivationCycle today by deliberate choice, not
+// coincidence — kept as a distinct named export so the two permissions can
+// diverge later (e.g. if a narrower "corrections" role is introduced) without
+// a call-site rename. (edit-active-cycle-dates)
+export function canEditCultivationCycle(role: UserRole): boolean {
+  return role === 'admin';
+}
+
 interface AuthContextType {
   user: SessionUser | null;
   isLoading: boolean;

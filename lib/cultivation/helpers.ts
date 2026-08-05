@@ -1,5 +1,5 @@
 import { parseLocalDate } from '@/lib/utils'
-import type { GrowRoom, RoomCycle, TaskPriority } from '@/types/cultivation'
+import type { GrowRoom, RoomCycle, TaskPriority, PipelineStage } from '@/types/cultivation'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -46,4 +46,36 @@ export function getPairingLabel(room: GrowRoom, rooms: GrowRoom[]): string | nul
   )
   if (!paired) return null
   return `Paired with ${paired.room_name}`
+}
+
+// ─── Cycle date anchoring ────────────────────────────────────────────────────
+
+/** Milestone start date for each pipeline stage, as YYYY-MM-DD strings. */
+export type CycleMilestones = Record<PipelineStage, string>
+
+/**
+ * Resolves a scheduled task's due date from its phase's milestone date and
+ * its template `day_number` offset.
+ *
+ * Contract (do not change without updating both callers — startCycle and
+ * updateCycle in actions/cultivation.ts):
+ *   - `day_number > 0` is 1-indexed relative to the milestone date, so day 1
+ *     lands ON the milestone date itself (offset of `day_number - 1` days).
+ *   - `day_number <= 0` is a raw offset from the milestone date (used for
+ *     prep tasks scheduled before the milestone, e.g. day -2).
+ */
+export function resolveTaskDueDate(
+  milestones: CycleMilestones,
+  phase: string,
+  dayNumber: number
+): string {
+  const milestoneDate = milestones[phase as PipelineStage]
+  const milestoneDateObj = new Date(milestoneDate + 'T00:00:00')
+  const dueDate = new Date(milestoneDateObj)
+  if (dayNumber > 0) {
+    dueDate.setDate(dueDate.getDate() + (dayNumber - 1))
+  } else {
+    dueDate.setDate(dueDate.getDate() + dayNumber)
+  }
+  return dueDate.toISOString().split('T')[0]
 }
