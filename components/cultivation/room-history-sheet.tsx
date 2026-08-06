@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { getRoomCycleHistory } from '@/actions/cultivation'
 import { GrowRoom, GrowPhase, PHASE_CONFIG, CycleStatus } from '@/types/cultivation'
+import { getCycleStageLabel } from '@/lib/cultivation/helpers'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
 
@@ -37,6 +38,7 @@ interface CycleWithRelations {
   start_date: string
   expected_end_date: string | null
   actual_end_date: string | null
+  flower_start: string | null
   status: CycleStatus
   notes: string | null
   template: { name: string } | null
@@ -104,7 +106,13 @@ export function RoomHistorySheet({
 
           {cycles.map((cycle) => {
             const stage = cycle.current_stage
-            const phaseConfig = PHASE_CONFIG[stage as GrowPhase]
+            // Week-of-flower only makes sense for the live stage of an
+            // active cycle — a completed/cancelled cycle's "current" stage
+            // is just wherever it stopped, not an in-progress week.
+            const stageLabel =
+              cycle.status === 'active'
+                ? getCycleStageLabel(stage, cycle.flower_start)
+                : PHASE_CONFIG[stage as GrowPhase]?.label || stage
             const completedTasks = cycle.tasks.filter(
               (t) => t.status === 'completed'
             ).length
@@ -119,7 +127,7 @@ export function RoomHistorySheet({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Badge className={PHASE_BADGE_CLASSES[stage] || 'bg-gray-500 text-white'}>
-                      {phaseConfig?.label || stage}
+                      {stageLabel}
                     </Badge>
                     {cycle.cycle_number && (
                       <span className="text-xs text-muted-foreground">Cycle #{cycle.cycle_number}</span>

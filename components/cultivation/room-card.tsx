@@ -6,9 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Play, FastForward, History, Edit2, CalendarCog, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
-import { getDayProgress, getPairingLabel, PHASE_BADGE_CLASSES } from '@/lib/cultivation/helpers'
-import type { GrowRoom, RoomCycle, GrowPhase } from '@/types/cultivation'
-import { PHASE_CONFIG } from '@/types/cultivation'
+import {
+  getDayProgress,
+  getPairingLabel,
+  getCycleStageLabel,
+  PHASE_BADGE_CLASSES,
+} from '@/lib/cultivation/helpers'
+import type { GrowRoom, RoomCycle } from '@/types/cultivation'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -42,7 +46,6 @@ export function RoomCard({
   onDelete,
   variant = 'default',
 }: RoomCardProps) {
-  const phaseConfig = PHASE_CONFIG[room.current_phase]
   const pairingLabel = getPairingLabel(room, allRooms)
 
   const tv = variant === 'tv'
@@ -64,14 +67,9 @@ export function RoomCard({
             </span>
           </CardTitle>
           <div className="flex items-center gap-1">
-            <Badge
-              className={PHASE_BADGE_CLASSES[room.current_phase] || 'bg-gray-500 text-white'}
-            >
-              {phaseConfig?.label || room.current_phase}
-            </Badge>
-            {activeCycles.length > 1 && (
+            {activeCycles.length > 0 && (
               <Badge variant="outline" className={tv ? 'text-base' : 'text-xs'}>
-                {activeCycles.length} cycles
+                {activeCycles.length} {activeCycles.length === 1 ? 'cycle' : 'cycles'}
               </Badge>
             )}
           </div>
@@ -84,7 +82,7 @@ export function RoomCard({
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {room.current_phase === 'empty' && activeCycles.length === 0 ? (
+        {activeCycles.length === 0 ? (
           <p className={tv ? 'text-base text-zinc-400' : 'text-sm text-muted-foreground'}>
             No active cycle
           </p>
@@ -93,7 +91,7 @@ export function RoomCard({
             {/* All active cycles with milestone timelines */}
             {activeCycles.map((cycle) => {
               const progress = getDayProgress(cycle)
-              const stageConfig = PHASE_CONFIG[cycle.current_stage as GrowPhase]
+              const stageLabel = getCycleStageLabel(cycle.current_stage, cycle.flower_start)
               const hasMilestones =
                 cycle.dome_start ||
                 cycle.veg_start ||
@@ -111,7 +109,7 @@ export function RoomCard({
                     <Badge
                       className={`${PHASE_BADGE_CLASSES[cycle.current_stage] || 'bg-gray-500 text-white'} ${tv ? 'text-base' : 'text-xs'}`}
                     >
-                      {stageConfig?.label || cycle.current_stage}
+                      {stageLabel}
                     </Badge>
                   </div>
                   <div

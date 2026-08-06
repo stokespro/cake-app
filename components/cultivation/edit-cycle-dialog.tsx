@@ -21,7 +21,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { GrowRoom, RoomCycle, PHASE_CONFIG, PipelineStage } from '@/types/cultivation'
+import { GrowRoom, RoomCycle, PHASE_CONFIG } from '@/types/cultivation'
+import { getCycleStageLabel } from '@/lib/cultivation/helpers'
 import { updateCycle, UpdateCyclePreview } from '@/actions/cultivation'
 
 interface EditCycleDialogProps {
@@ -203,7 +204,7 @@ export function EditCycleDialog({
                     {activeCycles.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         Cycle #{c.cycle_number || '?'} —{' '}
-                        {PHASE_CONFIG[c.current_stage as PipelineStage]?.label || c.current_stage}
+                        {getCycleStageLabel(c.current_stage, c.flower_start)}
                       </SelectItem>
                     ))}
                   </SelectContent>

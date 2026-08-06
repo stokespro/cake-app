@@ -1,5 +1,7 @@
+import { differenceInCalendarDays } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
 import type { GrowRoom, RoomCycle, TaskPriority, PipelineStage } from '@/types/cultivation'
+import { PHASE_CONFIG } from '@/types/cultivation'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -46,6 +48,46 @@ export function getPairingLabel(room: GrowRoom, rooms: GrowRoom[]): string | nul
   )
   if (!paired) return null
   return `Paired with ${paired.room_name}`
+}
+
+/**
+ * Week of flower for a cycle currently in the flower stage, 1-indexed.
+ * Week 1 covers the first seven days of flower (day 0-6 since flowerStart).
+ *
+ * Returns null when flowerStart is missing so callers can fall back to a
+ * plain "Flower" label. Clamps to 1 if `today` is before `flowerStart`
+ * (e.g. a cycle advanced to flower ahead of its scheduled date).
+ *
+ * Uses `differenceInCalendarDays` (calendar-date subtraction), not a raw
+ * millisecond-delta divide-by-86400000 — Oklahoma observes DST, flower runs
+ * ~9-10 weeks, and a millisecond delta measures a DST spring-forward day as
+ * 23 hours, which floors a true 10-day span down to 9 and shows the wrong
+ * week a day early. Calendar-day diffing is immune to that.
+ */
+export function getFlowerWeek(flowerStart: string | null, today: Date = new Date()): number | null {
+  if (!flowerStart) return null
+  const start = parseLocalDate(flowerStart)
+  const daysSince = differenceInCalendarDays(today, start)
+  if (daysSince < 0) return 1
+  return Math.floor(daysSince / 7) + 1
+}
+
+/**
+ * Composes the display label for a cycle's current stage — e.g. "Flower W3"
+ * for an in-progress flower stage (falling back to plain "Flower" when the
+ * week can't be computed), or the normal PHASE_CONFIG label for any other
+ * stage. Falls back to the raw stage string for unrecognized stages.
+ */
+export function getCycleStageLabel(
+  stage: string,
+  flowerStart: string | null,
+  today: Date = new Date()
+): string {
+  if (stage === 'flower') {
+    const week = getFlowerWeek(flowerStart, today)
+    return week ? `Flower W${week}` : 'Flower'
+  }
+  return PHASE_CONFIG[stage as keyof typeof PHASE_CONFIG]?.label || stage
 }
 
 // ─── Cycle date anchoring ────────────────────────────────────────────────────
