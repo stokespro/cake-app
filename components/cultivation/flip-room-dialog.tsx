@@ -30,6 +30,7 @@ import {
   PipelineStage,
   CycleEndOutcome,
 } from '@/types/cultivation'
+import { getCycleStageLabel } from '@/lib/cultivation/helpers'
 import { format, addDays } from 'date-fns'
 import {
   getActiveMasterTemplates,
@@ -511,7 +512,7 @@ export function AdvanceStageDialog({
                   <SelectContent>
                     {activeCycles.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        Cycle #{c.cycle_number || '?'} — {PHASE_CONFIG[c.current_stage as PipelineStage]?.label || c.current_stage}
+                        Cycle #{c.cycle_number || '?'} — {getCycleStageLabel(c.current_stage, c.flower_start)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -524,7 +525,7 @@ export function AdvanceStageDialog({
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Current Stage</span>
                   <span className="font-medium">
-                    {PHASE_CONFIG[selectedCycle.current_stage as PipelineStage]?.label || selectedCycle.current_stage}
+                    {getCycleStageLabel(selectedCycle.current_stage, selectedCycle.flower_start)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
@@ -546,7 +547,7 @@ export function AdvanceStageDialog({
 
             {!nextStage && selectedCycle && !canEndCycle && (
               <p className="text-sm text-amber-600">
-                This cycle is at the final stage ({PHASE_CONFIG[selectedCycle.current_stage as PipelineStage]?.label}). No further stages to advance to.
+                This cycle is at the final stage ({getCycleStageLabel(selectedCycle.current_stage, selectedCycle.flower_start)}). No further stages to advance to.
               </p>
             )}
 
