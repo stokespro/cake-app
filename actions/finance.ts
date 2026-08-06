@@ -83,11 +83,16 @@ export interface Bill {
   vendor?: Pick<Vendor, 'id' | 'name'>
 }
 
-// Re-exported so callers can `import type { PaymentMethod, PaymentErrorCode }
-// from '@/actions/finance'` without reaching into lib/finance/bill-payments
-// directly. lib/finance/bill-payments.ts is the source of truth for both —
-// see that file for the SQL migration each mirrors.
-export type { PaymentMethod, PaymentErrorCode }
+// NOTE: PaymentMethod / PaymentErrorCode are deliberately NOT re-exported from
+// this file. It carries 'use server', and Next.js registers EVERY export in a
+// 'use server' module as a callable server action. A re-export of an imported
+// type survives into that registration as `registerServerReference(PaymentMethod, ...)`,
+// but types are erased at compile time — so the module threw
+// `ReferenceError: PaymentMethod is not defined` at evaluation, killing every
+// server action in this file and blanking the entire finance section in prod.
+// Import these two types from '@/lib/finance/bill-payments' instead.
+// (Type *declarations* like `export type BillStatus = ...` below are fine —
+// only re-exports of imported bindings leak.)
 
 /**
  * One row of the finance_bill_payments ledger (SPRO-82). `finance_bills`'
