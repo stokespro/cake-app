@@ -1,11 +1,20 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
 import { requireFinance } from '@/lib/auth/session'
 import { buildCashFlowBoth } from '@/lib/finance/cash-flow'
 import { buildWeeklyBudget, computeWeekBoundaries } from '@/lib/finance/weekly-budget'
 import { pullBankSync } from '@/lib/finance/banksync-pull'
 import type { PullResult } from '@/lib/finance/banksync-pull'
+import {
+  validatePaymentInput,
+  mapPaymentDbErrorCode,
+  stripPaymentErrorPrefix,
+  deriveBankConfirmedBillIds,
+  BILL_OVERPAY_PREFIX,
+} from '@/lib/finance/bill-payments'
+import type { PaymentMethod, PaymentErrorCode } from '@/lib/finance/bill-payments'
 import type {
   BillInput,
   OrderInput,
@@ -72,6 +81,32 @@ export interface Bill {
   updated_at: string
   template?: Pick<BillTemplate, 'id' | 'name' | 'amount'>
   vendor?: Pick<Vendor, 'id' | 'name'>
+}
+
+// Re-exported so callers can `import type { PaymentMethod, PaymentErrorCode }
+// from '@/actions/finance'` without reaching into lib/finance/bill-payments
+// directly. lib/finance/bill-payments.ts is the source of truth for both —
+// see that file for the SQL migration each mirrors.
+export type { PaymentMethod, PaymentErrorCode }
+
+/**
+ * One row of the finance_bill_payments ledger (SPRO-82). `finance_bills`'
+ * `status` / `amount_paid` / `paid_date` / `payment_method` / `payment_ref`
+ * columns are derived FROM these rows by a DB trigger — see
+ * supabase/migrations/20260805210000_bill_payments_ledger.sql section A3.
+ */
+export interface BillPayment {
+  id: string
+  bill_id: string
+  amount: number
+  paid_date: string
+  payment_method: PaymentMethod
+  payment_ref: string | null
+  bank_bs_id: number | null
+  source: 'manual' | 'bank_auto' | 'bank_manual'
+  notes: string | null
+  created_by: string | null
+  created_at: string
 }
 
 export interface CashSnapshot {
@@ -452,6 +487,15 @@ function computeDueDate(periodMonth: string, dueDayOfMonth: number | null): stri
 // BILLS
 // ============================================================
 
+/**
+ * Creates a bill. SPRO-82: `status`/`amount_paid`/`paid_date`/`payment_method`/
+ * `payment_ref` on `finance_bills` are now derived-by-trigger columns, so a
+ * bill created "already paid" (e.g. from the create-from-bank-expense flow,
+ * SPRO-77) is written as two steps — insert the bill unpaid, then insert a
+ * `finance_bill_payments` row via recordBillPayment() — instead of writing
+ * amount_paid/status directly. The input signature is unchanged so
+ * createBillFromBankTransaction() (bank.ts) keeps working untouched.
+ */
 export async function createBill(input: {
   template_id?: string
   vendor_id?: string
@@ -466,35 +510,44 @@ export async function createBill(input: {
   paid_date?: string | null
   amount_paid?: number | null
   notes?: string
-  created_by?: string
-}): Promise<{ success: boolean; data?: Bill; error?: string }> {
+  // FIX 5 (SPRO-82 adversarial review): `created_by` is deliberately NOT part
+  // of this input — it must always come from the server-verified session
+  // (auth.session.userId below), never from the client. Every caller
+  // (bills/page.tsx, bank.ts's createBillFromBankTransaction) is already
+  // requireFinance()-gated, so the old client-supplied `created_by` was
+  // attribution risk rather than an access-control hole, but there is no
+  // reason to accept it from the client at all when the server already knows
+  // who is calling.
+}): Promise<{ success: boolean; data?: Bill; error?: string; errorCode?: PaymentErrorCode }> {
   const auth = await requireFinance()
   if (!auth.authorized) return { success: false, error: auth.reason }
 
   const status = input.status || 'unpaid'
+  const hasPayment = status === 'paid' || status === 'partial'
 
-  // Validate payment fields when status requires them
-  const paymentError = validatePaymentFields(status, {
-    payment_method: input.payment_method,
-    payment_ref: input.payment_ref,
-    amount_paid: input.amount_paid ?? undefined,
-    bill_amount: input.amount,
-  })
-  if (paymentError) return { success: false, error: paymentError }
+  // Full amount for 'paid'; caller-provided amount for 'partial'. Validate
+  // BEFORE writing anything so a bad payment never leaves an orphan bill —
+  // 'unpaid' bill amount here is fine since a brand-new bill has no other
+  // payments yet (existingPaymentsTotal: 0).
+  const paymentAmount = status === 'paid' ? input.amount : (input.amount_paid ?? 0)
+  if (hasPayment) {
+    const validation = validatePaymentInput(
+      { amount: paymentAmount, payment_method: input.payment_method, payment_ref: input.payment_ref },
+      { billAmount: input.amount, billStatus: 'unpaid', existingPaymentsTotal: 0 }
+    )
+    if (!validation.valid) {
+      return { success: false, error: stripPaymentErrorPrefix(validation.error), errorCode: validation.errorCode }
+    }
+  }
 
   try {
     const supabase = await createServiceClient()
-
-    // Derive amount_paid: full amount for paid, provided value for partial, 0 otherwise
-    let amountPaid = 0
-    if (status === 'paid') amountPaid = input.amount
-    else if (status === 'partial') amountPaid = input.amount_paid ?? 0
 
     // Always derive period_month from due_date so it tracks the correct calendar
     // month regardless of which UI month tab was active when the bill was created.
     const periodMonth = derivePeriodMonth(input.due_date)
 
-    const { data, error } = await supabase
+    const { data: newBill, error: billError } = await supabase
       .from('finance_bills')
       .insert({
         template_id: input.template_id || null,
@@ -503,62 +556,124 @@ export async function createBill(input: {
         period_month: periodMonth,
         amount: input.amount,
         due_date: input.due_date,
-        status,
-        amount_paid: amountPaid,
-        paid_date: (status === 'paid' || status === 'partial') ? (input.paid_date || new Date().toISOString().substring(0, 10)) : null,
-        payment_method: (status === 'paid' || status === 'partial') ? (input.payment_method?.trim() || null) : null,
-        payment_ref: (status === 'paid' || status === 'partial') ? (input.payment_ref?.trim() || null) : null,
+        status: 'unpaid',
+        amount_paid: 0,
         notes: input.notes?.trim() || null,
-        created_by: input.created_by || null,
+        created_by: auth.session.userId,
       })
       .select()
       .single()
 
-    if (error) {
-      console.error('Error creating bill:', error)
-      return { success: false, error: error.message }
+    if (billError || !newBill) {
+      console.error('Error creating bill:', billError)
+      return { success: false, error: billError?.message ?? 'Failed to create bill' }
     }
 
-    return { success: true, data }
+    if (!hasPayment) {
+      return { success: true, data: newBill as Bill }
+    }
+
+    const paymentResult = await recordBillPayment({
+      bill_id: newBill.id,
+      amount: paymentAmount,
+      paid_date: input.paid_date || new Date().toISOString().substring(0, 10),
+      payment_method: (input.payment_method?.trim() as PaymentMethod),
+      payment_ref: input.payment_ref?.trim() || null,
+    })
+
+    if (!paymentResult.success) {
+      // Keep the bill — it's the user's data, and re-entering it is worse
+      // than an unpaid bill sitting around. Mirrors
+      // createBillFromBankTransaction()'s own "keep the bill, warn about the
+      // rest" precedent (bank.ts).
+      return {
+        success: false,
+        error: paymentResult.error ? stripPaymentErrorPrefix(paymentResult.error) : paymentResult.error,
+        errorCode: paymentResult.errorCode,
+        data: newBill as Bill,
+      }
+    }
+
+    // Re-fetch so the trigger-derived amount_paid/status/paid_date/etc. on
+    // the returned Bill reflect the payment that was just recorded.
+    const { data: finalBill, error: refetchError } = await supabase
+      .from('finance_bills')
+      .select()
+      .eq('id', newBill.id)
+      .single()
+
+    if (refetchError || !finalBill) {
+      console.error('Error refetching bill after payment:', refetchError)
+      return { success: true, data: newBill as Bill }
+    }
+
+    return { success: true, data: finalBill as Bill }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return { success: false, error: errorMessage }
   }
 }
 
+/**
+ * Updates a bill's non-payment fields. SPRO-82 breaking change: this no
+ * longer accepts `status` / `amount_paid` / `paid_date` / `payment_method` /
+ * `payment_ref` — those are derived from `finance_bill_payments` by a DB
+ * trigger now. Use recordBillPayment() / updateBillPayment() /
+ * deleteBillPayment() to change payments, and setBillVoid() to void/un-void.
+ */
 export async function updateBill(
   id: string,
   input: {
     name?: string
     amount?: number
     due_date?: string
-    status?: BillStatus
-    amount_paid?: number
-    paid_date?: string | null
-    payment_method?: string | null
-    payment_ref?: string | null
     notes?: string | null
     vendor_id?: string | null
     planned_pay_date?: string | null
   }
-): Promise<{ success: boolean; data?: Bill; error?: string }> {
+): Promise<{ success: boolean; data?: Bill; error?: string; errorCode?: PaymentErrorCode }> {
   const auth = await requireFinance()
   if (!auth.authorized) return { success: false, error: auth.reason }
 
-  // Validate payment fields when status requires them. We need bill_amount to
-  // validate partial payments — only validate if both status and amount are provided.
-  if (input.status) {
-    const paymentError = validatePaymentFields(input.status, {
-      payment_method: input.payment_method,
-      payment_ref: input.payment_ref,
-      amount_paid: input.amount_paid ?? undefined,
-      bill_amount: input.amount,
-    })
-    if (paymentError) return { success: false, error: paymentError }
-  }
-
   try {
     const supabase = await createServiceClient()
+
+    // Reducing the amount below what's already been paid would leave the
+    // ledger in an inconsistent state (overpaid relative to the new amount).
+    // This is the "edit the bill amount" escape hatch the overpay guard
+    // (spec A2) points users at — it must not itself be usable to create the
+    // very state it exists to prevent.
+    if (input.amount !== undefined) {
+      const { data: current, error: fetchError } = await supabase
+        .from('finance_bills')
+        .select('amount_paid')
+        .eq('id', id)
+        .single()
+
+      if (fetchError || !current) {
+        return { success: false, error: fetchError?.message ?? 'Bill not found', errorCode: 'not_found' }
+      }
+
+      const amountPaid = Number(current.amount_paid)
+      if (input.amount < amountPaid) {
+        return {
+          success: false,
+          errorCode: 'would_overpay',
+          // No DB trigger covers this case (fn_finance_bill_payments_guard_overpay
+          // only fires on finance_bill_payments writes, not on finance_bills.amount
+          // updates) — this is the sole enforcement point for it, per spec B1's
+          // "Guard: reducing amount below the sum of existing payments" bullet.
+          // Uses the BILL_OVERPAY_PREFIX constant for consistency with the DB's
+          // own prefix even though the message text itself is TS-only — then
+          // stripped immediately below before it reaches the caller, exactly
+          // like every other payment-error return path in this file.
+          error: stripPaymentErrorPrefix(
+            `${BILL_OVERPAY_PREFIX} Cannot reduce the bill amount to ${input.amount.toFixed(2)} — payments already ` +
+              `total ${amountPaid.toFixed(2)}. Delete or reduce a payment first.`
+          ),
+        }
+      }
+    }
 
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -572,37 +687,8 @@ export async function updateBill(
     if (input.notes !== undefined)          updateData.notes = input.notes?.trim() || null
     if (input.vendor_id !== undefined)      updateData.vendor_id = input.vendor_id
     // planned_pay_date: setting to null clears the planned date (marks as unplanned).
-    // No payment validation — this field is independent of the payment status fields.
     if (input.planned_pay_date !== undefined) updateData.planned_pay_date = input.planned_pay_date
-
     if (input.amount !== undefined)         updateData.amount = input.amount
-
-    if (input.status !== undefined) {
-      updateData.status = input.status
-
-      if (input.status === 'paid' || input.status === 'partial') {
-        // Derive amount_paid: full amount for paid, provided value for partial
-        const billAmount = input.amount  // may be undefined if not changing amount
-        updateData.amount_paid = input.status === 'paid'
-          ? (billAmount ?? input.amount_paid)   // paid: full bill amount (caller should pass amount)
-          : (input.amount_paid ?? 0)
-        updateData.paid_date = input.paid_date || new Date().toISOString().substring(0, 10)
-        updateData.payment_method = input.payment_method?.trim() || null
-        updateData.payment_ref = input.payment_ref?.trim() || null
-      } else {
-        // Clearing back to unpaid/void — wipe payment fields
-        updateData.amount_paid = 0
-        updateData.paid_date = null
-        updateData.payment_method = null
-        updateData.payment_ref = null
-      }
-    } else {
-      // Status not changing — still allow individual payment field updates
-      if (input.amount_paid !== undefined)    updateData.amount_paid = input.amount_paid
-      if (input.paid_date !== undefined)      updateData.paid_date = input.paid_date
-      if (input.payment_method !== undefined) updateData.payment_method = input.payment_method
-      if (input.payment_ref !== undefined)    updateData.payment_ref = input.payment_ref
-    }
 
     const { data, error } = await supabase
       .from('finance_bills')
@@ -613,7 +699,23 @@ export async function updateBill(
 
     if (error) {
       console.error('Error updating bill:', error)
-      return { success: false, error: error.message }
+      // FIX 7 (SPRO-82 adversarial review, found in parallel by the SQL
+      // agent): a new DB trigger, trg_finance_bills_guard_amount_reduction
+      // (BEFORE UPDATE OF amount ON finance_bills), is the race-proof
+      // backstop for the TOCTOU window in the read-then-write amount-
+      // reduction check above — two concurrent updateBill() calls can both
+      // pass that read-then-write check before either write lands. When the
+      // trigger fires it raises the same 'BILL_OVERPAY:' prefixed message
+      // this file's other payment-error paths already know how to classify,
+      // so it must be routed through the same mapping/stripping pair rather
+      // than returned as a raw error string — otherwise the sentinel prefix
+      // leaks to the user's screen and errorCode stays undefined instead of
+      // 'would_overpay'.
+      return {
+        success: false,
+        error: stripPaymentErrorPrefix(error.message),
+        errorCode: mapPaymentDbErrorCode(error.message),
+      }
     }
 
     return { success: true, data }
@@ -623,110 +725,500 @@ export async function updateBill(
   }
 }
 
-const VALID_PAYMENT_METHODS = ['card', 'ach', 'check', 'cash'] as const
-type PaymentMethod = typeof VALID_PAYMENT_METHODS[number]
-
-// -----------------------------------------------------------------------
-// Shared payment validation — used by createBill, updateBill, and
-// markBillPaid so the rules are defined once and enforced everywhere.
-// Returns an error string or null if valid.
-// -----------------------------------------------------------------------
-
-function validatePaymentFields(
-  status: BillStatus,
-  fields: {
-    payment_method?: string | null
-    payment_ref?: string | null
-    amount_paid?: number | null
-    bill_amount?: number
-  }
-): string | null {
-  if (status !== 'paid' && status !== 'partial') return null
-
-  const method = fields.payment_method?.trim() || null
-  if (!method || !(VALID_PAYMENT_METHODS as readonly string[]).includes(method)) {
-    return 'Payment method is required when status is paid or partial. Choose card, ach, check, or cash.'
-  }
-  if (method === 'check' && !fields.payment_ref?.trim()) {
-    return 'Check number is required when payment method is check.'
-  }
-  if (status === 'partial') {
-    const amtPaid = fields.amount_paid ?? null
-    if (amtPaid === null || isNaN(amtPaid) || amtPaid <= 0) {
-      return 'Amount paid must be greater than 0 for a partial payment.'
-    }
-    if (fields.bill_amount !== undefined && amtPaid >= fields.bill_amount) {
-      return 'Amount paid must be less than the bill amount for a partial payment. Use Paid for full payment.'
-    }
-  }
-  return null
-}
-
-export async function markBillPaid(
+/**
+ * Voids or un-voids a bill (SPRO-82) — the path that replaces setting
+ * `status: 'void'` through updateBill(), which no longer accepts status.
+ *
+ * Un-voiding does NOT force status back to 'unpaid': while a bill is void,
+ * recompute_bill_totals() never touches its derived columns (spec A3) and
+ * the overpay guard refuses any new payment against a void bill (spec A2,
+ * 'BILL_VOID:' prefix), so `amount_paid` on the row is still an accurate
+ * reflection of whatever was recorded before it was voided. Restoring the
+ * status that figure implies (unpaid/partial/paid) avoids silently losing a
+ * bill that was paid before it got voided.
+ */
+export async function setBillVoid(
   billId: string,
-  payment: {
-    amount_paid: number
-    paid_date: string
-    payment_method?: string
-    payment_ref?: string
-  }
+  isVoid: boolean
 ): Promise<{ success: boolean; data?: Bill; error?: string }> {
   const auth = await requireFinance()
   if (!auth.authorized) return { success: false, error: auth.reason }
 
-  // Determine final status to validate against (need bill amount for partial check)
-  // Fetch bill amount first so we can validate partial correctly
-  const supabaseForFetch = await createServiceClient()
-  const { data: billCheck, error: checkError } = await supabaseForFetch
-    .from('finance_bills')
-    .select('amount')
-    .eq('id', billId)
-    .single()
-  if (checkError || !billCheck) {
-    return { success: false, error: checkError?.message || 'Bill not found' }
-  }
-
-  const targetStatus: BillStatus = payment.amount_paid >= billCheck.amount ? 'paid' : 'partial'
-
-  // Use shared validator — same rules as create/update
-  const paymentError = validatePaymentFields(targetStatus, {
-    payment_method: payment.payment_method,
-    payment_ref: payment.payment_ref,
-    amount_paid: payment.amount_paid,
-    bill_amount: billCheck.amount,
-  })
-  if (paymentError) return { success: false, error: paymentError }
-
-  const method = payment.payment_method!.trim() as PaymentMethod
-
   try {
     const supabase = await createServiceClient()
 
+    let nextStatus: BillStatus = 'void'
+
+    if (!isVoid) {
+      const { data: current, error: fetchError } = await supabase
+        .from('finance_bills')
+        .select('amount, amount_paid')
+        .eq('id', billId)
+        .single()
+
+      if (fetchError || !current) {
+        return { success: false, error: fetchError?.message ?? 'Bill not found' }
+      }
+
+      const amountPaid = Number(current.amount_paid)
+      const amount = Number(current.amount)
+      nextStatus = amountPaid <= 0 ? 'unpaid' : amountPaid >= amount ? 'paid' : 'partial'
+    }
+
     const { data, error } = await supabase
       .from('finance_bills')
-      .update({
-        amount_paid: payment.amount_paid,
-        paid_date: payment.paid_date,   // always set per spec
-        payment_method: method,
-        payment_ref: payment.payment_ref?.trim() || null,
-        status: targetStatus,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ status: nextStatus, updated_at: new Date().toISOString() })
       .eq('id', billId)
       .select()
       .single()
 
     if (error) {
-      console.error('Error marking bill paid:', error)
+      console.error('Error setting bill void state:', error)
       return { success: false, error: error.message }
     }
 
-    return { success: true, data }
+    revalidatePath('/dashboard/finance/bills')
+    revalidatePath('/dashboard/finance')
+
+    return { success: true, data: data as Bill }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return { success: false, error: errorMessage }
   }
 }
+
+// ============================================================
+// BILL PAYMENTS (finance_bill_payments ledger — SPRO-82)
+// ============================================================
+// A bill can now hold several payments — see
+// supabase/migrations/20260805210000_bill_payments_ledger.sql. The DB
+// trigger there (fn_finance_bill_payments_recompute /
+// recompute_bill_totals) keeps finance_bills.amount_paid/status/paid_date/
+// payment_method/payment_ref in sync from these rows on every insert/update/
+// delete, so getBillsForMonth/getMonthSummary/getWeeklyBudget need no
+// changes — they just keep reading finance_bills as before.
+//
+// The overpay guard (fn_finance_bill_payments_guard_overpay, spec A2) is the
+// actual authority and runs under a row lock on the parent bill, so it is
+// race-proof against concurrent inserts in a way validatePaymentInput()'s
+// pre-check here cannot be. mapPaymentDbErrorCode() below reads the guard's
+// own 'BILL_OVERPAY:'/'BILL_VOID:' message prefixes so a race that the
+// pre-check missed still surfaces the correct errorCode to the caller.
+
+/**
+ * All payments recorded against a bill, most recent paid_date first.
+ */
+export async function getBillPayments(billId: string): Promise<{
+  success: boolean
+  data?: BillPayment[]
+  error?: string
+}> {
+  const auth = await requireFinance()
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  try {
+    const supabase = await createServiceClient()
+
+    const { data, error } = await supabase
+      .from('finance_bill_payments')
+      .select('*')
+      .eq('bill_id', billId)
+      .order('paid_date', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching bill payments:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, data: (data ?? []) as BillPayment[] }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, error: errorMessage }
+  }
+}
+
+/**
+ * Internal write path shared by recordBillPayment() (the client-facing
+ * "manual" path) and applyReconciledBillPayment() (the bank-reconciliation
+ * path used only by app/dashboard/finance/_actions/bank.ts). NOT exported —
+ * `bank_bs_id`/`source` must never be reachable from the client-facing
+ * recordBillPayment() input (FIX 1, SPRO-82 adversarial review), and keeping
+ * this function un-exported is what enforces that at the type level: the
+ * only two ways money can be linked to a bank transaction are (a) this
+ * module's own recordBillPayment(), which always passes bank_bs_id: null,
+ * source: 'manual', or (b) applyReconciledBillPayment() below, which is
+ * still requireFinance()-gated and only ever called with a bank_bs_id that
+ * bank.ts read from a server-verified finance_reconciliation_log row — never
+ * from raw client input.
+ *
+ * FIX 2 (double-Confirm race): when `bank_bs_id` is provided, this first
+ * looks for an existing finance_bill_payments row already linked to that
+ * (bank_bs_id, bill_id) pair — the partial unique index uidx_fbp_bank_bill
+ * enforces at most one such row — and updates it in place instead of
+ * inserting a second one. supabase-js's `.upsert({ onConflict })` cannot be
+ * used to do this atomically here: Postgres only infers a PARTIAL unique
+ * index (`... WHERE bank_bs_id IS NOT NULL`) as an ON CONFLICT target when
+ * the INSERT statement itself repeats that exact WHERE predicate, and
+ * PostgREST/supabase-js's `onConflict` option only accepts a column list, not
+ * a predicate — so an `.upsert()` here would silently fail to match the
+ * index and either error or (worse) insert a duplicate anyway. This
+ * select-then-update-or-insert is therefore an explicit, best-effort
+ * narrowing of the race window, not a fully atomic guarantee — the DB
+ * trigger + unique index remain the actual authority, same caveat
+ * validatePaymentInput()'s doc comment already calls out for the overpay
+ * check.
+ */
+async function insertBillPayment(input: {
+  bill_id: string
+  amount: number
+  paid_date: string
+  payment_method: PaymentMethod
+  payment_ref?: string | null
+  notes?: string | null
+  created_by: string | null
+  bank_bs_id: number | null
+  source: 'manual' | 'bank_auto' | 'bank_manual'
+}): Promise<{ success: boolean; data?: BillPayment; error?: string; errorCode?: PaymentErrorCode }> {
+  const supabase = await createServiceClient()
+
+  const { data: bill, error: billError } = await supabase
+    .from('finance_bills')
+    .select('amount, amount_paid, status')
+    .eq('id', input.bill_id)
+    .single()
+
+  if (billError || !bill) {
+    return { success: false, error: billError?.message ?? 'Bill not found', errorCode: 'not_found' }
+  }
+
+  // FIX 2: only relevant when this write targets a specific bank
+  // transaction — manual payments (bank_bs_id null) have no uniqueness
+  // constraint to reconcile against (uidx_fbp_bank_bill is a partial index,
+  // WHERE bank_bs_id IS NOT NULL) and always insert fresh.
+  let existingId: string | null = null
+  let existingAmount = 0
+  if (input.bank_bs_id != null) {
+    const { data: existing, error: existingError } = await supabase
+      .from('finance_bill_payments')
+      .select('id, amount')
+      .eq('bank_bs_id', input.bank_bs_id)
+      .eq('bill_id', input.bill_id)
+      .maybeSingle()
+
+    if (existingError) {
+      console.error('insertBillPayment: error checking existing bank-linked payment:', existingError)
+      return { success: false, error: existingError.message }
+    }
+    if (existing) {
+      existingId = existing.id
+      existingAmount = Number(existing.amount)
+    }
+  }
+
+  // Sum of every OTHER payment on the bill — excludes the row we're about to
+  // update in place, mirroring updateBillPayment()'s own existingPaymentsTotal
+  // math below.
+  const existingPaymentsTotal = Number(bill.amount_paid) - existingAmount
+
+  const validation = validatePaymentInput(
+    { amount: input.amount, payment_method: input.payment_method, payment_ref: input.payment_ref },
+    {
+      billAmount: Number(bill.amount),
+      billStatus: bill.status as BillStatus,
+      existingPaymentsTotal,
+    }
+  )
+  if (!validation.valid) {
+    return { success: false, error: stripPaymentErrorPrefix(validation.error), errorCode: validation.errorCode }
+  }
+
+  if (existingId) {
+    const { data, error } = await supabase
+      .from('finance_bill_payments')
+      .update({
+        amount: input.amount,
+        paid_date: input.paid_date,
+        payment_method: input.payment_method,
+        payment_ref: input.payment_ref?.trim() || null,
+        notes: input.notes?.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('insertBillPayment: error updating existing bank-linked payment:', error)
+      return {
+        success: false,
+        error: stripPaymentErrorPrefix(error.message),
+        errorCode: mapPaymentDbErrorCode(error.message),
+      }
+    }
+    return { success: true, data: data as BillPayment }
+  }
+
+  const { data, error } = await supabase
+    .from('finance_bill_payments')
+    .insert({
+      bill_id: input.bill_id,
+      amount: input.amount,
+      paid_date: input.paid_date,
+      payment_method: input.payment_method,
+      payment_ref: input.payment_ref?.trim() || null,
+      notes: input.notes?.trim() || null,
+      bank_bs_id: input.bank_bs_id,
+      source: input.source,
+      created_by: input.created_by,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error recording bill payment:', error)
+    return {
+      success: false,
+      error: stripPaymentErrorPrefix(error.message),
+      errorCode: mapPaymentDbErrorCode(error.message),
+    }
+  }
+
+  return { success: true, data: data as BillPayment }
+}
+
+/**
+ * Records a new payment against a bill. `created_by` always comes from the
+ * server-verified session (`auth.session.userId`) — never from the client.
+ * `source` is always 'manual' and `bank_bs_id` is always null here; those two
+ * fields are deliberately absent from this function's client-facing input
+ * type (FIX 1, SPRO-82 adversarial review) — a client must not be able to
+ * forge a bank linkage. 'bank_auto' rows are written only by the SQL
+ * reconciliation functions (spec A6); 'bank_manual' rows are written only by
+ * applyReconciledBillPayment() below (bank.ts's Confirm flow) and the
+ * assign_reconciliation_match() RPC (spec A5) — never by this function.
+ */
+export async function recordBillPayment(input: {
+  bill_id: string
+  amount: number
+  paid_date: string
+  payment_method: PaymentMethod
+  payment_ref?: string | null
+  notes?: string | null
+}): Promise<{ success: boolean; data?: BillPayment; error?: string; errorCode?: PaymentErrorCode }> {
+  const auth = await requireFinance()
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  try {
+    const result = await insertBillPayment({
+      bill_id: input.bill_id,
+      amount: input.amount,
+      paid_date: input.paid_date,
+      payment_method: input.payment_method,
+      payment_ref: input.payment_ref,
+      notes: input.notes,
+      created_by: auth.session.userId,
+      bank_bs_id: null,
+      source: 'manual',
+    })
+
+    if (!result.success) return result
+
+    revalidatePath('/dashboard/finance/bills')
+    revalidatePath('/dashboard/finance')
+
+    return result
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, error: errorMessage }
+  }
+}
+
+/**
+ * FIX 1 (SPRO-82 adversarial review): records a bank-linked ('bank_manual')
+ * payment against a bill, stamping `bank_bs_id` so the payment immediately
+ * shows as reconciled rather than sitting in "Payments Awaiting Bank Match"
+ * forever. Used ONLY by app/dashboard/finance/_actions/bank.ts's
+ * confirmReconciliationMatch() (the "Confirm" button — the everyday
+ * reconciliation path). The `assign_reconciliation_match()` RPC (spec A5,
+ * the "Not the right bill?" path) writes the equivalent row directly in SQL
+ * and does not go through this function.
+ *
+ * `bank_bs_id` here always originates from a server-verified
+ * finance_reconciliation_log row read by bank.ts — never from raw client
+ * input — so this is safe to keep as a distinct exported action rather than
+ * folding it into recordBillPayment()'s client-facing surface. Still
+ * requireFinance()-gated, same trust model as every other action in this
+ * file (there is no RLS backstop; requireFinance() is the only gate).
+ */
+export async function applyReconciledBillPayment(input: {
+  bill_id: string
+  amount: number
+  paid_date: string
+  payment_method: PaymentMethod
+  bank_bs_id: number
+}): Promise<{ success: boolean; data?: BillPayment; error?: string; errorCode?: PaymentErrorCode }> {
+  const auth = await requireFinance()
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  try {
+    const result = await insertBillPayment({
+      bill_id: input.bill_id,
+      amount: input.amount,
+      paid_date: input.paid_date,
+      payment_method: input.payment_method,
+      payment_ref: null,
+      notes: null,
+      created_by: auth.session.userId,
+      bank_bs_id: input.bank_bs_id,
+      source: 'bank_manual',
+    })
+
+    if (!result.success) return result
+
+    revalidatePath('/dashboard/finance/bills')
+    revalidatePath('/dashboard/finance')
+
+    return result
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, error: errorMessage }
+  }
+}
+
+/**
+ * Edits an existing payment (amount, date, method, ref, notes). The overpay
+ * check excludes the payment being edited from `existingPaymentsTotal` so
+ * editing a payment's own amount up to the bill's remaining balance is
+ * allowed.
+ */
+export async function updateBillPayment(
+  paymentId: string,
+  input: Partial<{
+    amount: number
+    paid_date: string
+    payment_method: PaymentMethod
+    payment_ref: string | null
+    notes: string | null
+  }>
+): Promise<{ success: boolean; error?: string; errorCode?: PaymentErrorCode }> {
+  const auth = await requireFinance()
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  try {
+    const supabase = await createServiceClient()
+
+    const { data: payment, error: paymentError } = await supabase
+      .from('finance_bill_payments')
+      .select('id, bill_id, amount, payment_method, payment_ref')
+      .eq('id', paymentId)
+      .single()
+
+    if (paymentError || !payment) {
+      return { success: false, error: paymentError?.message ?? 'Payment not found', errorCode: 'not_found' }
+    }
+
+    const { data: bill, error: billError } = await supabase
+      .from('finance_bills')
+      .select('amount, amount_paid, status')
+      .eq('id', payment.bill_id)
+      .single()
+
+    if (billError || !bill) {
+      return { success: false, error: billError?.message ?? 'Bill not found', errorCode: 'not_found' }
+    }
+
+    const candidateAmount = input.amount ?? Number(payment.amount)
+    const candidateMethod = input.payment_method ?? (payment.payment_method as PaymentMethod)
+    const candidateRef = input.payment_ref !== undefined ? input.payment_ref : payment.payment_ref
+
+    // Sum of every OTHER payment on this bill — the bill's current
+    // amount_paid (itself the trigger-maintained sum of ALL payments) minus
+    // this payment's own current amount.
+    const existingPaymentsTotal = Number(bill.amount_paid) - Number(payment.amount)
+
+    const validation = validatePaymentInput(
+      { amount: candidateAmount, payment_method: candidateMethod, payment_ref: candidateRef },
+      {
+        billAmount: Number(bill.amount),
+        billStatus: bill.status as BillStatus,
+        existingPaymentsTotal,
+      }
+    )
+    if (!validation.valid) {
+      return { success: false, error: stripPaymentErrorPrefix(validation.error), errorCode: validation.errorCode }
+    }
+
+    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (input.amount !== undefined)         updateData.amount = input.amount
+    if (input.paid_date !== undefined)      updateData.paid_date = input.paid_date
+    if (input.payment_method !== undefined) updateData.payment_method = input.payment_method
+    if (input.payment_ref !== undefined)    updateData.payment_ref = input.payment_ref?.trim() || null
+    if (input.notes !== undefined)          updateData.notes = input.notes?.trim() || null
+
+    const { error } = await supabase
+      .from('finance_bill_payments')
+      .update(updateData)
+      .eq('id', paymentId)
+
+    if (error) {
+      console.error('Error updating bill payment:', error)
+      return {
+        success: false,
+        error: stripPaymentErrorPrefix(error.message),
+        errorCode: mapPaymentDbErrorCode(error.message),
+      }
+    }
+
+    revalidatePath('/dashboard/finance/bills')
+    revalidatePath('/dashboard/finance')
+
+    return { success: true }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, error: errorMessage }
+  }
+}
+
+/**
+ * Deletes a payment. Never causes an overpay (removing money only reduces
+ * the bill's total), so there is no validation step beyond the guard.
+ */
+export async function deleteBillPayment(paymentId: string): Promise<{
+  success: boolean
+  error?: string
+}> {
+  const auth = await requireFinance()
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  try {
+    const supabase = await createServiceClient()
+
+    const { error } = await supabase
+      .from('finance_bill_payments')
+      .delete()
+      .eq('id', paymentId)
+
+    if (error) {
+      console.error('Error deleting bill payment:', error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath('/dashboard/finance/bills')
+    revalidatePath('/dashboard/finance')
+
+    return { success: true }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, error: errorMessage }
+  }
+}
+
+// FIX 6 (SPRO-82 adversarial review): markBillPaid() had zero remaining
+// callers (verified with `grep -rn markBillPaid` across the repo — bank.ts
+// does not import it, contrary to what an earlier comment here claimed) and
+// has been removed rather than left as an untested money-writing path.
+// recordBillPayment() / applyReconciledBillPayment() cover its old callers.
 
 export async function deleteBill(billId: string): Promise<{
   success: boolean
@@ -900,17 +1392,25 @@ export async function getMonthSummary(month: string): Promise<{
     const latestSnapshot = snapshotsRes.data?.[0] ?? null
     const ordersData = ordersRes.data
 
-    // Non-fatal: build set of bill ids that have a confirmed/auto_applied reconciliation row.
-    // Used by the cash-flow engine for the STOKELY-REFINED clearance rule (Wave 4).
+    // FIX 3 (SPRO-82 adversarial review): derive bank_confirmed from the
+    // PAYMENT ledger (finance_bill_payments), not from
+    // finance_reconciliation_log rows keyed to the whole bill — a bill can
+    // now hold several check payments, and the old bill-scoped derivation
+    // went true off ANY confirmed/auto_applied log row for the bill, hiding
+    // a second still-uncleared check payment from the outflow projection.
+    // See deriveBankConfirmedBillIds()'s own doc comment for the full
+    // rationale, including why this is deliberately conservative (a bill
+    // with any uncleared check payment stays in the projection in full).
+    // Non-fatal on error: bank_confirmed defaults to false, uncleared checks
+    // stay reserved (the safe direction).
     let confirmedBillIds = new Set<string>()
     try {
-      const { data: reconRows } = await supabase
-        .from('finance_reconciliation_log')
-        .select('bill_id')
-        .in('status', ['confirmed', 'auto_applied'])
-        .not('bill_id', 'is', null)
-      if (reconRows) {
-        confirmedBillIds = new Set(reconRows.map((r) => r.bill_id as string))
+      const { data: checkPayments } = await supabase
+        .from('finance_bill_payments')
+        .select('bill_id, bank_bs_id')
+        .eq('payment_method', 'check')
+      if (checkPayments) {
+        confirmedBillIds = deriveBankConfirmedBillIds(checkPayments)
       }
     } catch {
       // non-fatal — bank_confirmed defaults to false, uncleared checks stay reserved
@@ -1135,16 +1635,17 @@ export async function getWeeklyBudget(params?: { weeks?: number }): Promise<{
       return { success: false, error: ordersRes.error.message }
     }
 
-    // Build confirmed bill ids for uncleared-check bank_confirmed flag
+    // FIX 3 (SPRO-82 adversarial review): same payment-ledger-derived
+    // bank_confirmed as getMonthSummary() above — see
+    // deriveBankConfirmedBillIds()'s doc comment for the full rationale.
     let confirmedBillIds = new Set<string>()
     try {
-      const { data: reconRows } = await supabase
-        .from('finance_reconciliation_log')
-        .select('bill_id')
-        .in('status', ['confirmed', 'auto_applied'])
-        .not('bill_id', 'is', null)
-      if (reconRows) {
-        confirmedBillIds = new Set(reconRows.map((r) => r.bill_id as string))
+      const { data: checkPayments } = await supabase
+        .from('finance_bill_payments')
+        .select('bill_id, bank_bs_id')
+        .eq('payment_method', 'check')
+      if (checkPayments) {
+        confirmedBillIds = deriveBankConfirmedBillIds(checkPayments)
       }
     } catch {
       // non-fatal
