@@ -45,7 +45,10 @@ import {
   updateBillPayment,
   deleteBillPayment,
 } from '@/actions/finance'
-import type { Bill, BillPayment, PaymentMethod } from '@/actions/finance'
+import type { Bill, BillPayment } from '@/actions/finance'
+// PaymentMethod comes from the lib, not '@/actions/finance' — see the note at
+// the top of actions/finance.ts: a 'use server' file cannot re-export a type.
+import type { PaymentMethod } from '@/lib/finance/bill-payments'
 
 function formatMoney(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)

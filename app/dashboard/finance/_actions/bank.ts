@@ -3,9 +3,14 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { requireFinance } from '@/lib/auth/session'
 import { createBill, applyReconciledBillPayment } from '@/actions/finance'
-import type { BillStatus, PaymentErrorCode as BillPaymentErrorCode } from '@/actions/finance'
+import type { BillStatus } from '@/actions/finance'
 import { VALID_PAYMENT_METHODS, stripPaymentErrorPrefix } from '@/lib/finance/bill-payments'
-import type { PaymentMethod } from '@/lib/finance/bill-payments'
+// PaymentErrorCode comes from the lib, not '@/actions/finance' — see the note
+// at the top of actions/finance.ts: a 'use server' file cannot re-export a type.
+import type {
+  PaymentMethod,
+  PaymentErrorCode as BillPaymentErrorCode,
+} from '@/lib/finance/bill-payments'
 import {
   derivePrefillPayment,
   duplicateDateWindow,
