@@ -43,6 +43,7 @@ interface TemplateTaskDialogProps {
   task: TemplateTask | null
   maxSortOrder: number
   defaultDay?: number
+  defaultStage?: string
   isMasterTemplate?: boolean
   onSaved: () => void
 }
@@ -54,6 +55,7 @@ export function TemplateTaskDialog({
   task,
   maxSortOrder,
   defaultDay,
+  defaultStage,
   isMasterTemplate,
   onSaved,
 }: TemplateTaskDialogProps) {
@@ -80,12 +82,12 @@ export function TemplateTaskDialog({
     } else {
       setName('')
       setDescription('')
-      setDayNumber(defaultDay ? String(defaultDay) : '1')
+      setDayNumber(defaultDay !== undefined ? String(defaultDay) : '1')
       setEstimatedMinutes('')
       setPriority('medium')
-      setStage('')
+      setStage(defaultStage || '')
     }
-  }, [task, open, defaultDay])
+  }, [task, open, defaultDay, defaultStage])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -122,7 +124,7 @@ export function TemplateTaskDialog({
       day_number: day,
       estimated_minutes: minutes,
       priority,
-      stage: stage || null,
+      stage: stage && stage !== 'none' ? stage : null,
     }
 
     if (isEditing) {

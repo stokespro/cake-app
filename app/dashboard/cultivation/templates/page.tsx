@@ -96,6 +96,7 @@ export default function TemplatesPage() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<TemplateTask | null>(null)
   const [addTaskDay, setAddTaskDay] = useState<number | undefined>(undefined)
+  const [addTaskStage, setAddTaskStage] = useState<string | undefined>(undefined)
 
   // Delete task state
   const [deleteTaskDialogOpen, setDeleteTaskDialogOpen] = useState(false)
@@ -182,15 +183,17 @@ export default function TemplatesPage() {
   }
 
   // Task actions
-  function handleAddTask(day?: number) {
+  function handleAddTask(day?: number, stage?: string) {
     setEditingTask(null)
     setAddTaskDay(day)
+    setAddTaskStage(stage)
     setTaskDialogOpen(true)
   }
 
   function handleEditTask(task: TemplateTask) {
     setEditingTask(task)
     setAddTaskDay(undefined)
+    setAddTaskStage(undefined)
     setTaskDialogOpen(true)
   }
 
@@ -236,23 +239,35 @@ export default function TemplatesPage() {
       .sort((a, b) => a.day - b.day)
   }
 
-  // Group tasks by stage then day (for master templates)
+  // Group tasks by stage then day (for master templates).
+  // Always returns one group per STAGE_ORDER entry (even with zero tasks),
+  // plus a trailing "Unassigned" group for tasks with a null/unrecognized stage.
   function getTasksByStage(taskList: TemplateTask[]) {
     const grouped: Record<string, TemplateTask[]> = {}
+    const stageSet = new Set<string>(STAGE_ORDER)
     for (const t of taskList) {
-      const stageKey = t.stage || 'unassigned'
+      const stageKey = t.stage && stageSet.has(t.stage) ? t.stage : 'unassigned'
       if (!grouped[stageKey]) grouped[stageKey] = []
       grouped[stageKey].push(t)
     }
-    // Sort stages by STAGE_ORDER
-    const stageIndex = Object.fromEntries(STAGE_ORDER.map((s, i) => [s, i]))
-    return Object.entries(grouped)
-      .sort(([a], [b]) => (stageIndex[a] ?? 99) - (stageIndex[b] ?? 99))
-      .map(([stage, stageTasks]) => ({
-        stage: stage as PipelineStage | 'unassigned',
-        label: stage === 'unassigned' ? 'Unassigned' : PHASE_CONFIG[stage as GrowPhase]?.label || stage,
-        tasks: stageTasks.sort((a, b) => a.day_number - b.day_number || a.sort_order - b.sort_order),
-      }))
+    const sortTasks = (a: TemplateTask, b: TemplateTask) =>
+      a.day_number - b.day_number || a.sort_order - b.sort_order
+
+    const groups = STAGE_ORDER.map((stage) => ({
+      stage: stage as PipelineStage | 'unassigned',
+      label: PHASE_CONFIG[stage as GrowPhase]?.label || stage,
+      tasks: (grouped[stage] || []).sort(sortTasks),
+    }))
+
+    if (grouped.unassigned?.length) {
+      groups.push({
+        stage: 'unassigned',
+        label: 'Unassigned',
+        tasks: grouped.unassigned.sort(sortTasks),
+      })
+    }
+
+    return groups
   }
 
   function formatPhaseDay(task: TemplateTask): string {
@@ -521,42 +536,63 @@ export default function TemplatesPage() {
                           </p>
                         )}
 
-                        {tasks.length === 0 ? (
+                        {expandedIsMaster ? (
+                          // Master template: group by stage, one group per STAGE_ORDER
+                          // entry (even with zero tasks) plus a trailing Unassigned group
+                          getTasksByStage(tasks).map(({ stage, label, tasks: stageTasks }) => (
+                            <div key={stage}>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <Badge className={PHASE_BADGE_CLASSES[stage] || 'bg-gray-500 text-white'}>
+                                    {label}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    {stageTasks.length} {stageTasks.length === 1 ? 'task' : 'tasks'}
+                                  </span>
+                                </div>
+                                {canManage && stage !== 'unassigned' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleAddTask(undefined, stage)}
+                                  >
+                                    <Plus className="h-3 w-3 mr-1" />
+                                    Add
+                                  </Button>
+                                )}
+                              </div>
+
+                              {stageTasks.length === 0 ? (
+                                <p className="text-xs text-muted-foreground mb-3">
+                                  No tasks in this phase.
+                                </p>
+                              ) : (
+                                <>
+                                  {/* Desktop table */}
+                                  <div className="hidden sm:block">
+                                    <div className="border rounded-md mb-3">
+                                      <div className="grid grid-cols-[1fr_80px_80px_72px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/50">
+                                        <div>Task</div>
+                                        <div>Priority</div>
+                                        <div>Est. Time</div>
+                                        <div></div>
+                                      </div>
+                                      {stageTasks.map((task) => renderTaskRow(task, false))}
+                                    </div>
+                                  </div>
+
+                                  {/* Mobile cards */}
+                                  <div className="sm:hidden space-y-2 mb-3">
+                                    {stageTasks.map((task) => renderTaskCard(task, false))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))
+                        ) : tasks.length === 0 ? (
                           <div className="text-sm text-muted-foreground py-4 text-center">
                             No tasks defined yet.
                           </div>
-                        ) : expandedIsMaster ? (
-                          // Master template: group by stage
-                          getTasksByStage(tasks).map(({ stage, label, tasks: stageTasks }) => (
-                            <div key={stage}>
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge className={PHASE_BADGE_CLASSES[stage] || 'bg-gray-500 text-white'}>
-                                  {label}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">
-                                  {stageTasks.length} {stageTasks.length === 1 ? 'task' : 'tasks'}
-                                </span>
-                              </div>
-
-                              {/* Desktop table */}
-                              <div className="hidden sm:block">
-                                <div className="border rounded-md mb-3">
-                                  <div className="grid grid-cols-[1fr_80px_80px_72px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/50">
-                                    <div>Task</div>
-                                    <div>Priority</div>
-                                    <div>Est. Time</div>
-                                    <div></div>
-                                  </div>
-                                  {stageTasks.map((task) => renderTaskRow(task, false))}
-                                </div>
-                              </div>
-
-                              {/* Mobile cards */}
-                              <div className="sm:hidden space-y-2 mb-3">
-                                {stageTasks.map((task) => renderTaskCard(task, false))}
-                              </div>
-                            </div>
-                          ))
                         ) : (
                           // Phase template: group by day (original behavior)
                           getTasksByDay(tasks).map(({ day, tasks: dayTasks }) => (
@@ -638,10 +674,11 @@ export default function TemplatesPage() {
           task={editingTask}
           maxSortOrder={
             tasks.length > 0
-              ? Math.max(...tasks.map((t) => t.sort_order))
+              ? Math.max(...tasks.map((t) => t.sort_order ?? 0))
               : 0
           }
           defaultDay={addTaskDay}
+          defaultStage={addTaskStage}
           isMasterTemplate={expandedIsMaster}
           onSaved={handleTaskSaved}
         />
