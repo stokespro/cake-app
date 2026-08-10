@@ -26,6 +26,7 @@ import {
 import type { CultivationTask, CultivationTaskStatus, TaskPriority } from '@/types/cultivation'
 import type { UserRole } from '@/lib/auth-context'
 import { canManageCultivation, canCompleteCultivation, canReopenCultivationTask } from '@/lib/auth-context'
+import { getCycleStageLabel } from '@/lib/cultivation/helpers'
 
 const PRIORITY_BADGE: Record<TaskPriority, string> = {
   critical: 'bg-red-600 text-white',
@@ -114,6 +115,19 @@ export function TaskDetailSheet({
                 <div>
                   <span className="text-muted-foreground">Room: </span>
                   <span className="font-medium">{task.room.room_name}</span>
+                </div>
+              </div>
+            )}
+
+            {task.cycle && (
+              <div className="flex items-start gap-2">
+                <Tag className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                <div>
+                  <span className="text-muted-foreground">Cycle: </span>
+                  <span className="font-medium">
+                    Cycle #{task.cycle.cycle_number || '?'} —{' '}
+                    {getCycleStageLabel(task.cycle.current_stage, task.cycle.flower_start)}
+                  </span>
                 </div>
               </div>
             )}

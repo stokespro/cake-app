@@ -23,7 +23,8 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { createTask, updateTask } from '@/actions/cultivation'
-import type { CultivationTask, GrowRoom, TaskPriority } from '@/types/cultivation'
+import type { CultivationTask, GrowRoom, RoomCycle, TaskPriority } from '@/types/cultivation'
+import { getCycleStageLabel } from '@/lib/cultivation/helpers'
 
 interface UserOption {
   id: string
@@ -38,6 +39,7 @@ interface CreateTaskSheetProps {
   rooms: GrowRoom[]
   users: UserOption[]
   userId: string
+  cyclesByRoom: Record<string, RoomCycle[]>
   onSaved: () => void
 }
 
@@ -48,11 +50,13 @@ export function CreateTaskSheet({
   rooms,
   users,
   userId,
+  cyclesByRoom,
   onSaved,
 }: CreateTaskSheetProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [roomId, setRoomId] = useState<string>('none')
+  const [cycleId, setCycleId] = useState<string>('none')
   const [dueDate, setDueDate] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [assigneeIds, setAssigneeIds] = useState<string[]>([])
@@ -68,6 +72,7 @@ export function CreateTaskSheet({
       setTitle(task.title)
       setDescription(task.description || '')
       setRoomId(task.room_id || 'none')
+      setCycleId(task.room_cycle_id ?? 'none')
       setDueDate(task.due_date)
       setPriority(task.priority)
       // Prefer the full assignee list; fall back to the legacy single
@@ -86,6 +91,7 @@ export function CreateTaskSheet({
       setTitle('')
       setDescription('')
       setRoomId('none')
+      setCycleId('none')
       setDueDate('')
       setPriority('medium')
       setAssigneeIds([])
@@ -94,6 +100,27 @@ export function CreateTaskSheet({
       setDayOfWeek('')
     }
   }, [task, open])
+
+  // Active cycles for the currently selected room. If the task being edited
+  // is linked to a cycle that's no longer active (so it won't be in this
+  // list), append it — labeled as completed — so the Select doesn't render
+  // blank and saving doesn't silently wipe the link.
+  const activeForRoom = roomId === 'none' ? [] : (cyclesByRoom[roomId] ?? [])
+  const cycleOptions =
+    task?.cycle && task.room_id === roomId && !activeForRoom.some((c) => c.id === task.cycle!.id)
+      ? [...activeForRoom, { ...task.cycle, room_id: roomId } as RoomCycle]
+      : activeForRoom
+  const staleCycleId = task?.cycle && !activeForRoom.some((c) => c.id === task.cycle!.id) ? task.cycle.id : null
+
+  function handleRoomChange(value: string) {
+    setRoomId(value)
+    // Reset the cycle selection whenever the room changes — a cycle from
+    // the previous room is never valid for the new one. Doing this inside
+    // the handler (rather than an effect keyed on the cycles map) avoids
+    // clobbering an in-progress edit when a background refetch produces a
+    // new `cyclesByRoom` array identity while the sheet is open.
+    setCycleId('none')
+  }
 
   function toggleAssignee(userId: string, checked: boolean) {
     setAssigneeIds((prev) =>
@@ -119,6 +146,8 @@ export function CreateTaskSheet({
       title: title.trim(),
       description: description.trim() || null,
       room_id: roomId === 'none' ? null : roomId,
+      // A facility-wide task (no room) must never carry a cycle.
+      room_cycle_id: roomId === 'none' || cycleId === 'none' ? null : cycleId,
       due_date: dueDate,
       priority,
       assignee_ids: assigneeIds,
@@ -194,7 +223,7 @@ export function CreateTaskSheet({
 
           <div className="space-y-2">
             <Label htmlFor="task-room">Room</Label>
-            <Select value={roomId} onValueChange={setRoomId}>
+            <Select value={roomId} onValueChange={handleRoomChange}>
               <SelectTrigger id="task-room">
                 <SelectValue placeholder="Select room" />
               </SelectTrigger>
@@ -208,6 +237,31 @@ export function CreateTaskSheet({
               </SelectContent>
             </Select>
           </div>
+
+          {roomId !== 'none' && cycleOptions.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="task-cycle">Cycle</Label>
+              <Select value={cycleId} onValueChange={setCycleId}>
+                <SelectTrigger id="task-cycle">
+                  <SelectValue placeholder="No Cycle" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Cycle</SelectItem>
+                  {cycleOptions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      Cycle #{c.cycle_number || '?'} — {getCycleStageLabel(c.current_stage, c.flower_start)}
+                      {c.id === staleCycleId ? ' (completed)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {cycleId !== 'none' && (
+                <p className="text-xs text-muted-foreground">
+                  Task will close out when this cycle ends.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="task-due-date">Due Date *</Label>

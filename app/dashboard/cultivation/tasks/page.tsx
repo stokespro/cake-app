@@ -57,6 +57,7 @@ import type {
   CultivationTaskStatus,
   TaskPriority,
   GrowRoom,
+  RoomCycle,
   PipelineStage,
 } from '@/types/cultivation'
 import { STAGE_ORDER, PHASE_CONFIG } from '@/types/cultivation'
@@ -67,6 +68,7 @@ import {
   getCultivationTasks,
   getCultivationTaskCounts,
   getGrowRooms,
+  getActiveCycles,
   getCultivationUsers,
   startTask,
   deleteTask as deleteTaskAction,
@@ -160,6 +162,7 @@ export default function CultivationTasksPage() {
   const [tasks, setTasks] = useState<CultivationTask[]>([])
   const [stats, setStats] = useState<TaskStats>(EMPTY_STATS)
   const [rooms, setRooms] = useState<GrowRoom[]>([])
+  const [cyclesByRoom, setCyclesByRoom] = useState<Record<string, RoomCycle[]>>({})
   const [users, setUsers] = useState<UserOption[]>([])
   // Loading indicator for the task LIST only, shared by the initial load
   // and every filter-triggered refetch (Timeframe/Status/Custom dates).
@@ -365,8 +368,20 @@ export default function CultivationTasksPage() {
    * longer refetch on every filter change. */
   async function fetchStaticData() {
     try {
-      const [roomsRes, usersRes] = await Promise.all([getGrowRooms(), getCultivationUsers()])
+      const [roomsRes, cyclesRes, usersRes] = await Promise.all([
+        getGrowRooms(),
+        getActiveCycles(),
+        getCultivationUsers(),
+      ])
       if (roomsRes.data) setRooms(roomsRes.data as GrowRoom[])
+      if (cyclesRes.data) {
+        const map: Record<string, RoomCycle[]> = {}
+        for (const cycle of cyclesRes.data) {
+          if (!map[cycle.room_id]) map[cycle.room_id] = []
+          map[cycle.room_id].push(cycle)
+        }
+        setCyclesByRoom(map)
+      }
       if (usersRes.data) setUsers(usersRes.data as UserOption[])
     } catch (err) {
       console.error('[cultivation/tasks] fetchStaticData error:', err)
@@ -925,7 +940,14 @@ export default function CultivationTasksPage() {
                     <TableCell className="font-medium max-w-[200px] truncate">
                       {task.title}
                     </TableCell>
-                    <TableCell>{task.room?.room_name || '\u2014'}</TableCell>
+                    <TableCell>
+                      {task.room?.room_name || '\u2014'}
+                      {task.cycle && (
+                        <Badge variant="outline" className="ml-1.5 text-[10px] px-1.5 font-normal text-muted-foreground">
+                          Cycle #{task.cycle.cycle_number || '?'}
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{phaseDayLabel(task)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -1022,8 +1044,13 @@ export default function CultivationTasksPage() {
                 </div>
 
                 {/* Row 2: room + phase */}
-                <div className="flex gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{task.room?.room_name || 'No room'}</span>
+                  {task.cycle && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 font-normal text-muted-foreground">
+                      Cycle #{task.cycle.cycle_number || '?'}
+                    </Badge>
+                  )}
                   <span>&middot;</span>
                   <span>{phaseDayLabel(task)}</span>
                 </div>
@@ -1137,6 +1164,7 @@ export default function CultivationTasksPage() {
         rooms={rooms}
         users={users}
         userId={user?.id || ''}
+        cyclesByRoom={cyclesByRoom}
         onSaved={() => {
           setCreateOpen(false)
           fetchData()
