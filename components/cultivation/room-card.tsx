@@ -12,7 +12,6 @@ import {
   getCycleStageLabel,
   PHASE_BADGE_CLASSES,
 } from '@/lib/cultivation/helpers'
-import type { CSSProperties } from 'react'
 import { STAGE_ORDER } from '@/types/cultivation'
 import type { GrowRoom, RoomCycle, PipelineStage } from '@/types/cultivation'
 
@@ -35,71 +34,72 @@ export interface RoomCardProps {
 
 // ─── TV typography ──────────────────────────────────────────────────────────
 //
-// tv variant only. Text is sized in `cqmin` against the card's own
-// `[container-type:size]` box, then multiplied by a per-card `--tv-scale`
-// custom property (see getTvScale below) so a card with fewer active cycles
-// spends its slack on bigger text and a card with more cycles compresses to
-// stay inside its fixed-height grid cell. Clamp floors are pinned to the
-// fixed pre-SPRO-83 sizes (text-2xl / text-base / text-sm) so legibility can
-// never regress below what was on the wall before this ticket; ceilings are
-// raised well above the 1.0-scale target so the 1.5x factor (0-1 cycles)
-// isn't immediately clipped.
+// tv variant only, split into two independent query scopes (SPRO-83
+// columns-not-rows fix):
+//
+//  - TV_TITLE / TV_BODY are sized off the CARD's own `[container-type:size]`
+//    box (unchanged scope from before this pass) and cover everything that
+//    isn't per-cycle: room name, pairing label, cycle-count badge, task
+//    counts, notes, "No active cycle".
+//  - TV_COL_BODY / TV_COL_MILESTONE are sized off each CYCLE COLUMN's own
+//    `[container-type:size]` box (new — see the columns grid below). A
+//    column's height is roughly constant regardless of how many cycles the
+//    room has (that's the whole point of laying cycles out as columns
+//    instead of a vertical stack), so its `cqmin` ends up width-bound once a
+//    room has enough concurrent cycles to squeeze columns narrow — more
+//    cycles -> narrower columns -> smaller text, automatically, with no JS
+//    scale factor needed. See getTvScale removal note below.
+//
+// There is deliberately no `--tv-scale` custom property anymore. It existed
+// solely to compensate for the old vertical-stack layout, where a card's
+// required height (and therefore the text it could afford) scaled with
+// active-cycle count. With cycles laid out as columns, a card's content
+// height is driven by ONE column, not N stacked blocks, so cycle count no
+// longer correlates with available vertical space and there is nothing left
+// for a height-derived scale factor to compensate for. Reusing it now would
+// be a scale knob with no underlying quantity — see decisions.md-style
+// reasoning: don't leave a mechanism that no longer means anything.
+//
+// Floors: TV_COL_BODY floors at 14px and TV_COL_MILESTONE at 12px (both
+// slightly below the pre-SPRO-83 14px/16px floors) because a 5-column row
+// genuinely needs that room — narrow columns hit the floor by design at the
+// crowded end, same as before, just width-driven now instead of
+// height-driven. TV_TITLE/TV_BODY floors are untouched (1.5rem / 1rem) since
+// the card-level box they're sized against didn't shrink.
+//
+// The clamp midpoints below (8cqmin / 6.5cqmin) were tuned against a live
+// measurement, not estimated. A cycle column holds ~7 text lines (cycle
+// label, progress label/value, then 5 stacked milestone lines) plus a fixed
+// 8px progress bar and ~24px of flex gaps, so required column height is
+// roughly `9.45 * fontSize + 32`. That budget was checked against a real
+// viewport matrix (1920x1080, 1512x982, 1512x800, 1512x720, 1366x768,
+// 2560x1440); at the old 9cqmin/7.5cqmin multipliers the two smallest
+// viewports (1512x720, 1366x768) clipped the last milestone line on
+// 2-cycle cards. The reduced multipliers give a real margin at every
+// measured viewport while 1920x1080+ stay comfortably width-bound, so the
+// TV keeps the legibility win over the old stacked layout. Re-tune the
+// multiplier (not the floor/ceiling) only after re-measuring against this
+// same viewport matrix.
 
-const TV_TITLE = 'text-[clamp(1.5rem,calc(6.7cqmin*var(--tv-scale)),3.5rem)]'
-const TV_BODY = 'text-[clamp(1rem,calc(3.4cqmin*var(--tv-scale)),2.25rem)]'
-const TV_MILESTONE = 'text-[clamp(0.875rem,calc(3cqmin*var(--tv-scale)),1.75rem)]'
+const TV_TITLE = 'text-[clamp(1.5rem,6.7cqmin,3.5rem)]'
+const TV_BODY = 'text-[clamp(1rem,3.4cqmin,2.25rem)]'
+const TV_COL_BODY = 'text-[clamp(0.875rem,8cqmin,2rem)]'
+const TV_COL_MILESTONE = 'text-[clamp(0.75rem,6.5cqmin,1.5rem)]'
 
 /**
- * Font scale factor for the tv variant, keyed off active-cycle count.
+ * Max cycle COLUMNS rendered per tv card, and the threshold at which the
+ * per-column milestone list is dropped entirely.
  *
- * Rooms run perpetual rotation (standing project constraint) — cycle count
- * per room is unbounded and can change at any time, so a 4th or 5th
- * concurrent cycle is a real, expected state, not an edge case. The grid
- * gives every card a fixed-height cell, so a card can't grow to fit more
- * cycles; it has to shrink its own type instead. Without this, the card's
- * `overflow-hidden` would silently clip a cycle off a compliance-adjacent
- * board, which is unacceptable.
- *
- * 0-2 cycles are tuned to spend their measured slack on legibility (a
- * 1920x1080, 2x2-grid F1-style 3-cycle card used only 301px of a 408px box,
- * and a 2-cycle card only 234px of 396px, before this pass) — this is a TV
- * read from across a grow room, so unused vertical space is wasted
- * legibility. 3 cycles gets a modest bump for the same reason. 4 cycles is
- * measured tight (400px content in a ~424px box) and 5+ relies on the
- * TV_MAX_RENDERED_CYCLES cap, so neither is touched here.
- */
-function getTvScale(cycleCount: number): number {
-  if (cycleCount <= 1) return 1.8
-  if (cycleCount === 2) return 1.5
-  if (cycleCount === 3) return 1.15
-  if (cycleCount === 4) return 0.8
-  return 0.65
-}
-
-/**
- * Max cycle blocks rendered per tv card, and the threshold at which the
- * milestone chip row is dropped entirely. Measured against the real 421px
- * content box (1920x1080, 2x2 grid): 5 blocks with milestones hidden land at
- * ~382px, plus a `+N more` line (~20px) is ~402px — both fit. 6+ blocks
- * overflow even with milestones hidden (measured 460px @ 6, 538px @ 7), so
- * beyond this count cycles are summarized by `+N more` instead of rendered.
- * If card padding changes again, re-measure before changing this number.
+ * Post-SPRO-83-fix, this is a WIDTH budget, not a height budget: columns lay
+ * out across the card's fixed content height, so more cycles no longer risk
+ * vertical clipping — they risk becoming too narrow to read. 5 columns is
+ * kept as the cap (rooms run perpetual rotation, so 5 concurrent cycles is a
+ * real state, not a hypothetical) but at 5 the milestone list — 5 lines of
+ * text stacked in an already-narrow column — is dropped so the column isn't
+ * forced skinnier still. 6+ is summarized by `+N more` instead of rendered,
+ * same visible-overflow-not-silent-clipping principle as before.
  */
 const TV_MAX_RENDERED_CYCLES = 5
-
-/**
- * tv: `room.notes` costs ~50px at TV_BODY with `line-clamp-2` — that cost is
- * not accounted for in the TV_MAX_RENDERED_CYCLES budget above, and at 4+
- * cycles it's exactly the difference between fitting and overflowing
- * (measured: with a note, 4cy=458px vs a ~424px box, 6cy=463px vs ~427px —
- * both overflow; without, 4cy=408px and 6cy=413px both fit). So notes join
- * the same graceful-degradation ladder as the milestone chip row: milestones
- * shed at >=5 cycles, notes shed at >=4. Below that threshold there's slack
- * (the real 3-cycle F1 card uses only 301px of 408px), but notes are still
- * capped to `line-clamp-1` there so they can't grow into being the thing
- * that quietly eats the remaining margin later.
- */
-const TV_HIDE_NOTES_AT_CYCLES = 4
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -119,9 +119,6 @@ export function RoomCard({
   const pairingLabel = getPairingLabel(room, allRooms)
 
   const tv = variant === 'tv'
-  // 0-1 cycles -> 1.8x (fill the slack), 3 cycles -> 1.15x, 4+ -> compressed.
-  // See getTvScale for the perpetual-rotation why and the measured numbers.
-  const tvScale = tv ? getTvScale(activeCycles.length) : 1
 
   // tv: when a card has more cycles than fit, keep the operationally urgent
   // ones — order by stage progression (most advanced first) rather than
@@ -139,30 +136,27 @@ export function RoomCard({
   const renderedCycles = tv ? cyclesForTv.slice(0, TV_MAX_RENDERED_CYCLES) : activeCycles
   const hiddenCycleCount = tv ? Math.max(activeCycles.length - TV_MAX_RENDERED_CYCLES, 0) : 0
   // tv: milestone dates are the least glanceable detail on a wall display,
-  // so they're the first thing shed once a card is dense enough to need the
-  // +N-more treatment (see TV_MAX_RENDERED_CYCLES for the measured budget).
+  // so they're the first thing shed once columns get too narrow to carry a
+  // 5-line vertical list (see TV_MAX_RENDERED_CYCLES).
   const tvHideMilestones = tv && activeCycles.length >= TV_MAX_RENDERED_CYCLES
-  // tv: see TV_HIDE_NOTES_AT_CYCLES — notes are the next thing shed once a
-  // busy card runs out of vertical budget.
-  const tvHideNotes = tv && activeCycles.length >= TV_HIDE_NOTES_AT_CYCLES
 
   return (
     // tv: `[container-type:size]` turns the card into a query container on
     // both axes — grid rows are `minmax(0, 1fr)` so the cell (and therefore
     // the card) always has a definite block size, which is what lets the
-    // `cqmin`-based text below scale safely instead of guessing viewport size.
-    // `--tv-scale` is read by TV_TITLE/TV_BODY/TV_MILESTONE above to grow or
-    // shrink that text based on how many cycles this specific card holds.
+    // `cqmin`-based TV_TITLE/TV_BODY above scale safely off the card box
+    // instead of guessing viewport size. Per-cycle text is sized off each
+    // column's own container instead (see TV_COL_BODY/TV_COL_MILESTONE and
+    // the columns grid in CardContent below) — the card-level container here
+    // now exists only for the header (room name, pairing label, badges).
     <Card
       className={
         tv ? 'border-zinc-700 bg-zinc-900 h-full flex flex-col min-h-0 [container-type:size]' : undefined
       }
-      style={tv ? ({ '--tv-scale': tvScale } as unknown as CSSProperties) : undefined}
     >
       {/* tv: header/content padding trimmed from the shadcn default (p-6) —
           that 24px-per-side default eats vertical budget a fixed-height
-          kiosk card can't spare, especially at the 3-4 cycle end of the
-          --tv-scale range. */}
+          kiosk card can't spare. */}
       <CardHeader className={tv ? 'pt-3 pb-2 px-4 shrink-0' : 'pb-3'}>
         <div className="flex items-center justify-between">
           <CardTitle className={tv ? `${TV_TITLE} font-bold` : 'text-base'}>
@@ -201,56 +195,86 @@ export function RoomCard({
           <p className={tv ? `${TV_BODY} text-zinc-400` : 'text-sm text-muted-foreground'}>
             No active cycle
           </p>
-        ) : (
+        ) : tv ? (
           <>
-            {/* All active cycles with milestone timelines (tv: capped at
-                TV_MAX_RENDERED_CYCLES, most-advanced-stage first) */}
-            {renderedCycles.map((cycle) => {
-              const progress = getDayProgress(cycle)
-              const stageLabel = getCycleStageLabel(cycle.current_stage, cycle.flower_start)
-              const hasMilestones =
-                cycle.dome_start ||
-                cycle.veg_start ||
-                cycle.flower_start ||
-                cycle.harvest_date ||
-                cycle.trim_start
-              return (
-                <div key={cycle.id} className={tv ? 'space-y-0.5' : 'space-y-1'}>
-                  <div className={`flex items-center justify-between ${tv ? TV_BODY : 'text-sm'}`}>
-                    <span className={tv ? 'text-zinc-400' : 'text-muted-foreground'}>
-                      {cycle.cycle_number ? `Cycle #${cycle.cycle_number}` : 'Cycle'}
-                    </span>
-                    <Badge
-                      className={`${PHASE_BADGE_CLASSES[cycle.current_stage] || 'bg-gray-500 text-white'} ${tv ? TV_BODY : 'text-xs'}`}
-                    >
-                      {stageLabel}
-                    </Badge>
-                  </div>
-                  <div className={`flex items-center justify-between ${tv ? TV_BODY : 'text-sm'}`}>
-                    <span className={tv ? 'text-zinc-400' : 'text-muted-foreground'}>
-                      Progress
-                    </span>
-                    <span className="font-medium">
-                      {progress ? `Day ${progress.current} of ${progress.total}` : '—'}
-                    </span>
-                  </div>
-                  {progress && (
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${PHASE_BADGE_CLASSES[cycle.current_stage]?.split(' ')[0] || 'bg-gray-500'}`}
-                        style={{
-                          width: `${Math.min((progress.current / progress.total) * 100, 100)}%`,
-                        }}
-                      />
+            {/* tv: cycles laid out as COLUMNS, not a vertical stack (SPRO-83
+                fix). The old vertical stack made required card height grow
+                with cycle count while the page grid gives every card a
+                fixed-height cell — measured on the live board at 1512 wide,
+                a 3-cycle card overflowed its cell below ~860px of viewport
+                height (last-cycle-bottom vs. card-bottom: -8px @ 860,
+                +18px @ 800, +55px @ 720). Laying cycles out side-by-side
+                instead means required height is driven by ONE column's
+                content, not N stacked blocks, so height is now
+                (approximately) independent of cycle count — cycle count
+                pressures width instead, which is the axis with slack.
+                `flex-1 min-h-0` makes the row fill (not exceed) the
+                remaining CardContent height; each column is top-aligned
+                (default flex-col behavior) and is its own
+                `[container-type:size]` query container so TV_COL_BODY /
+                TV_COL_MILESTONE above shrink automatically as columns get
+                narrower — no JS scale factor needed (see the TV typography
+                comment block for why --tv-scale was removed). */}
+            <div
+              className="flex-1 min-h-0 grid gap-3"
+              style={{
+                gridTemplateColumns: `repeat(${renderedCycles.length}, minmax(0, 1fr))`,
+              }}
+            >
+              {renderedCycles.map((cycle) => {
+                const progress = getDayProgress(cycle)
+                const stageLabel = getCycleStageLabel(cycle.current_stage, cycle.flower_start)
+                const hasMilestones =
+                  cycle.dome_start ||
+                  cycle.veg_start ||
+                  cycle.flower_start ||
+                  cycle.harvest_date ||
+                  cycle.trim_start
+                return (
+                  <div
+                    key={cycle.id}
+                    className="min-w-0 min-h-0 overflow-hidden flex flex-col gap-1 [container-type:size]"
+                  >
+                    {/* flex-wrap, not justify-between-or-bust: at 5 columns
+                        "Cycle #3" + a stage badge can be tighter than the
+                        column is wide, and this must never overflow
+                        horizontally. Wrapping the badge to its own line is a
+                        CSS-only fallback that can't produce overflow,
+                        without needing an exact per-count layout decision. */}
+                    <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 ${TV_COL_BODY}`}>
+                      <span className="text-zinc-400">
+                        {cycle.cycle_number ? `Cycle #${cycle.cycle_number}` : 'Cycle'}
+                      </span>
+                      <Badge
+                        className={`${PHASE_BADGE_CLASSES[cycle.current_stage] || 'bg-gray-500 text-white'} ${TV_COL_BODY}`}
+                      >
+                        {stageLabel}
+                      </Badge>
                     </div>
-                  )}
-                  {hasMilestones &&
-                    !(tv && tvHideMilestones) &&
-                    (tv ? (
-                      // tv: milestones collapse to a single wrapped chip row — the
-                      // two-column layout below is the tallest element per cycle
-                      // and the main reason a 3-cycle room card overflowed its cell.
-                      <div className={`flex flex-wrap gap-x-3 gap-y-0 pt-0.5 ${TV_MILESTONE} text-zinc-400`}>
+                    <div className={`flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 ${TV_COL_BODY}`}>
+                      <span className="text-zinc-400">Progress</span>
+                      <span className="font-medium">
+                        {progress ? `Day ${progress.current} of ${progress.total}` : '—'}
+                      </span>
+                    </div>
+                    {progress && (
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden shrink-0">
+                        <div
+                          className={`h-full rounded-full ${PHASE_BADGE_CLASSES[cycle.current_stage]?.split(' ')[0] || 'bg-gray-500'}`}
+                          style={{
+                            width: `${Math.min((progress.current / progress.total) * 100, 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )}
+                    {hasMilestones && !tvHideMilestones && (
+                      // tv: a vertical one-per-line list, not the old wrapped
+                      // chip row — a column is narrow by construction, so a
+                      // wrapped row of chips would wrap unpredictably and
+                      // its height would stop being predictable per column.
+                      // A vertical list's height is just "N lines", which is
+                      // what makes the column budget plannable.
+                      <div className={`flex flex-col gap-0.5 pt-0.5 ${TV_COL_MILESTONE} text-zinc-400 min-w-0`}>
                         {cycle.dome_start && (
                           <span>Dome {format(parseLocalDate(cycle.dome_start), 'MMM d')}</span>
                         )}
@@ -267,43 +291,89 @@ export function RoomCard({
                           <span>Trim {format(parseLocalDate(cycle.trim_start), 'MMM d')}</span>
                         )}
                       </div>
-                    ) : (
-                      <div className="flex flex-wrap justify-between gap-x-4 pt-1 text-[11px] text-muted-foreground">
-                        <div className="flex flex-col leading-relaxed">
-                          {cycle.dome_start && (
-                            <span>Dome: {format(parseLocalDate(cycle.dome_start), 'MMM d')}</span>
-                          )}
-                          {cycle.veg_start && (
-                            <span>Veg: {format(parseLocalDate(cycle.veg_start), 'MMM d')}</span>
-                          )}
-                          {cycle.flower_start && (
-                            <span>
-                              Flower: {format(parseLocalDate(cycle.flower_start), 'MMM d')}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-col leading-relaxed text-right">
-                          {cycle.harvest_date && (
-                            <span>
-                              Harvest: {format(parseLocalDate(cycle.harvest_date), 'MMM d')}
-                            </span>
-                          )}
-                          {cycle.trim_start && (
-                            <span>Trim: {format(parseLocalDate(cycle.trim_start), 'MMM d')}</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )
-            })}
+                    )}
+                  </div>
+                )
+              })}
+            </div>
 
             {/* tv: overflow must be visible and truthful, not silently
                 swallowed by the card's overflow-hidden — see
                 TV_MAX_RENDERED_CYCLES. */}
-            {tv && hiddenCycleCount > 0 && (
-              <p className={`${TV_BODY} text-zinc-400`}>+{hiddenCycleCount} more</p>
+            {hiddenCycleCount > 0 && (
+              <p className={`${TV_BODY} text-zinc-400 shrink-0`}>+{hiddenCycleCount} more</p>
             )}
+          </>
+        ) : (
+          <>
+            {/* All active cycles with milestone timelines */}
+            {activeCycles.map((cycle) => {
+              const progress = getDayProgress(cycle)
+              const stageLabel = getCycleStageLabel(cycle.current_stage, cycle.flower_start)
+              const hasMilestones =
+                cycle.dome_start ||
+                cycle.veg_start ||
+                cycle.flower_start ||
+                cycle.harvest_date ||
+                cycle.trim_start
+              return (
+                <div key={cycle.id} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {cycle.cycle_number ? `Cycle #${cycle.cycle_number}` : 'Cycle'}
+                    </span>
+                    <Badge
+                      className={`${PHASE_BADGE_CLASSES[cycle.current_stage] || 'bg-gray-500 text-white'} text-xs`}
+                    >
+                      {stageLabel}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Progress</span>
+                    <span className="font-medium">
+                      {progress ? `Day ${progress.current} of ${progress.total}` : '—'}
+                    </span>
+                  </div>
+                  {progress && (
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${PHASE_BADGE_CLASSES[cycle.current_stage]?.split(' ')[0] || 'bg-gray-500'}`}
+                        style={{
+                          width: `${Math.min((progress.current / progress.total) * 100, 100)}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                  {hasMilestones && (
+                    <div className="flex flex-wrap justify-between gap-x-4 pt-1 text-[11px] text-muted-foreground">
+                      <div className="flex flex-col leading-relaxed">
+                        {cycle.dome_start && (
+                          <span>Dome: {format(parseLocalDate(cycle.dome_start), 'MMM d')}</span>
+                        )}
+                        {cycle.veg_start && (
+                          <span>Veg: {format(parseLocalDate(cycle.veg_start), 'MMM d')}</span>
+                        )}
+                        {cycle.flower_start && (
+                          <span>
+                            Flower: {format(parseLocalDate(cycle.flower_start), 'MMM d')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-col leading-relaxed text-right">
+                        {cycle.harvest_date && (
+                          <span>
+                            Harvest: {format(parseLocalDate(cycle.harvest_date), 'MMM d')}
+                          </span>
+                        )}
+                        {cycle.trim_start && (
+                          <span>Trim: {format(parseLocalDate(cycle.trim_start), 'MMM d')}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </>
         )}
 
@@ -317,10 +387,15 @@ export function RoomCard({
           </p>
         )}
 
-        {/* Notes — tv: dropped entirely at >=TV_HIDE_NOTES_AT_CYCLES cycles,
-            single-line below that (see TV_HIDE_NOTES_AT_CYCLES for the
-            measured cost). */}
-        {room.notes && !tvHideNotes && (
+        {/* Notes — tv: no longer shed at a cycle-count threshold (removed
+            TV_HIDE_NOTES_AT_CYCLES post-SPRO-83-fix). That threshold existed
+            because notes sat below a vertical cycle stack whose height grew
+            with cycle count, so at some count notes were exactly the
+            overflow tipping point. Cycles are columns now — their row's
+            height doesn't grow with cycle count — so there's no longer a
+            cycle-count-correlated height pressure for notes to be shed
+            against. `line-clamp-1` still caps its own worst case. */}
+        {room.notes && (
           <p
             className={
               tv ? `${TV_BODY} text-zinc-400 line-clamp-1` : 'text-xs text-muted-foreground line-clamp-2'
