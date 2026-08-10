@@ -6,7 +6,14 @@
 // deterministic and don't depend on the real clock.
 
 import { describe, expect, it } from 'vitest'
-import { getFlowerWeek, getCycleStageLabel } from './helpers'
+import {
+  getFlowerWeek,
+  getCycleStageLabel,
+  resolveTaskDueDate,
+  resolveTaskPhaseAndDay,
+  type CycleMilestones,
+} from './helpers'
+import { STAGE_ORDER } from '@/types/cultivation'
 
 const FLOWER_START = '2026-01-01'
 
@@ -108,5 +115,101 @@ describe('getCycleStageLabel', () => {
 
   it('falls back to the raw stage string for an unrecognized stage', () => {
     expect(getCycleStageLabel('mystery-stage', null)).toBe('mystery-stage')
+  })
+})
+
+describe('resolveTaskPhaseAndDay', () => {
+  // Milestones spaced with generous buffers so day_number sweeps in the
+  // round-trip test below land squarely inside each phase and never spill
+  // into the next one — a spillover isn't a bug (see the "picks by date"
+  // test), it would just make the round-trip assertion meaningless.
+  const SPACED_MILESTONES: CycleMilestones = {
+    dome: '2026-01-01',
+    veg: '2026-01-10', // 9-day buffer for dome
+    flower: '2026-01-24', // 14-day buffer for veg
+    harvest: '2026-03-25', // 60-day buffer for flower
+    dry: '2026-04-05', // 11-day buffer for harvest
+    trim: '2026-04-16', // 11-day buffer for dry
+  }
+
+  it('round-trips through resolveTaskDueDate for day_number 1..5 in every phase', () => {
+    for (const phase of STAGE_ORDER) {
+      for (const day of [1, 2, 3, 4, 5]) {
+        const dueDate = resolveTaskDueDate(SPACED_MILESTONES, phase, day)
+        const result = resolveTaskPhaseAndDay(SPACED_MILESTONES, dueDate)
+        expect(result).toEqual({ phase, day_number: day })
+      }
+    }
+  })
+
+  it('returns day 1 when the due date lands exactly on a milestone', () => {
+    expect(resolveTaskPhaseAndDay(SPACED_MILESTONES, '2026-01-24')).toEqual({
+      phase: 'flower',
+      day_number: 1,
+    })
+  })
+
+  it('resolves a harvest_date === dry_start tie to dry (later in STAGE_ORDER)', () => {
+    // flip-room-dialog.tsx defaults dry_start to harvest_date, so this tie
+    // happens on essentially every cycle created through the normal UI.
+    const milestones: CycleMilestones = {
+      ...SPACED_MILESTONES,
+      harvest: '2026-03-25',
+      dry: '2026-03-25',
+    }
+    expect(resolveTaskPhaseAndDay(milestones, '2026-03-25')).toEqual({
+      phase: 'dry',
+      day_number: 1,
+    })
+  })
+
+  it('never returns a phase whose milestone is null/empty', () => {
+    // Cycle is only as far as flower — harvest/dry/trim aren't set yet.
+    const milestones: CycleMilestones = {
+      dome: '2026-01-01',
+      veg: '2026-01-10',
+      flower: '2026-01-24',
+      harvest: '',
+      dry: '',
+      trim: '',
+    }
+    // Even a due date far in the future can't resolve to harvest/dry/trim
+    // since those milestones don't exist yet.
+    const result = resolveTaskPhaseAndDay(milestones, '2026-12-31')
+    expect(result?.phase).toBe('flower')
+  })
+
+  it('returns null when the due date is before every known milestone', () => {
+    expect(resolveTaskPhaseAndDay(SPACED_MILESTONES, '2025-12-25')).toBeNull()
+  })
+
+  it('picks the candidate by actual date value, not STAGE_ORDER index, when milestones are stored out of order', () => {
+    // dome_start stored AFTER veg_start — startCycle never validates
+    // ordering (only updateCycle does), so this can genuinely happen.
+    const milestones: CycleMilestones = {
+      dome: '2026-01-10',
+      veg: '2026-01-05',
+      flower: '',
+      harvest: '',
+      dry: '',
+      trim: '',
+    }
+    // Both dome (01-10) and veg (01-05) qualify as candidates for this due
+    // date; dome's date is later, so dome wins even though its STAGE_ORDER
+    // index (0) is earlier than veg's (1).
+    expect(resolveTaskPhaseAndDay(milestones, '2026-01-20')).toEqual({
+      phase: 'dome',
+      day_number: 11,
+    })
+  })
+
+  it('returns trim with an unbounded (large) day_number for a due date long past the last milestone', () => {
+    const milestones: CycleMilestones = { ...SPACED_MILESTONES }
+    // ~46 days after trim_start (2026-04-16) — phases are unbounded, the
+    // forward function clamps nothing, so neither does the inverse.
+    expect(resolveTaskPhaseAndDay(milestones, '2026-06-01')).toEqual({
+      phase: 'trim',
+      day_number: 47,
+    })
   })
 })

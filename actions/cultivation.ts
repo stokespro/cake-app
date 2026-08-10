@@ -3,9 +3,14 @@
 import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { generateRecurringTasksCore } from '@/lib/cultivation/generate-recurring-tasks'
-import { resolveTaskDueDate, type CycleMilestones } from '@/lib/cultivation/helpers'
+import {
+  resolveTaskDueDate,
+  resolveTaskPhaseAndDay,
+  type CycleMilestones,
+} from '@/lib/cultivation/helpers'
 import {
   STAGE_ORDER,
+  MILESTONE_FIELD,
   type GrowRoom,
   type RoomCycle,
   type CycleTemplate,
@@ -685,6 +690,51 @@ export async function deleteTask(taskId: string): Promise<
   return {}
 }
 
+// Milestone columns needed to derive a phase/day_number from a due date —
+// mirrors the shape resolveTaskPhaseAndDay() below expects, one column per
+// MILESTONE_FIELD entry.
+type MilestoneRow = Pick<
+  RoomCycle,
+  'dome_start' | 'veg_start' | 'flower_start' | 'harvest_date' | 'dry_start' | 'trim_start'
+>
+
+function buildMilestones(cycle: MilestoneRow): CycleMilestones {
+  const milestones = {} as CycleMilestones
+  for (const stage of STAGE_ORDER) {
+    const field = MILESTONE_FIELD[stage] as keyof MilestoneRow
+    milestones[stage] = cycle[field] ?? ''
+  }
+  return milestones
+}
+
+// Shared by createTask/updateTask: given a room_cycle_id and a due date,
+// fetches that cycle's milestone dates and derives the phase/day_number the
+// task falls on (see resolveTaskPhaseAndDay in lib/cultivation/helpers.ts
+// for the actual math). Returns null when there's no cycle, the cycle can't
+// be loaded, or the due date is before every known milestone — callers must
+// treat null as "no derived phase/day", never guess.
+async function derivePhaseAndDay(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  roomCycleId: string | null,
+  dueDate: string
+): Promise<{ phase: PipelineStage; day_number: number } | null> {
+  if (!roomCycleId) return null
+
+  const { data: cycle, error } = await db
+    .from('room_cycles')
+    .select('dome_start, veg_start, flower_start, harvest_date, dry_start, trim_start')
+    .eq('id', roomCycleId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[cultivation] derivePhaseAndDay cycle fetch error:', error)
+    return null
+  }
+  if (!cycle) return null
+
+  return resolveTaskPhaseAndDay(buildMilestones(cycle), dueDate)
+}
+
 export interface CreateTaskInput {
   title: string
   description: string | null
@@ -708,10 +758,21 @@ export async function createTask(input: CreateTaskInput): Promise<
 
   const { assignee_ids, ...taskFields } = input
   const db = await createServiceClient()
+
+  // Ad-hoc/recurring tasks (the only kinds created through this path — see
+  // note on updateTask's guard below) don't get a phase/day_number from a
+  // template, so derive one from the selected cycle's milestones whenever a
+  // cycle is attached. Explicitly null when there's no cycle or the due
+  // date predates every milestone, so the Phase/Day column doesn't show
+  // stale/guessed data.
+  const derived = await derivePhaseAndDay(db, input.room_cycle_id, input.due_date)
+
   const { data: newTask, error } = await db
     .from('cultivation_tasks')
     .insert({
       ...taskFields,
+      phase: derived?.phase ?? null,
+      day_number: derived?.day_number ?? null,
       // Legacy compat — Bud Slack agent still reads assigned_to directly.
       assigned_to: assignee_ids[0] ?? null,
       status: 'pending',
@@ -765,10 +826,38 @@ export async function updateTask(taskId: string, input: UpdateTaskInput): Promis
 
   const { assignee_ids, ...taskFields } = input
   const db = await createServiceClient()
+
+  // Scheduled (template-generated) tasks carry an AUTHORED phase/day_number
+  // — including negative prep days — that reopenTask and updateCycle
+  // re-anchor due dates FROM. Recomputing those fields from the (possibly
+  // just-edited) due date here would corrupt that round-trip, e.g. a
+  // flower day -2 prep task getting silently rewritten into a positive veg
+  // day. So: fetch the task's current task_type first, and only derive
+  // phase/day_number for non-scheduled (ad-hoc/recurring) tasks — scheduled
+  // tasks leave both fields completely untouched.
+  const { data: existingTask, error: fetchErr } = await db
+    .from('cultivation_tasks')
+    .select('task_type')
+    .eq('id', taskId)
+    .maybeSingle()
+
+  if (fetchErr) {
+    console.error('[cultivation] updateTask fetch error:', fetchErr)
+    return { error: 'Failed to load task' }
+  }
+
+  const shouldDerive = existingTask ? existingTask.task_type !== 'scheduled' : false
+  let derivedFields: { phase?: PipelineStage | null; day_number?: number | null } = {}
+  if (shouldDerive) {
+    const derived = await derivePhaseAndDay(db, input.room_cycle_id, input.due_date)
+    derivedFields = { phase: derived?.phase ?? null, day_number: derived?.day_number ?? null }
+  }
+
   const { error } = await db
     .from('cultivation_tasks')
     .update({
       ...taskFields,
+      ...derivedFields,
       // Legacy compat — Bud Slack agent still reads assigned_to directly.
       assigned_to: assignee_ids[0] ?? null,
       updated_at: new Date().toISOString(),
