@@ -121,6 +121,7 @@ export interface CultivationTask {
   updated_at: string
   // Joined
   room?: GrowRoom
+  cycle?: Pick<RoomCycle, 'id' | 'cycle_number' | 'current_stage' | 'flower_start'> | null
   /** @deprecated Use `assignees` instead. Kept for legacy compat (single-assignee join). */
   assigned_user?: { id: string; name: string }
   completed_by_user?: { id: string; name: string }

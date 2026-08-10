@@ -106,6 +106,13 @@ export async function getRoomCycleHistory(roomId: string): Promise<
 const ASSIGNEES_EMBED =
   'assignees:cultivation_task_assignees(user:users!cultivation_task_assignees_user_id_fkey(id, name))'
 
+// Embed used to pull the room cycle a task belongs to, when set. There is
+// exactly one FK from cultivation_tasks to room_cycles (room_cycle_id), so
+// no FK hint is needed to disambiguate. Included so the UI can display the
+// cycle and so edit-mode can resolve a cycle that's no longer active (see
+// CreateTaskSheet's stale-cycle handling).
+const CYCLE_EMBED = 'cycle:room_cycles(id, cycle_number, current_stage, flower_start)'
+
 interface AssigneesEmbedRow {
   assignees?: { user: { id: string; name: string } | null }[] | null
 }
@@ -215,7 +222,7 @@ export async function getCultivationTasks(
   let query = db
     .from('cultivation_tasks')
     .select(
-      `*, room:grow_rooms(id, room_name, room_number), assigned_user:users!cultivation_tasks_assigned_to_fkey(id, name), completed_by_user:users!cultivation_tasks_completed_by_fkey(id, name), ${ASSIGNEES_EMBED}`,
+      `*, room:grow_rooms(id, room_name, room_number), assigned_user:users!cultivation_tasks_assigned_to_fkey(id, name), completed_by_user:users!cultivation_tasks_completed_by_fkey(id, name), ${ASSIGNEES_EMBED}, ${CYCLE_EMBED}`,
       { count: 'exact' }
     )
     .or('frequency.is.null,recurring_parent_id.not.is.null')
@@ -396,7 +403,7 @@ export async function getMyTodayTasks(todayStr: string): Promise<
   const { data, error } = await db
     .from('cultivation_tasks')
     .select(
-      `*, room:grow_rooms(id, room_name, room_number), assigned_user:users!cultivation_tasks_assigned_to_fkey(id, name), cultivation_task_assignees!inner(user_id)`
+      `*, room:grow_rooms(id, room_name, room_number), assigned_user:users!cultivation_tasks_assigned_to_fkey(id, name), cultivation_task_assignees!inner(user_id), ${CYCLE_EMBED}`
     )
     .eq('cultivation_task_assignees.user_id', auth.session.userId)
     .in('status', ['pending', 'in_progress'])
@@ -423,7 +430,7 @@ export async function getCultivationTasksForDisplay(todayStr: string): Promise<
   const { data, error } = await db
     .from('cultivation_tasks')
     .select(
-      `*, room:grow_rooms(id, room_name, room_number), assigned_user:users!cultivation_tasks_assigned_to_fkey(id, name), ${ASSIGNEES_EMBED}`
+      `*, room:grow_rooms(id, room_name, room_number), assigned_user:users!cultivation_tasks_assigned_to_fkey(id, name), ${ASSIGNEES_EMBED}, ${CYCLE_EMBED}`
     )
     .in('status', ['pending', 'in_progress'])
     .lte('due_date', todayStr)
@@ -682,6 +689,7 @@ export interface CreateTaskInput {
   title: string
   description: string | null
   room_id: string | null
+  room_cycle_id: string | null
   due_date: string
   priority: TaskPriority
   assignee_ids: string[]
@@ -737,6 +745,7 @@ export interface UpdateTaskInput {
   title: string
   description: string | null
   room_id: string | null
+  room_cycle_id: string | null
   due_date: string
   priority: TaskPriority
   assignee_ids: string[]
