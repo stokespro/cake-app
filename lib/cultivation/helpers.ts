@@ -1,7 +1,7 @@
 import { differenceInCalendarDays } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
 import type { GrowRoom, RoomCycle, TaskPriority, PipelineStage } from '@/types/cultivation'
-import { PHASE_CONFIG } from '@/types/cultivation'
+import { PHASE_CONFIG, STAGE_ORDER } from '@/types/cultivation'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -120,4 +120,62 @@ export function resolveTaskDueDate(
     dueDate.setDate(dueDate.getDate() + dayNumber)
   }
   return dueDate.toISOString().split('T')[0]
+}
+
+/**
+ * Inverse of resolveTaskDueDate() above: given a cycle's milestone dates and
+ * a due date, determines which phase the cycle is in on that date and what
+ * day-of-phase that due date represents.
+ *
+ * Contract (do not change without updating both callers — createTask and
+ * updateTask in actions/cultivation.ts):
+ *   - Only milestones that are non-null AND non-empty are considered.
+ *     Callers commonly coalesce a missing DB value to `''` (see reopenTask,
+ *     startCycle, updateCycle in actions/cultivation.ts) — that's only safe
+ *     there because of an immediate truthiness check. Here we filter it out
+ *     directly rather than letting `''` sort as "earliest date" and
+ *     silently win a comparison it has no business winning.
+ *   - Candidates are the milestones whose date is <= dueDate. The candidate
+ *     with the LATEST date wins. This is a comparison of actual date values,
+ *     NOT a lookup by STAGE_ORDER index — startCycle never validates that
+ *     milestones are stored in stage order (only updateCycle does), so dates
+ *     can genuinely be out of order.
+ *   - Tie-break: when two milestones land on the same date, the one LATER in
+ *     STAGE_ORDER wins. This is not a rare edge case: flip-room-dialog.tsx
+ *     defaults `dry_start` to `harvest_date`, so `harvest_date ===
+ *     dry_start` on essentially every cycle created through the normal UI
+ *     flow. Without this tie-break, a task due on that date would be
+ *     miscategorized as "harvest" instead of "dry".
+ *   - `day_number = differenceInCalendarDays(dueDate, milestoneDate) + 1`,
+ *     so it is always >= 1 and round-trips exactly through
+ *     resolveTaskDueDate. Uses `differenceInCalendarDays` (not raw
+ *     millisecond math) for the same DST-safety reason getFlowerWeek does
+ *     above.
+ *   - Returns null when dueDate is before every known milestone (e.g. a task
+ *     scheduled ahead of the cycle's dome_start). Callers must NOT invent a
+ *     negative day_number here — a negative day_number means "authored prep
+ *     task" elsewhere in this codebase, and the two must not be conflated.
+ */
+export function resolveTaskPhaseAndDay(
+  milestones: CycleMilestones,
+  dueDate: string
+): { phase: PipelineStage; day_number: number } | null {
+  let best: { stage: PipelineStage; date: string } | null = null
+
+  for (const stage of STAGE_ORDER) {
+    const date = milestones[stage]
+    if (!date || date > dueDate) continue
+    // Iterating STAGE_ORDER in order and updating on `>=` (not `>`) means a
+    // same-date milestone later in STAGE_ORDER naturally overwrites an
+    // earlier one — that's the tie-break described above.
+    if (!best || date >= best.date) {
+      best = { stage, date }
+    }
+  }
+
+  if (!best) return null
+
+  const dayNumber = differenceInCalendarDays(parseLocalDate(dueDate), parseLocalDate(best.date)) + 1
+
+  return { phase: best.stage, day_number: dayNumber }
 }

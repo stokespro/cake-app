@@ -24,7 +24,8 @@ import {
 import { toast } from 'sonner'
 import { createTask, updateTask } from '@/actions/cultivation'
 import type { CultivationTask, GrowRoom, RoomCycle, TaskPriority } from '@/types/cultivation'
-import { getCycleStageLabel } from '@/lib/cultivation/helpers'
+import { PHASE_CONFIG } from '@/types/cultivation'
+import { getCycleStageLabel, resolveTaskPhaseAndDay, type CycleMilestones } from '@/lib/cultivation/helpers'
 
 interface UserOption {
   id: string
@@ -111,6 +112,26 @@ export function CreateTaskSheet({
       ? [...activeForRoom, { ...task.cycle, room_id: roomId } as RoomCycle]
       : activeForRoom
   const staleCycleId = task?.cycle && !activeForRoom.some((c) => c.id === task.cycle!.id) ? task.cycle.id : null
+
+  // Live preview of the phase/day_number the server would derive for the
+  // selected cycle + due date (see resolveTaskPhaseAndDay in
+  // lib/cultivation/helpers.ts — same function actions/cultivation.ts calls
+  // on save, so this preview never drifts from what actually gets saved).
+  const selectedCycle = cycleId !== 'none' ? cycleOptions.find((c) => c.id === cycleId) : undefined
+  const derivedPreview =
+    selectedCycle && dueDate
+      ? resolveTaskPhaseAndDay(
+          {
+            dome: selectedCycle.dome_start ?? '',
+            veg: selectedCycle.veg_start ?? '',
+            flower: selectedCycle.flower_start ?? '',
+            harvest: selectedCycle.harvest_date ?? '',
+            dry: selectedCycle.dry_start ?? '',
+            trim: selectedCycle.trim_start ?? '',
+          } satisfies CycleMilestones,
+          dueDate
+        )
+      : null
 
   function handleRoomChange(value: string) {
     setRoomId(value)
@@ -257,7 +278,9 @@ export function CreateTaskSheet({
               </Select>
               {cycleId !== 'none' && (
                 <p className="text-xs text-muted-foreground">
-                  Task will close out when this cycle ends.
+                  {derivedPreview
+                    ? `${PHASE_CONFIG[derivedPreview.phase].label} Day ${derivedPreview.day_number} · closes out when this cycle ends.`
+                    : 'Task will close out when this cycle ends.'}
                 </p>
               )}
             </div>
