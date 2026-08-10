@@ -34,57 +34,80 @@ export interface RoomCardProps {
 
 // ─── TV typography ──────────────────────────────────────────────────────────
 //
-// tv variant only, split into two independent query scopes (SPRO-83
-// columns-not-rows fix):
+// tv variant only, split into two independent query scopes:
 //
 //  - TV_TITLE / TV_BODY are sized off the CARD's own `[container-type:size]`
-//    box (unchanged scope from before this pass) and cover everything that
-//    isn't per-cycle: room name, pairing label, cycle-count badge, task
-//    counts, notes, "No active cycle".
-//  - TV_COL_BODY / TV_COL_MILESTONE are sized off each CYCLE COLUMN's own
-//    `[container-type:size]` box (new — see the columns grid below). A
-//    column's height is roughly constant regardless of how many cycles the
-//    room has (that's the whole point of laying cycles out as columns
-//    instead of a vertical stack), so its `cqmin` ends up width-bound once a
-//    room has enough concurrent cycles to squeeze columns narrow — more
-//    cycles -> narrower columns -> smaller text, automatically, with no JS
-//    scale factor needed. See getTvScale removal note below.
+//    box and cover everything that isn't per-cycle: room name, pairing
+//    label, cycle-count badge, task counts, notes, "No active cycle".
+//  - TV_COL_BODY / TV_COL_MILESTONE are ALSO sized off the CARD's own box,
+//    not the per-cycle column (SPRO-83 uniform-font-size fix). Each cycle
+//    column used to be its own `[container-type:size]` container, which made
+//    its `cqmin` width-bound as soon as a room had enough concurrent cycles
+//    to squeeze its columns narrow — a 3-cycle room's text was visibly
+//    smaller than a 2-cycle room's next to it on the live board (F1 vs
+//    F3/F5/F6), which reads as "something's not right," not "this room is
+//    busier." Every card is an identical-size cell in the page grid, so a
+//    card-scoped `cqmin` is identical across all four cards regardless of
+//    cycle count — that's what makes the text uniform. The column div keeps
+//    `min-w-0 min-h-0 overflow-hidden flex flex-col gap-1` but deliberately
+//    does NOT have `[container-type:size]` anymore, so its descendants'
+//    `cqmin` resolves up to the nearest container ancestor: the Card.
 //
-// There is deliberately no `--tv-scale` custom property anymore. It existed
-// solely to compensate for the old vertical-stack layout, where a card's
-// required height (and therefore the text it could afford) scaled with
-// active-cycle count. With cycles laid out as columns, a card's content
-// height is driven by ONE column, not N stacked blocks, so cycle count no
-// longer correlates with available vertical space and there is nothing left
-// for a height-derived scale factor to compensate for. Reusing it now would
-// be a scale knob with no underlying quantity — see decisions.md-style
-// reasoning: don't leave a mechanism that no longer means anything.
+// There is deliberately no `--tv-scale` custom property. It existed solely
+// to compensate for the old vertical-stack layout, where a card's required
+// height (and therefore the text it could afford) scaled with active-cycle
+// count. Cards are fixed-size grid cells regardless of layout scheme, so
+// there's nothing left for a height-derived scale factor to compensate for.
 //
-// Floors: TV_COL_BODY floors at 14px and TV_COL_MILESTONE at 12px (both
-// slightly below the pre-SPRO-83 14px/16px floors) because a 5-column row
-// genuinely needs that room — narrow columns hit the floor by design at the
-// crowded end, same as before, just width-driven now instead of
-// height-driven. TV_TITLE/TV_BODY floors are untouched (1.5rem / 1rem) since
-// the card-level box they're sized against didn't shrink.
+// Trade-off, stated plainly: card-to-card uniformity was chosen over
+// maximizing size on less-busy cards. A 2-cycle card COULD render larger
+// text if sized off its own (wider) columns, but that inconsistency is
+// exactly what's being fixed — text must now fit the WORST case (3
+// concurrent cycles, the common count per rooms-hold-multiple-concurrent-
+// cycles) since one size serves every card regardless of its own count.
 //
-// The clamp midpoints below (8cqmin / 6.5cqmin) were tuned against a live
-// measurement, not estimated. A cycle column holds ~7 text lines (cycle
-// label, progress label/value, then 5 stacked milestone lines) plus a fixed
-// 8px progress bar and ~24px of flex gaps, so required column height is
-// roughly `9.45 * fontSize + 32`. That budget was checked against a real
-// viewport matrix (1920x1080, 1512x982, 1512x800, 1512x720, 1366x768,
-// 2560x1440); at the old 9cqmin/7.5cqmin multipliers the two smallest
-// viewports (1512x720, 1366x768) clipped the last milestone line on
-// 2-cycle cards. The reduced multipliers give a real margin at every
-// measured viewport while 1920x1080+ stay comfortably width-bound, so the
-// TV keeps the legibility win over the old stacked layout. Re-tune the
-// multiplier (not the floor/ceiling) only after re-measuring against this
-// same viewport matrix.
+// Floors: TV_COL_BODY floors at 14px and TV_COL_MILESTONE at 12px —
+// unchanged from before this pass. TV_TITLE/TV_BODY floors are untouched
+// (1.5rem / 1rem).
+//
+// The clamp midpoints below (5.5cqmin / 4.6cqmin) are sized off the CARD, so
+// they have to satisfy two budgets at once:
+//
+//  - Vertical, per column: ~7 text lines (cycle label, progress
+//    label/value, then 5 stacked milestone lines) plus a fixed 8px progress
+//    bar and ~24px of flex gaps, so required column height is roughly
+//    `9.45 * fontSize + 32`, checked against the card's content height.
+//  - Horizontal, at 3 columns (the width-worst case now that font size no
+//    longer varies by count): the widest row is the cycle header,
+//    "Cycle #1" plus a stage badge like "Flower W3", needing roughly
+//    `8.5 * fontSize + 24`px of badge padding, checked against a 3-column
+//    width of roughly `(cardWidth - 32 - 24) / 3`.
+//
+// At 1920x1080 (card ~926x480, cqmin 480, 3-col width ~290px) 5.5cqmin gives
+// ~26.4px against a ~31px horizontal ceiling. At 1366x768 (card ~649x324,
+// cqmin 324, 3-col width ~197px) it gives ~17.8px against a ~20.4px
+// ceiling. Confirmed live at 1920x1080 (26.29px), 1512x800 (18.59px), and
+// 2560x1440 (32px — hits the clamp ceiling), across a 3-cycle card and
+// 2-cycle cards side by side, with zero clipping and zero page scroll — no
+// multiplier change needed.
+//
+// The column-separator rule (`border-l border-zinc-700/60 pl-3` on every
+// column but the first, see the columns grid below) was added AFTER that
+// measurement and eats ~13px (1px border + 12px padding) out of the content
+// width of 2 of the 3 columns at the 3-column width. That tightens the
+// horizontal ceiling at 1366x768 to roughly `((197 - 13) - 24) / 8.5` ≈
+// 18.8px against the achieved ~17-18px — still positive but a noticeably
+// thinner margin than before the divider (was ~2.6px, now roughly ~1-2px).
+// Not yet re-measured live at 1366x768 with the divider in place; if a
+// re-measure finds it too tight, drop the TV_COL_BODY multiplier slightly
+// (e.g. 5.5 -> 5.2cqmin) rather than removing/shrinking the divider, since
+// the divider is what makes multi-cycle cards legible as separate cycles at
+// all.
 
 const TV_TITLE = 'text-[clamp(1.5rem,6.7cqmin,3.5rem)]'
 const TV_BODY = 'text-[clamp(1rem,3.4cqmin,2.25rem)]'
-const TV_COL_BODY = 'text-[clamp(0.875rem,8cqmin,2rem)]'
-const TV_COL_MILESTONE = 'text-[clamp(0.75rem,6.5cqmin,1.5rem)]'
+const TV_COL_BODY = 'text-[clamp(0.875rem,5.5cqmin,2rem)]'
+const TV_COL_MILESTONE = 'text-[clamp(0.75rem,4.6cqmin,1.5rem)]'
 
 /**
  * Max cycle COLUMNS rendered per tv card, and the threshold at which the
@@ -145,10 +168,12 @@ export function RoomCard({
     // both axes — grid rows are `minmax(0, 1fr)` so the cell (and therefore
     // the card) always has a definite block size, which is what lets the
     // `cqmin`-based TV_TITLE/TV_BODY above scale safely off the card box
-    // instead of guessing viewport size. Per-cycle text is sized off each
-    // column's own container instead (see TV_COL_BODY/TV_COL_MILESTONE and
-    // the columns grid in CardContent below) — the card-level container here
-    // now exists only for the header (room name, pairing label, badges).
+    // instead of guessing viewport size. Per-cycle text (TV_COL_BODY /
+    // TV_COL_MILESTONE) is ALSO sized off this same card-level container —
+    // the per-cycle columns below are deliberately NOT their own query
+    // container, so their `cqmin` resolves up to this box, keeping text size
+    // identical across cards regardless of cycle count (see the TV
+    // typography comment block above).
     <Card
       className={
         tv ? 'border-zinc-700 bg-zinc-900 h-full flex flex-col min-h-0 [container-type:size]' : undefined
@@ -210,18 +235,18 @@ export function RoomCard({
                 pressures width instead, which is the axis with slack.
                 `flex-1 min-h-0` makes the row fill (not exceed) the
                 remaining CardContent height; each column is top-aligned
-                (default flex-col behavior) and is its own
-                `[container-type:size]` query container so TV_COL_BODY /
-                TV_COL_MILESTONE above shrink automatically as columns get
-                narrower — no JS scale factor needed (see the TV typography
-                comment block for why --tv-scale was removed). */}
+                (default flex-col behavior). Columns are deliberately NOT
+                their own `[container-type:size]` container — TV_COL_BODY /
+                TV_COL_MILESTONE are sized off the CARD instead, so text size
+                stays uniform across cards regardless of cycle count (see
+                the TV typography comment block for why). */}
             <div
               className="flex-1 min-h-0 grid gap-3"
               style={{
                 gridTemplateColumns: `repeat(${renderedCycles.length}, minmax(0, 1fr))`,
               }}
             >
-              {renderedCycles.map((cycle) => {
+              {renderedCycles.map((cycle, index) => {
                 const progress = getDayProgress(cycle)
                 const stageLabel = getCycleStageLabel(cycle.current_stage, cycle.flower_start)
                 const hasMilestones =
@@ -231,9 +256,23 @@ export function RoomCard({
                   cycle.harvest_date ||
                   cycle.trim_start
                 return (
+                  // tv: a full-height left rule on every column except the
+                  // first (SPRO-83 column-separator fix) — once dates sit
+                  // flush against the column's right edge (see the
+                  // label-left/date-right milestone rows below), a plain
+                  // `gap-3` gutter alone reads as one continuous line across
+                  // 3 cycles rather than 3 separate blocks. `pl-3` keeps
+                  // this column's own text off the rule; the previous
+                  // column's content already has the `gap-3` gutter as
+                  // clearance on its side, so it doesn't also need a
+                  // right-padding twin. Border color is a touch dimmer than
+                  // the card's own `border-zinc-700` so it reads as a quiet
+                  // divider, not another focal element.
                   <div
                     key={cycle.id}
-                    className="min-w-0 min-h-0 overflow-hidden flex flex-col gap-1 [container-type:size]"
+                    className={`min-w-0 min-h-0 overflow-hidden flex flex-col gap-1 ${
+                      index > 0 ? 'border-l border-zinc-700/60 pl-3' : ''
+                    }`}
                   >
                     {/* flex-wrap, not justify-between-or-bust: at 5 columns
                         "Cycle #3" + a stage badge can be tighter than the
@@ -275,20 +314,50 @@ export function RoomCard({
                       // A vertical list's height is just "N lines", which is
                       // what makes the column budget plannable.
                       <div className={`flex flex-col gap-0.5 pt-0.5 ${TV_COL_MILESTONE} text-zinc-400 min-w-0`}>
+                        {/* tv: label left / date right per line, not one
+                            span — the date is the operationally load-bearing
+                            half, so on a width crunch it's the label that
+                            shrinks/ellipsizes (`truncate`), never the date
+                            (`shrink-0 whitespace-nowrap`). */}
                         {cycle.dome_start && (
-                          <span>Dome {format(parseLocalDate(cycle.dome_start), 'MMM d')}</span>
+                          <div className="flex justify-between gap-2 min-w-0">
+                            <span className="truncate">Dome</span>
+                            <span className="shrink-0 whitespace-nowrap">
+                              {format(parseLocalDate(cycle.dome_start), 'MMM d')}
+                            </span>
+                          </div>
                         )}
                         {cycle.veg_start && (
-                          <span>Veg {format(parseLocalDate(cycle.veg_start), 'MMM d')}</span>
+                          <div className="flex justify-between gap-2 min-w-0">
+                            <span className="truncate">Veg</span>
+                            <span className="shrink-0 whitespace-nowrap">
+                              {format(parseLocalDate(cycle.veg_start), 'MMM d')}
+                            </span>
+                          </div>
                         )}
                         {cycle.flower_start && (
-                          <span>Flower {format(parseLocalDate(cycle.flower_start), 'MMM d')}</span>
+                          <div className="flex justify-between gap-2 min-w-0">
+                            <span className="truncate">Flower</span>
+                            <span className="shrink-0 whitespace-nowrap">
+                              {format(parseLocalDate(cycle.flower_start), 'MMM d')}
+                            </span>
+                          </div>
                         )}
                         {cycle.harvest_date && (
-                          <span>Harvest {format(parseLocalDate(cycle.harvest_date), 'MMM d')}</span>
+                          <div className="flex justify-between gap-2 min-w-0">
+                            <span className="truncate">Harvest</span>
+                            <span className="shrink-0 whitespace-nowrap">
+                              {format(parseLocalDate(cycle.harvest_date), 'MMM d')}
+                            </span>
+                          </div>
                         )}
                         {cycle.trim_start && (
-                          <span>Trim {format(parseLocalDate(cycle.trim_start), 'MMM d')}</span>
+                          <div className="flex justify-between gap-2 min-w-0">
+                            <span className="truncate">Trim</span>
+                            <span className="shrink-0 whitespace-nowrap">
+                              {format(parseLocalDate(cycle.trim_start), 'MMM d')}
+                            </span>
+                          </div>
                         )}
                       </div>
                     )}
