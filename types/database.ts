@@ -2658,6 +2658,8 @@ export type Database = {
       strains: {
         Row: {
           availability: string | null
+          background_path: string | null
+          background_url: string | null
           badge: string | null
           cbd_percent: number | null
           coa_url: string | null
@@ -2671,16 +2673,24 @@ export type Database = {
           id: string
           image_url: string | null
           lineage: string | null
+          logo_path: string | null
+          logo_url: string | null
           name: string
           slug: string
           sort_order: number | null
           tagline: string | null
+          terpene_max: number | null
+          terpene_min: number | null
+          thc_max: number | null
+          thc_min: number | null
           thc_percent: number | null
           type: string
           updated_at: string | null
         }
         Insert: {
           availability?: string | null
+          background_path?: string | null
+          background_url?: string | null
           badge?: string | null
           cbd_percent?: number | null
           coa_url?: string | null
@@ -2694,16 +2704,24 @@ export type Database = {
           id?: string
           image_url?: string | null
           lineage?: string | null
+          logo_path?: string | null
+          logo_url?: string | null
           name: string
           slug: string
           sort_order?: number | null
           tagline?: string | null
+          terpene_max?: number | null
+          terpene_min?: number | null
+          thc_max?: number | null
+          thc_min?: number | null
           thc_percent?: number | null
-          type: string
+          type?: string
           updated_at?: string | null
         }
         Update: {
           availability?: string | null
+          background_path?: string | null
+          background_url?: string | null
           badge?: string | null
           cbd_percent?: number | null
           coa_url?: string | null
@@ -2717,10 +2735,16 @@ export type Database = {
           id?: string
           image_url?: string | null
           lineage?: string | null
+          logo_path?: string | null
+          logo_url?: string | null
           name?: string
           slug?: string
           sort_order?: number | null
           tagline?: string | null
+          terpene_max?: number | null
+          terpene_min?: number | null
+          thc_max?: number | null
+          thc_min?: number | null
           thc_percent?: number | null
           type?: string
           updated_at?: string | null
