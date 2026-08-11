@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useEffect, type ChangeEvent } from 'react'
+import { useState, useEffect, useCallback, type ChangeEvent } from 'react'
+import Image from 'next/image'
+import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { ImageUpload } from '@/components/ui/image-upload'
 import {
   Table,
   TableBody,
@@ -22,6 +26,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import {
   Select,
   SelectContent,
@@ -59,6 +71,9 @@ import {
   createStrain,
   updateStrain,
   deleteStrain,
+  createStrainImageUploadUrl,
+  attachStrainImage,
+  removeStrainImage,
   getBatches,
   createBatch,
   updateBatch,
@@ -76,6 +91,7 @@ import {
   togglePackageActive,
 } from '@/actions/vault'
 import { createClient } from '@/lib/supabase/client'
+import { BRAND_ASSETS_BUCKET } from '@/lib/storage-buckets'
 import type { Strain, Batch, ProductType, VaultPackage } from '@/types/vault'
 
 const MAX_COA_BYTES = 20 * 1024 * 1024
@@ -86,7 +102,32 @@ function formatPercent(value: number | null | undefined): string {
   return `${value.toFixed(2)}%`
 }
 
+interface StrainFormState {
+  name: string
+  type: string
+  effects: string
+  flavor_notes: string
+  description: string
+  thc_min: string
+  thc_max: string
+  terpene_min: string
+  terpene_max: string
+}
+
+const emptyStrainForm: StrainFormState = {
+  name: '',
+  type: 'hybrid',
+  effects: '',
+  flavor_notes: '',
+  description: '',
+  thc_min: '',
+  thc_max: '',
+  terpene_min: '',
+  terpene_max: '',
+}
+
 export default function VaultAdminPage() {
+  const { handleSessionError } = useAuth()
   const [activeTab, setActiveTab] = useState('strains')
 
   // Strains state
@@ -94,7 +135,7 @@ export default function VaultAdminPage() {
   const [strainsLoading, setStrainsLoading] = useState(true)
   const [strainDialogOpen, setStrainDialogOpen] = useState(false)
   const [editingStrain, setEditingStrain] = useState<Strain | null>(null)
-  const [strainName, setStrainName] = useState('')
+  const [strainForm, setStrainForm] = useState<StrainFormState>(emptyStrainForm)
   const [strainSaving, setStrainSaving] = useState(false)
   const [strainError, setStrainError] = useState('')
   const [deleteStrainId, setDeleteStrainId] = useState<string | null>(null)
@@ -157,22 +198,27 @@ export default function VaultAdminPage() {
   const [selectedPackageIds, setSelectedPackageIds] = useState<Set<string>>(new Set())
   const [bulkPackageActionLoading, setBulkPackageActionLoading] = useState(false)
 
+  // useCallback (not a plain function like the other load* helpers below) —
+  // it closes over handleSessionError from useAuth(), which react-hooks/exhaustive-deps
+  // requires be a stable, listed dependency of the mount effect below.
+  const loadStrains = useCallback(async () => {
+    setStrainsLoading(true)
+    const result = await getStrains()
+    if (result.success && result.strains) {
+      setStrains(result.strains)
+    } else if (handleSessionError(result.error)) {
+      return
+    }
+    setStrainsLoading(false)
+  }, [handleSessionError])
+
   // Load data
   useEffect(() => {
     loadStrains()
     loadBatches()
     loadProductTypes()
     loadPackages()
-  }, [])
-
-  async function loadStrains() {
-    setStrainsLoading(true)
-    const result = await getStrains()
-    if (result.success && result.strains) {
-      setStrains(result.strains)
-    }
-    setStrainsLoading(false)
-  }
+  }, [loadStrains])
 
   async function loadBatches() {
     setBatchesLoading(true)
@@ -378,10 +424,20 @@ export default function VaultAdminPage() {
   function openStrainDialog(strain?: Strain) {
     if (strain) {
       setEditingStrain(strain)
-      setStrainName(strain.name)
+      setStrainForm({
+        name: strain.name,
+        type: strain.type || 'hybrid',
+        effects: strain.effects || '',
+        flavor_notes: strain.flavor_notes || '',
+        description: strain.description || '',
+        thc_min: strain.thc_min != null ? String(strain.thc_min) : '',
+        thc_max: strain.thc_max != null ? String(strain.thc_max) : '',
+        terpene_min: strain.terpene_min != null ? String(strain.terpene_min) : '',
+        terpene_max: strain.terpene_max != null ? String(strain.terpene_max) : '',
+      })
     } else {
       setEditingStrain(null)
-      setStrainName('')
+      setStrainForm(emptyStrainForm)
     }
     setStrainError('')
     setStrainDialogOpen(true)
@@ -391,20 +447,99 @@ export default function VaultAdminPage() {
     setStrainSaving(true)
     setStrainError('')
 
-    let result
-    if (editingStrain) {
-      result = await updateStrain(editingStrain.id, strainName)
-    } else {
-      result = await createStrain(strainName)
+    // A new strain has no id until this create succeeds — images can only be
+    // attached to a saved row, so we always save the text/numeric fields
+    // first and let image uploads (via the ImageUpload fields below) happen
+    // as a separate step once editingStrain is set.
+    const wasCreate = !editingStrain
+    const payload = {
+      name: strainForm.name,
+      type: strainForm.type,
+      description: strainForm.description,
+      effects: strainForm.effects,
+      flavor_notes: strainForm.flavor_notes,
+      thc_min: strainForm.thc_min,
+      thc_max: strainForm.thc_max,
+      terpene_min: strainForm.terpene_min,
+      terpene_max: strainForm.terpene_max,
     }
 
-    if (result.success) {
-      setStrainDialogOpen(false)
-      loadStrains()
-    } else {
-      setStrainError(result.error || 'Failed to save strain')
-    }
+    const result = wasCreate
+      ? await createStrain(payload)
+      : await updateStrain(editingStrain.id, payload)
+
     setStrainSaving(false)
+
+    if (!result.success || !result.strain) {
+      if (handleSessionError(result.error)) return
+      setStrainError(result.error || 'Failed to save strain')
+      return
+    }
+
+    // Flip the sheet into edit mode against the row that was just
+    // created/updated — this is what unlocks the logo/background uploads
+    // below (they require a strain id). On create, keep the sheet open so
+    // the user can immediately attach images without re-running create and
+    // hitting the duplicate-name check a second time.
+    setEditingStrain(result.strain)
+    loadStrains()
+
+    if (!wasCreate) {
+      setStrainDialogOpen(false)
+    }
+  }
+
+  async function handleUploadStrainImage(slot: 'logo' | 'background', file: File) {
+    if (!editingStrain) {
+      throw new Error('Save the strain before uploading images')
+    }
+
+    const strainId = editingStrain.id
+
+    const uploadUrlResult = await createStrainImageUploadUrl(strainId, slot, file.name)
+    if (!uploadUrlResult.success || !uploadUrlResult.path || !uploadUrlResult.token) {
+      if (handleSessionError(uploadUrlResult.error)) {
+        throw new Error('Session expired')
+      }
+      throw new Error(uploadUrlResult.error || 'Could not start upload')
+    }
+
+    const supabase = createClient()
+    const { error: uploadError } = await supabase.storage
+      .from(BRAND_ASSETS_BUCKET)
+      .uploadToSignedUrl(uploadUrlResult.path, uploadUrlResult.token, file, {
+        contentType: file.type,
+      })
+
+    if (uploadError) {
+      throw new Error(uploadError.message)
+    }
+
+    const attachResult = await attachStrainImage(strainId, slot, uploadUrlResult.path, file.name)
+    if (!attachResult.success || !attachResult.strain) {
+      if (handleSessionError(attachResult.error)) {
+        throw new Error('Session expired')
+      }
+      throw new Error(attachResult.error || 'Could not attach image')
+    }
+
+    setEditingStrain(attachResult.strain)
+    loadStrains()
+  }
+
+  async function handleRemoveStrainImage(slot: 'logo' | 'background') {
+    if (!editingStrain) return
+
+    const result = await removeStrainImage(editingStrain.id, slot)
+    if (!result.success || !result.strain) {
+      if (handleSessionError(result.error)) {
+        throw new Error('Session expired')
+      }
+      throw new Error(result.error || 'Failed to remove image')
+    }
+
+    setEditingStrain(result.strain)
+    loadStrains()
   }
 
   async function handleDeleteStrain() {
@@ -413,6 +548,10 @@ export default function VaultAdminPage() {
     const result = await deleteStrain(deleteStrainId)
     if (result.success) {
       loadStrains()
+    } else if (handleSessionError(result.error)) {
+      setStrainDeleting(false)
+      setDeleteStrainId(null)
+      return
     } else {
       alert(result.error || 'Failed to delete strain')
     }
@@ -730,7 +869,9 @@ export default function VaultAdminPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[52px]">Logo</TableHead>
                         <TableHead>Name</TableHead>
+                        <TableHead className="hidden sm:table-cell">Type</TableHead>
                         <TableHead className="hidden sm:table-cell">Created</TableHead>
                         <TableHead className="w-[100px]">Actions</TableHead>
                       </TableRow>
@@ -738,14 +879,33 @@ export default function VaultAdminPage() {
                     <TableBody>
                       {strains.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          <TableCell colSpan={5} className="text-center text-muted-foreground">
                             No strains found
                           </TableCell>
                         </TableRow>
                       ) : (
                         strains.map((strain) => (
                           <TableRow key={strain.id}>
+                            <TableCell>
+                              {strain.logo_url ? (
+                                <div className="relative h-8 w-8 overflow-hidden rounded-md bg-muted">
+                                  <Image
+                                    src={strain.logo_url}
+                                    alt=""
+                                    fill
+                                    sizes="32px"
+                                    className="object-cover"
+                                    unoptimized
+                                  />
+                                </div>
+                              ) : (
+                                <div className="h-8 w-8 rounded-md bg-muted" />
+                              )}
+                            </TableCell>
                             <TableCell className="font-medium">{strain.name}</TableCell>
+                            <TableCell className="hidden sm:table-cell capitalize">
+                              {strain.type || '—'}
+                            </TableCell>
                             <TableCell className="hidden sm:table-cell">
                               {new Date(strain.created_at).toLocaleDateString()}
                             </TableCell>
@@ -1415,40 +1575,171 @@ export default function VaultAdminPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Strain Dialog */}
-      <Dialog open={strainDialogOpen} onOpenChange={setStrainDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingStrain ? 'Edit Strain' : 'Add Strain'}</DialogTitle>
-            <DialogDescription>
-              {editingStrain ? 'Update the strain name.' : 'Enter a name for the new strain.'}
-            </DialogDescription>
-          </DialogHeader>
+      {/* Strain Sheet */}
+      <Sheet open={strainDialogOpen} onOpenChange={setStrainDialogOpen}>
+        <SheetContent className="sm:max-w-[500px] w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{editingStrain ? 'Edit Strain' : 'Add Strain'}</SheetTitle>
+            <SheetDescription>
+              {editingStrain
+                ? 'Update the strain details.'
+                : 'Enter details for the new strain. Save first to unlock image uploads.'}
+            </SheetDescription>
+          </SheetHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="strainName">Name</Label>
               <Input
                 id="strainName"
-                value={strainName}
-                onChange={(e) => setStrainName(e.target.value)}
+                value={strainForm.name}
+                onChange={(e) => setStrainForm({ ...strainForm, name: e.target.value })}
                 placeholder="e.g., Blue Dream"
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="strainType">Type</Label>
+              <Select
+                value={strainForm.type}
+                onValueChange={(value) => setStrainForm({ ...strainForm, type: value })}
+              >
+                <SelectTrigger id="strainType">
+                  <SelectValue placeholder="Select a type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="indica">Indica</SelectItem>
+                  <SelectItem value="sativa">Sativa</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <ImageUpload
+              label="Logo"
+              value={editingStrain?.logo_url ?? null}
+              onUpload={(file) => handleUploadStrainImage('logo', file)}
+              onRemove={() => handleRemoveStrainImage('logo')}
+              disabled={!editingStrain}
+              helperText={!editingStrain ? 'Save the strain first to upload a logo.' : undefined}
+            />
+
+            <ImageUpload
+              label="Background"
+              value={editingStrain?.background_url ?? null}
+              onUpload={(file) => handleUploadStrainImage('background', file)}
+              onRemove={() => handleRemoveStrainImage('background')}
+              disabled={!editingStrain}
+              helperText={!editingStrain ? 'Save the strain first to upload a background.' : undefined}
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="strainThcMin">THC % min</Label>
+                <Input
+                  id="strainThcMin"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={strainForm.thc_min}
+                  onChange={(e) => setStrainForm({ ...strainForm, thc_min: e.target.value })}
+                  placeholder="e.g., 18.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="strainThcMax">THC % max</Label>
+                <Input
+                  id="strainThcMax"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={strainForm.thc_max}
+                  onChange={(e) => setStrainForm({ ...strainForm, thc_max: e.target.value })}
+                  placeholder="e.g., 24.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="strainTerpeneMin">Terpene % min</Label>
+                <Input
+                  id="strainTerpeneMin"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={strainForm.terpene_min}
+                  onChange={(e) => setStrainForm({ ...strainForm, terpene_min: e.target.value })}
+                  placeholder="e.g., 1.20"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="strainTerpeneMax">Terpene % max</Label>
+                <Input
+                  id="strainTerpeneMax"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={strainForm.terpene_max}
+                  onChange={(e) => setStrainForm({ ...strainForm, terpene_max: e.target.value })}
+                  placeholder="e.g., 2.50"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="strainEffects">Effects</Label>
+              <Input
+                id="strainEffects"
+                value={strainForm.effects}
+                onChange={(e) => setStrainForm({ ...strainForm, effects: e.target.value })}
+                placeholder="e.g., Relaxed, Happy, Euphoric"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="strainFlavor">Flavor</Label>
+              <Input
+                id="strainFlavor"
+                value={strainForm.flavor_notes}
+                onChange={(e) => setStrainForm({ ...strainForm, flavor_notes: e.target.value })}
+                placeholder="e.g., Berry, Sweet, Earthy"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="strainDescription">Description</Label>
+              <Textarea
+                id="strainDescription"
+                value={strainForm.description}
+                onChange={(e) => setStrainForm({ ...strainForm, description: e.target.value })}
+                placeholder="Notes about this strain..."
+                rows={4}
+              />
+            </div>
+
             {strainError && (
               <p className="text-sm text-destructive">{strainError}</p>
             )}
           </div>
-          <DialogFooter>
+          <SheetFooter>
             <Button variant="outline" onClick={() => setStrainDialogOpen(false)}>
-              Cancel
+              {editingStrain ? 'Close' : 'Cancel'}
             </Button>
-            <Button onClick={handleSaveStrain} disabled={strainSaving || !strainName.trim()}>
+            <Button onClick={handleSaveStrain} disabled={strainSaving || !strainForm.name.trim()}>
               {strainSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editingStrain ? 'Save Changes' : 'Add Strain'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Delete Strain Alert */}
       <AlertDialog open={!!deleteStrainId} onOpenChange={() => setDeleteStrainId(null)}>

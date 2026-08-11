@@ -2,6 +2,7 @@
 
 import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
+import { BRAND_ASSETS_BUCKET } from '@/lib/storage-buckets'
 import type { VaultPackage, Transaction, PackageFilters, ProductType, Strain, Batch } from '@/types/vault'
 
 // Roles that can read vault data (matches canViewSection 'vault')
@@ -16,6 +17,15 @@ const INVENTORY_READ_ROLES = ['admin', 'management', 'vault', 'packaging', 'stan
 const LAB_RESULTS_BUCKET = 'lab-results'
 // Max COA PDF size, mirrors the storage bucket's file_size_limit
 const MAX_COA_BYTES = 20 * 1024 * 1024
+// Max strain image size — well under the brand-assets bucket's 10 MB file_size_limit
+const MAX_STRAIN_IMAGE_BYTES = 5 * 1024 * 1024
+// Extensions/mimetypes accepted for strain logo/background images (images only — no video,
+// unlike the rest of the brand-assets bucket)
+const STRAIN_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'svg']
+const STRAIN_IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+const STRAIN_TYPES = ['indica', 'sativa', 'hybrid'] as const
+type StrainType = (typeof STRAIN_TYPES)[number]
+type StrainImageSlot = 'logo' | 'background'
 
 // Get a single package by tag ID
 export async function getPackage(tagId: string): Promise<{
@@ -538,23 +548,119 @@ export async function getProductTypes(): Promise<{
 // STRAIN CRUD OPERATIONS
 // ============================================================================
 
-export async function createStrain(
+export interface StrainPayload {
   name: string
+  type: string
+  description?: string | null
+  effects?: string | null
+  flavor_notes?: string | null
+  thc_min?: number | string | null
+  thc_max?: number | string | null
+  terpene_min?: number | string | null
+  terpene_max?: number | string | null
+}
+
+// Trims a string field to null-or-trimmed-value; empty strings become null.
+function normalizeText(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null
+  const trimmed = value.trim()
+  return trimmed === '' ? null : trimmed
+}
+
+// Coerces a form-supplied numeric field (string or number) to a finite
+// number or null. Returns `undefined` if the value can't be parsed, so
+// callers can distinguish "left blank" from "invalid input".
+function normalizeNumber(value: number | string | null | undefined): number | null | undefined {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  const trimmed = value.trim()
+  if (trimmed === '') return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+// Validates + normalizes a strain payload shared by createStrain/updateStrain.
+// Returns a friendly error rather than relying on the DB check constraints so
+// the UI can show useful copy — the constraints are a backstop, not the
+// primary validation path.
+function buildStrainRow(payload: StrainPayload):
+  | { ok: true; row: Record<string, unknown> }
+  | { ok: false; error: string } {
+  const name = payload.name.trim()
+  if (!name) {
+    return { ok: false, error: 'Name is required' }
+  }
+
+  const type = payload.type?.trim() as StrainType
+  if (!STRAIN_TYPES.includes(type)) {
+    return { ok: false, error: 'Type must be indica, sativa, or hybrid' }
+  }
+
+  const thcMin = normalizeNumber(payload.thc_min)
+  const thcMax = normalizeNumber(payload.thc_max)
+  const terpeneMin = normalizeNumber(payload.terpene_min)
+  const terpeneMax = normalizeNumber(payload.terpene_max)
+
+  if (thcMin === undefined || thcMax === undefined || terpeneMin === undefined || terpeneMax === undefined) {
+    return { ok: false, error: 'THC and terpene percentages must be numbers' }
+  }
+
+  for (const [label, value] of [
+    ['THC min', thcMin],
+    ['THC max', thcMax],
+    ['Terpene min', terpeneMin],
+    ['Terpene max', terpeneMax],
+  ] as const) {
+    if (value !== null && (value < 0 || value > 100)) {
+      return { ok: false, error: `${label} must be between 0 and 100` }
+    }
+  }
+
+  if (thcMin !== null && thcMax !== null && thcMax < thcMin) {
+    return { ok: false, error: 'THC max must be greater than or equal to THC min' }
+  }
+
+  if (terpeneMin !== null && terpeneMax !== null && terpeneMax < terpeneMin) {
+    return { ok: false, error: 'Terpene max must be greater than or equal to terpene min' }
+  }
+
+  return {
+    ok: true,
+    row: {
+      name,
+      type,
+      description: normalizeText(payload.description),
+      effects: normalizeText(payload.effects),
+      flavor_notes: normalizeText(payload.flavor_notes),
+      thc_min: thcMin,
+      thc_max: thcMax,
+      terpene_min: terpeneMin,
+      terpene_max: terpeneMax,
+      // Legacy column the public menu site still reads — kept in sync with
+      // thc_max on every save.
+      thc_percent: thcMax,
+    },
+  }
+}
+
+export async function createStrain(
+  payload: StrainPayload
 ): Promise<{ success: boolean; strain?: Strain; error?: string }> {
   const auth = await requireRole(VAULT_ADMIN_ROLES)
   if (!auth.authorized) return { success: false, error: auth.reason }
 
-  const db = await createServiceClient()
-
-  if (!name.trim()) {
-    return { success: false, error: 'Name is required' }
+  const built = buildStrainRow(payload)
+  if (!built.ok) {
+    return { success: false, error: built.error }
   }
+
+  const db = await createServiceClient()
 
   // Check if name already exists
   const { data: existing } = await db
     .from('strains')
     .select('id')
-    .ilike('name', name.trim())
+    .ilike('name', built.row.name as string)
     .single()
 
   if (existing) {
@@ -563,7 +669,7 @@ export async function createStrain(
 
   const { data, error } = await db
     .from('strains')
-    .insert({ name: name.trim() })
+    .insert(built.row)
     .select()
     .single()
 
@@ -576,22 +682,23 @@ export async function createStrain(
 
 export async function updateStrain(
   id: string,
-  name: string
+  payload: StrainPayload
 ): Promise<{ success: boolean; strain?: Strain; error?: string }> {
   const auth = await requireRole(VAULT_ADMIN_ROLES)
   if (!auth.authorized) return { success: false, error: auth.reason }
 
-  const db = await createServiceClient()
-
-  if (!name.trim()) {
-    return { success: false, error: 'Name is required' }
+  const built = buildStrainRow(payload)
+  if (!built.ok) {
+    return { success: false, error: built.error }
   }
+
+  const db = await createServiceClient()
 
   // Check if name already exists for another strain
   const { data: existing } = await db
     .from('strains')
     .select('id')
-    .ilike('name', name.trim())
+    .ilike('name', built.row.name as string)
     .neq('id', id)
     .single()
 
@@ -601,7 +708,7 @@ export async function updateStrain(
 
   const { data, error } = await db
     .from('strains')
-    .update({ name: name.trim() })
+    .update(built.row)
     .eq('id', id)
     .select()
     .single()
@@ -640,6 +747,223 @@ export async function deleteStrain(id: string): Promise<{ success: boolean; erro
   }
 
   return { success: true }
+}
+
+// Sanitizes an uploaded strain image filename into a safe storage object
+// basename. Mirrors sanitizeCoaFileName above, but validates against the
+// image extensions this feature accepts instead of a fixed .pdf suffix.
+function sanitizeStrainImageFileName(fileName: string): string {
+  const base = fileName.replace(/\\/g, '/').split('/').pop()?.trim() || 'image.png'
+
+  let safe = base
+    .toLowerCase()
+    .replace(/\.\.+/g, '-')
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+
+  safe = safe.slice(0, 100)
+
+  const hasAllowedExtension = STRAIN_IMAGE_EXTENSIONS.some(ext => safe.endsWith(`.${ext}`))
+  if (!hasAllowedExtension) {
+    safe = `${safe.slice(0, 96).replace(/[.-]+$/g, '')}.png`
+  }
+
+  return safe || 'image.png'
+}
+
+// Mints a signed upload URL for a strain's logo/background image. Mirrors
+// createBatchCoaUploadUrl — the browser uploads bytes straight to Supabase
+// Storage, server actions never see the file body.
+export async function createStrainImageUploadUrl(
+  strainId: string,
+  slot: StrainImageSlot,
+  fileName: string
+): Promise<{ success: boolean; path?: string; token?: string; error?: string }> {
+  const auth = await requireRole(VAULT_ADMIN_ROLES)
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  if (slot !== 'logo' && slot !== 'background') {
+    return { success: false, error: 'Invalid image slot' }
+  }
+
+  const lowerName = fileName.toLowerCase()
+  const hasAllowedExtension = STRAIN_IMAGE_EXTENSIONS.some(ext => lowerName.endsWith(`.${ext}`))
+  if (!hasAllowedExtension) {
+    return { success: false, error: 'Only PNG, JPEG, WebP, or SVG images are supported' }
+  }
+
+  const db = await createServiceClient()
+
+  const { data: strain, error: strainError } = await db
+    .from('strains')
+    .select('id')
+    .eq('id', strainId)
+    .single()
+
+  if (strainError || !strain) {
+    return { success: false, error: 'Strain not found' }
+  }
+
+  const safeName = sanitizeStrainImageFileName(fileName)
+  const path = `strains/${strainId}/${slot}-${Date.now()}-${safeName}`
+
+  const { data, error } = await db.storage
+    .from(BRAND_ASSETS_BUCKET)
+    .createSignedUploadUrl(path)
+
+  if (error || !data) {
+    return { success: false, error: error?.message || 'Failed to create upload URL' }
+  }
+
+  return { success: true, path, token: data.token }
+}
+
+// Records a just-uploaded strain logo/background image after the browser has
+// finished uploading bytes directly to storage via the signed URL above.
+// Mirrors attachBatchCoa, including the path-traversal guard, the
+// storage.list() existence check, and the server-side re-validation of size
+// and mimetype (delete-on-violation).
+export async function attachStrainImage(
+  strainId: string,
+  slot: StrainImageSlot,
+  path: string,
+  // Accepted (and passed by callers) for signature parity with attachBatchCoa,
+  // but unlike batches, strains have no {slot}_filename column to persist it to.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  fileName: string
+): Promise<{ success: boolean; strain?: Strain; error?: string }> {
+  const auth = await requireRole(VAULT_ADMIN_ROLES)
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  if (slot !== 'logo' && slot !== 'background') {
+    return { success: false, error: 'Invalid image slot' }
+  }
+
+  // SECURITY: `path` is supplied by the caller — without this check a caller
+  // could point a strain's image at an arbitrary object in the bucket.
+  const prefix = `strains/${strainId}/`
+  if (!path.startsWith(prefix) || path.includes('..')) {
+    return { success: false, error: 'Invalid file path' }
+  }
+
+  const db = await createServiceClient()
+
+  const basename = path.slice(prefix.length)
+  const folder = `strains/${strainId}`
+
+  const { data: listing, error: listError } = await db.storage
+    .from(BRAND_ASSETS_BUCKET)
+    .list(folder, { search: basename })
+
+  if (listError) {
+    return { success: false, error: listError.message }
+  }
+
+  const uploaded = listing?.find(item => item.name === basename)
+
+  if (!uploaded) {
+    return { success: false, error: 'Upload not found' }
+  }
+
+  const size = uploaded.metadata?.size as number | undefined
+  const mimetype = uploaded.metadata?.mimetype as string | undefined
+
+  if (
+    (size !== undefined && size > MAX_STRAIN_IMAGE_BYTES) ||
+    (mimetype && !STRAIN_IMAGE_MIME_TYPES.includes(mimetype))
+  ) {
+    await db.storage.from(BRAND_ASSETS_BUCKET).remove([path])
+    return { success: false, error: 'Uploaded file must be a PNG, JPEG, WebP, or SVG image under 5 MB' }
+  }
+
+  const urlColumn = `${slot}_url`
+  const pathColumn = `${slot}_path`
+
+  // Grab the previously-attached path (if any) so we can clean it up after
+  // a successful replace. Selects both possible path columns with a literal
+  // string (rather than the dynamic pathColumn) so Supabase can infer a
+  // concrete row type.
+  const { data: existingStrain } = await db
+    .from('strains')
+    .select('logo_path, background_path')
+    .eq('id', strainId)
+    .single()
+
+  const oldPath = (existingStrain as Record<string, string | null> | null)?.[pathColumn] ?? null
+
+  const { data: publicUrlData } = db.storage.from(BRAND_ASSETS_BUCKET).getPublicUrl(path)
+
+  const { data, error } = await db
+    .from('strains')
+    .update({
+      [urlColumn]: publicUrlData.publicUrl,
+      [pathColumn]: path,
+    })
+    .eq('id', strainId)
+    .select()
+    .single()
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  if (oldPath && oldPath !== path) {
+    // Best-effort — don't fail the action if the orphaned object can't be removed
+    await db.storage.from(BRAND_ASSETS_BUCKET).remove([oldPath])
+  }
+
+  return { success: true, strain: data as Strain }
+}
+
+// Detaches (and best-effort deletes) a strain's logo/background image.
+export async function removeStrainImage(
+  strainId: string,
+  slot: StrainImageSlot
+): Promise<{ success: boolean; strain?: Strain; error?: string }> {
+  const auth = await requireRole(VAULT_ADMIN_ROLES)
+  if (!auth.authorized) return { success: false, error: auth.reason }
+
+  if (slot !== 'logo' && slot !== 'background') {
+    return { success: false, error: 'Invalid image slot' }
+  }
+
+  const db = await createServiceClient()
+
+  const pathColumn = `${slot}_path`
+  const urlColumn = `${slot}_url`
+
+  const { data: existingStrain, error: fetchError } = await db
+    .from('strains')
+    .select('logo_path, background_path')
+    .eq('id', strainId)
+    .single()
+
+  if (fetchError || !existingStrain) {
+    return { success: false, error: 'Strain not found' }
+  }
+
+  const existingPath = (existingStrain as Record<string, string | null>)[pathColumn]
+
+  if (existingPath) {
+    // Best-effort — don't fail the removal if storage cleanup errors
+    await db.storage.from(BRAND_ASSETS_BUCKET).remove([existingPath])
+  }
+
+  const { data, error } = await db
+    .from('strains')
+    .update({
+      [urlColumn]: null,
+      [pathColumn]: null,
+    })
+    .eq('id', strainId)
+    .select()
+    .single()
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, strain: data as Strain }
 }
 
 // ============================================================================
