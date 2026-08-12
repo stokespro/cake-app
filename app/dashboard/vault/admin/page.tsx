@@ -107,6 +107,7 @@ interface StrainFormState {
   type: string
   effects: string
   flavor_notes: string
+  lineage: string
   description: string
   thc_min: string
   thc_max: string
@@ -119,6 +120,7 @@ const emptyStrainForm: StrainFormState = {
   type: 'hybrid',
   effects: '',
   flavor_notes: '',
+  lineage: '',
   description: '',
   thc_min: '',
   thc_max: '',
@@ -429,6 +431,7 @@ export default function VaultAdminPage() {
         type: strain.type || 'hybrid',
         effects: strain.effects || '',
         flavor_notes: strain.flavor_notes || '',
+        lineage: strain.lineage || '',
         description: strain.description || '',
         thc_min: strain.thc_min != null ? String(strain.thc_min) : '',
         thc_max: strain.thc_max != null ? String(strain.thc_max) : '',
@@ -458,6 +461,7 @@ export default function VaultAdminPage() {
       description: strainForm.description,
       effects: strainForm.effects,
       flavor_notes: strainForm.flavor_notes,
+      lineage: strainForm.lineage,
       thc_min: strainForm.thc_min,
       thc_max: strainForm.thc_max,
       terpene_min: strainForm.terpene_min,
@@ -1612,6 +1616,16 @@ export default function VaultAdminPage() {
                   <SelectItem value="hybrid">Hybrid</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="strainCross">Cross</Label>
+              <Input
+                id="strainCross"
+                value={strainForm.lineage}
+                onChange={(e) => setStrainForm({ ...strainForm, lineage: e.target.value })}
+                placeholder="e.g., Gelato x Runtz"
+              />
             </div>
 
             <ImageUpload

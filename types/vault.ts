@@ -15,6 +15,7 @@ export interface Strain {
   description?: string | null
   effects?: string | null
   flavor_notes?: string | null
+  lineage?: string | null
   thc_percent?: number | null
   thc_min?: number | null
   thc_max?: number | null

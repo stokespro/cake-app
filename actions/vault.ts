@@ -554,6 +554,7 @@ export interface StrainPayload {
   description?: string | null
   effects?: string | null
   flavor_notes?: string | null
+  lineage?: string | null
   thc_min?: number | string | null
   thc_max?: number | string | null
   terpene_min?: number | string | null
@@ -632,6 +633,7 @@ function buildStrainRow(payload: StrainPayload):
       description: normalizeText(payload.description),
       effects: normalizeText(payload.effects),
       flavor_notes: normalizeText(payload.flavor_notes),
+      lineage: normalizeText(payload.lineage),
       thc_min: thcMin,
       thc_max: thcMax,
       terpene_min: terpeneMin,
