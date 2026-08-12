@@ -844,27 +844,31 @@ export async function getBillPayments(billId: string): Promise<{
 }
 
 /**
- * Internal write path shared by recordBillPayment() (the client-facing
- * "manual" path) and applyReconciledBillPayment() (the bank-reconciliation
- * path used only by app/dashboard/finance/_actions/bank.ts). NOT exported —
- * `bank_bs_id`/`source` must never be reachable from the client-facing
- * recordBillPayment() input (FIX 1, SPRO-82 adversarial review), and keeping
- * this function un-exported is what enforces that at the type level: the
- * only two ways money can be linked to a bank transaction are (a) this
- * module's own recordBillPayment(), which always passes bank_bs_id: null,
- * source: 'manual', or (b) applyReconciledBillPayment() below, which is
- * still requireFinance()-gated and only ever called with a bank_bs_id that
- * bank.ts read from a server-verified finance_reconciliation_log row — never
- * from raw client input.
+ * Internal write path for recordBillPayment() (the client-facing "manual"
+ * path — the only remaining caller). NOT exported — `bank_bs_id`/`source`
+ * must never be reachable from the client-facing recordBillPayment() input
+ * (FIX 1, SPRO-82 adversarial review), and keeping this function un-exported
+ * is what enforces that at the type level: recordBillPayment() always passes
+ * bank_bs_id: null, source: 'manual'.
  *
- * FIX 2 (double-Confirm race): when `bank_bs_id` is provided, this first
- * looks for an existing finance_bill_payments row already linked to that
- * (bank_bs_id, bill_id) pair — the partial unique index uidx_fbp_bank_bill
- * enforces at most one such row — and updates it in place instead of
- * inserting a second one. supabase-js's `.upsert({ onConflict })` cannot be
- * used to do this atomically here: Postgres only infers a PARTIAL unique
- * index (`... WHERE bank_bs_id IS NOT NULL`) as an ON CONFLICT target when
- * the INSERT statement itself repeats that exact WHERE predicate, and
+ * SPRO-82 follow-up: this used to have a second caller,
+ * applyReconciledBillPayment() (bank.ts's Confirm flow, bank_bs_id non-null),
+ * which was removed once confirmReconciliationMatch() started calling the
+ * assign_reconciliation_match RPC directly instead of carrying its own money
+ * logic — see bank.ts. The bank_bs_id-provided branch below (FIX 2) is now
+ * unreachable dead code from this file's single live call site, but is left
+ * as-is per that ticket's scope (insertBillPayment is an unchanged
+ * manual-entry path) rather than pruned here.
+ *
+ * FIX 2 (double-Confirm race, historical — see note above): when
+ * `bank_bs_id` is provided, this first looks for an existing
+ * finance_bill_payments row already linked to that (bank_bs_id, bill_id)
+ * pair — the partial unique index uidx_fbp_bank_bill enforces at most one
+ * such row — and updates it in place instead of inserting a second one.
+ * supabase-js's `.upsert({ onConflict })` cannot be used to do this
+ * atomically here: Postgres only infers a PARTIAL unique index (`...
+ * WHERE bank_bs_id IS NOT NULL`) as an ON CONFLICT target when the INSERT
+ * statement itself repeats that exact WHERE predicate, and
  * PostgREST/supabase-js's `onConflict` option only accepts a column list, not
  * a predicate — so an `.upsert()` here would silently fail to match the
  * index and either error or (worse) insert a duplicate anyway. This
@@ -1000,8 +1004,11 @@ async function insertBillPayment(input: {
  * type (FIX 1, SPRO-82 adversarial review) — a client must not be able to
  * forge a bank linkage. 'bank_auto' rows are written only by the SQL
  * reconciliation functions (spec A6); 'bank_manual' rows are written only by
- * applyReconciledBillPayment() below (bank.ts's Confirm flow) and the
- * assign_reconciliation_match() RPC (spec A5) — never by this function.
+ * the assign_reconciliation_match() RPC (SPRO-82 follow-up spec A2) — never
+ * by this function. (applyReconciledBillPayment(), the TS-side path that used
+ * to write 'bank_manual' rows for bank.ts's Confirm flow, was removed once
+ * confirmReconciliationMatch() started calling the RPC directly instead of
+ * carrying its own money logic — see bank.ts.)
  */
 export async function recordBillPayment(input: {
   bill_id: string
@@ -1025,58 +1032,6 @@ export async function recordBillPayment(input: {
       created_by: auth.session.userId,
       bank_bs_id: null,
       source: 'manual',
-    })
-
-    if (!result.success) return result
-
-    revalidatePath('/dashboard/finance/bills')
-    revalidatePath('/dashboard/finance')
-
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return { success: false, error: errorMessage }
-  }
-}
-
-/**
- * FIX 1 (SPRO-82 adversarial review): records a bank-linked ('bank_manual')
- * payment against a bill, stamping `bank_bs_id` so the payment immediately
- * shows as reconciled rather than sitting in "Payments Awaiting Bank Match"
- * forever. Used ONLY by app/dashboard/finance/_actions/bank.ts's
- * confirmReconciliationMatch() (the "Confirm" button — the everyday
- * reconciliation path). The `assign_reconciliation_match()` RPC (spec A5,
- * the "Not the right bill?" path) writes the equivalent row directly in SQL
- * and does not go through this function.
- *
- * `bank_bs_id` here always originates from a server-verified
- * finance_reconciliation_log row read by bank.ts — never from raw client
- * input — so this is safe to keep as a distinct exported action rather than
- * folding it into recordBillPayment()'s client-facing surface. Still
- * requireFinance()-gated, same trust model as every other action in this
- * file (there is no RLS backstop; requireFinance() is the only gate).
- */
-export async function applyReconciledBillPayment(input: {
-  bill_id: string
-  amount: number
-  paid_date: string
-  payment_method: PaymentMethod
-  bank_bs_id: number
-}): Promise<{ success: boolean; data?: BillPayment; error?: string; errorCode?: PaymentErrorCode }> {
-  const auth = await requireFinance()
-  if (!auth.authorized) return { success: false, error: auth.reason }
-
-  try {
-    const result = await insertBillPayment({
-      bill_id: input.bill_id,
-      amount: input.amount,
-      paid_date: input.paid_date,
-      payment_method: input.payment_method,
-      payment_ref: null,
-      notes: null,
-      created_by: auth.session.userId,
-      bank_bs_id: input.bank_bs_id,
-      source: 'bank_manual',
     })
 
     if (!result.success) return result
@@ -1223,7 +1178,9 @@ export async function deleteBillPayment(paymentId: string): Promise<{
 // callers (verified with `grep -rn markBillPaid` across the repo — bank.ts
 // does not import it, contrary to what an earlier comment here claimed) and
 // has been removed rather than left as an untested money-writing path.
-// recordBillPayment() / applyReconciledBillPayment() cover its old callers.
+// recordBillPayment() covers its old callers (applyReconciledBillPayment(),
+// which covered the rest, was itself removed in the SPRO-82 follow-up once
+// bank.ts started calling the assign_reconciliation_match RPC directly).
 
 export async function deleteBill(billId: string): Promise<{
   success: boolean

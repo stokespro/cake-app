@@ -15,9 +15,11 @@ import {
   computeBillTotals,
   deriveBankConfirmedBillIds,
   mapPaymentDbErrorCode,
+  selectPaymentToLink,
   stripPaymentErrorPrefix,
   validatePaymentInput,
   type CheckPaymentForConfirmation,
+  type PaymentForLink,
   type PaymentForTotals,
 } from './bill-payments';
 
@@ -402,5 +404,101 @@ describe('stripPaymentErrorPrefix', () => {
   it('is idempotent — stripping an already-stripped message is a no-op', () => {
     const once = stripPaymentErrorPrefix('BILL_OVERPAY: Payments would total 110.00.');
     expect(stripPaymentErrorPrefix(once)).toBe(once);
+  });
+});
+
+describe('selectPaymentToLink', () => {
+  // SPRO-82 recon-fix (spec section A2): mirrors the payment-selection query
+  // in assign_reconciliation_match(), supabase/migrations/
+  // 20260806220000_recon_link_payments.sql — "link the closest unlinked
+  // payment on this bill, or create a new one if there isn't one" instead of
+  // always creating (the bug: confirming a proposal on an already-paid bill
+  // inserted a second payment and tripped the overpay guard).
+  const link = (
+    amount: number,
+    paid_date: string,
+    created_at: string,
+    overrides: Partial<PaymentForLink> = {}
+  ): PaymentForLink => ({ amount, paid_date, created_at, ...overrides });
+
+  it('returns create when the bill has no unlinked payments', () => {
+    // SQL: SELECT ... WHERE bill_id = ... AND bank_bs_id IS NULL ... — an
+    // empty result set (no unlinked payments passed in) falls to the ELSE
+    // branch, which INSERTs a new payment rather than linking anything.
+    expect(selectPaymentToLink(100, [])).toEqual({ action: 'create' });
+  });
+
+  it('links a single exact match', () => {
+    const p = link(1597.5, '2026-08-01', '2026-08-01T10:00:00Z');
+    expect(selectPaymentToLink(1597.5, [p])).toEqual({ action: 'link', payment: p });
+  });
+
+  it('links a single payment off by $0.005 — inside the $0.01 tolerance', () => {
+    // toCents rounds 100.005 to the nearest cent, same rounding the ledger's
+    // NUMERIC(12,2) columns already impose, so the effective diff is $0.00
+    // or $0.01 depending on rounding direction — either way within tolerance.
+    const p = link(100.0, '2026-08-01', '2026-08-01T10:00:00Z');
+    expect(selectPaymentToLink(100.005, [p])).toEqual({ action: 'link', payment: p });
+  });
+
+  it('flags a single payment off by $0.02 as a mismatch, not a link', () => {
+    // SQL: IF ABS(v_payment.amount - v_bank_amount) <= 0.01 THEN link ELSE
+    // amount_mismatch — $0.02 is outside the tolerance.
+    const p = link(100.0, '2026-08-01', '2026-08-01T10:00:00Z');
+    expect(selectPaymentToLink(100.02, [p])).toEqual({ action: 'mismatch', payment: p });
+  });
+
+  it('picks the closest-amount payment even when it is not the oldest', () => {
+    // The case a naive "oldest unlinked payment" rule would get wrong: the
+    // oldest payment here is $50 (way off), but a later, exact $200 payment
+    // exists — ORDER BY ABS(amount - bank_amount) must win over ORDER BY
+    // paid_date/created_at alone.
+    const oldestButFar = link(50.0, '2026-07-01', '2026-07-01T09:00:00Z');
+    const exactButNewer = link(200.0, '2026-08-10', '2026-08-10T09:00:00Z');
+    const result = selectPaymentToLink(200.0, [oldestButFar, exactButNewer]);
+    expect(result).toEqual({ action: 'link', payment: exactButNewer });
+  });
+
+  it('breaks an equidistant tie by the older paid_date, deterministically regardless of array order', () => {
+    // SQL: ORDER BY ABS(amount - v_bank_amount), paid_date, created_at —
+    // both payments are $10 off (one over, one under), so paid_date decides.
+    const older = link(190.0, '2026-08-01', '2026-08-01T09:00:00Z');
+    const newer = link(210.0, '2026-08-15', '2026-08-15T09:00:00Z');
+    expect(selectPaymentToLink(200.0, [older, newer])).toEqual({ action: 'mismatch', payment: older });
+    // Order in the input array must not change the winner.
+    expect(selectPaymentToLink(200.0, [newer, older])).toEqual({ action: 'mismatch', payment: older });
+  });
+
+  it('breaks an equidistant, same-paid_date tie by the older created_at', () => {
+    const earlierCreated = link(190.0, '2026-08-01', '2026-08-01T09:00:00Z');
+    const laterCreated = link(210.0, '2026-08-01', '2026-08-01T15:00:00Z');
+    expect(selectPaymentToLink(200.0, [earlierCreated, laterCreated])).toEqual({
+      action: 'mismatch',
+      payment: earlierCreated,
+    });
+    expect(selectPaymentToLink(200.0, [laterCreated, earlierCreated])).toEqual({
+      action: 'mismatch',
+      payment: earlierCreated,
+    });
+  });
+
+  it('does not drift on a cents-precision case plain float arithmetic would get wrong', () => {
+    // Raw IEEE-754: 0.07 - (0.01 + 0.06) leaves a residual epsilon instead of
+    // 0 — a naive `Math.abs(payment.amount - bankAmount) <= 0.01` still
+    // happens to pass here, but the closest-match ranking across candidates
+    // must be decided in exact cents, not float subtraction, the same way
+    // computeBillTotals() sums in cents (see toCents()'s doc comment).
+    const exact = link(0.07, '2026-08-01', '2026-08-01T10:00:00Z');
+    const rounding = link(0.1, '2026-08-02', '2026-08-02T10:00:00Z');
+    expect(selectPaymentToLink(0.07, [rounding, exact])).toEqual({ action: 'link', payment: exact });
+  });
+
+  it('the real production shape: bank $1,597.50 vs one unlinked $1,597.50 payment links', () => {
+    // The stuck-in-production case from the spec (Helton Law Firm, log
+    // 9dafdd93-fdf8-475f-8360-4cec916f77a4, bank 1124 −$1,597.50 against one
+    // unlinked $1,597.50 ach payment) — must LINK, not create a second
+    // payment that trips the overpay guard.
+    const p = link(1597.5, '2026-08-05', '2026-08-05T12:00:00Z', {});
+    expect(selectPaymentToLink(1597.5, [p])).toEqual({ action: 'link', payment: p });
   });
 });

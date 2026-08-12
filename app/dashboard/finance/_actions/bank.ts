@@ -2,15 +2,10 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { requireFinance } from '@/lib/auth/session'
-import { createBill, applyReconciledBillPayment } from '@/actions/finance'
+import { createBill } from '@/actions/finance'
 import type { BillStatus } from '@/actions/finance'
 import { VALID_PAYMENT_METHODS, stripPaymentErrorPrefix } from '@/lib/finance/bill-payments'
-// PaymentErrorCode comes from the lib, not '@/actions/finance' — see the note
-// at the top of actions/finance.ts: a 'use server' file cannot re-export a type.
-import type {
-  PaymentMethod,
-  PaymentErrorCode as BillPaymentErrorCode,
-} from '@/lib/finance/bill-payments'
+import type { PaymentMethod } from '@/lib/finance/bill-payments'
 import {
   derivePrefillPayment,
   duplicateDateWindow,
@@ -257,9 +252,11 @@ export async function getReconciliationLog(
 }
 
 // ============================================================
-// Shared payment helpers (used by confirmReconciliationMatch AND
-// assignReconciliationMatch so the "how do we apply money to a bill"
-// rules are defined once).
+// Shared helpers (used by confirmReconciliationMatch AND
+// assignReconciliationMatch so "how do we attach a bank transaction to a
+// bill" is defined exactly once — see the SPRO-82 follow-up spec's opening
+// paragraph: three divergent implementations of that operation is what
+// caused the original bug).
 // ============================================================
 
 /**
@@ -282,74 +279,112 @@ function normalizePaymentMethod(raw: string | null | undefined): PaymentMethod {
       : 'ach'
 }
 
+// Mirrors the error_code values assign_reconciliation_match() can return
+// (supabase/migrations/20260806220000_recon_link_payments.sql).
+// BUG-3 fix (SPRO-43 live-testing round): error_code was declared and
+// threaded through the RPC but never actually read by the caller — every
+// rejection reason rendered as the same generic toast. 'auto_applied_conflict'
+// and 'bank_txn_spent' specifically mean the CALLER'S VIEW IS STALE (someone
+// else reconciled this bill/transaction between page load and this click),
+// so those two also trigger a data refresh, not just an error toast.
+//
+// SPRO-82: 'already_reconciled' is now UNREACHABLE — the RPC's rewrite
+// deletes that guard entirely, because a bill may now be settled by several
+// bank transactions (that removal is the central unblock of this ticket).
+// Left in the union rather than removed so any in-flight client still
+// checking for it doesn't hit a type error. 'would_overpay' is raised only
+// when the RPC's payment INSERT (the "no unlinked payment yet, this bank
+// line IS the payment" fallback) would push the bill's total past its
+// amount — the RPC wraps that INSERT in `BEGIN ... EXCEPTION WHEN
+// check_violation` and maps a 'BILL_OVERPAY:' message to this code.
+//
+// SPRO-82 follow-up: 'amount_mismatch' is new — the target bill already has
+// an unlinked payment recorded, but its amount differs from the bank
+// transaction by more than $0.01. The RPC LINKS an existing payment rather
+// than creating a second one (spec A2), and refuses rather than silently
+// creating a mismatched second payment or overwriting the recorded amount.
+// The accompanying error message names both figures.
+export type AssignMatchErrorCode =
+  | 'log_not_found'
+  | 'not_pending'
+  | 'target_required'
+  | 'bill_not_found'
+  | 'bill_void'
+  | 'already_reconciled' // SPRO-82: unreachable — see comment above
+  | 'bank_txn_spent'
+  | 'auto_applied_conflict'
+  | 'invalid_amount'
+  | 'check_requires_ref'
+  | 'would_overpay'
+  | 'amount_mismatch'
+
+interface AssignReconciliationMatchRpcResult {
+  success: boolean
+  error_code: AssignMatchErrorCode | null
+  error_message: string | null
+}
+
 /**
- * Applies a bank-derived payment to a bill by recording a
- * finance_bill_payments row via applyReconciledBillPayment() (SPRO-82).
- *
- * The old "bill.status === 'paid' → backfill only missing fields" branch is
- * gone: it existed only because the pre-ledger schema could hold exactly one
- * payment per bill, so an already-paid bill had nowhere to put a second one
- * without clobbering the first. Now every bank-derived payment is its own
- * ledger row — applyReconciledBillPayment()/the DB trigger accumulate onto
- * amount_paid rather than overwrite it, and the overpay guard (spec A2)
- * rejects anything that would push the bill's total past its amount, mapped
- * to errorCode 'would_overpay' here for the caller to surface.
- *
- * FIX 1 (SPRO-82 adversarial review): this used to call recordBillPayment(),
- * whose insert hardcodes bank_bs_id: null / source: 'manual' — so a payment
- * created by confirming a match here never got bank_bs_id stamped and sat in
- * "Payments Awaiting Bank Match" forever. applyReconciledBillPayment() is the
- * dedicated bank-linked write path; `bankBsId` is always the caller's own
- * server-verified finance_reconciliation_log row, never client input.
+ * Single call site for the `assign_reconciliation_match` RPC — the one
+ * implementation of "attach this bank transaction to this bill" that both
+ * confirmReconciliationMatch() (Confirm button, target = the log row's own
+ * proposed bill) and assignReconciliationMatch() (manual "Not the right
+ * bill?" picker, target = a user-chosen bill) call. Three divergent
+ * implementations of this same money operation is precisely what caused the
+ * bug this file was rewritten to fix — do not reintroduce a second one.
  */
-async function applyBillPayment(
-  billId: string,
-  bankAmount: number,
-  bankDate: string,
-  payMethod: PaymentMethod,
-  bankBsId: number
-): Promise<{ success: boolean; error?: string; errorCode?: BillPaymentErrorCode }> {
-  const payResult = await applyReconciledBillPayment({
-    bill_id: billId,
-    amount: bankAmount,
-    paid_date: bankDate,
-    payment_method: payMethod,
-    bank_bs_id: bankBsId,
+async function runAssignReconciliationMatch(
+  supabase: ServiceClient,
+  logId: string,
+  targetBillId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string; errorCode?: AssignMatchErrorCode }> {
+  const { data, error } = await supabase.rpc('assign_reconciliation_match', {
+    p_log_id: logId,
+    p_target_bill_id: targetBillId,
+    p_user_id: userId,
   })
 
-  if (!payResult.success) {
-    // payResult.error is already sentinel-free (applyReconciledBillPayment()
-    // strips BILL_OVERPAY:/BILL_VOID: at its own return points) — stripped
-    // again here anyway so this helper is safe even if its upstream ever
-    // changes.
+  if (error) {
+    console.error('assign_reconciliation_match RPC error:', error)
+    return { success: false, error: error.message }
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as AssignReconciliationMatchRpcResult | undefined
+
+  if (!row?.success) {
+    // row.error_message is the RPC's raw SQLERRM — for a would_overpay/
+    // bill_void rejection this is literally 'BILL_OVERPAY: ...'/
+    // 'BILL_VOID: ...' text straight from the exception, unlike every other
+    // error path in this file which has already been through a TS layer.
+    // Strip it here, at the one place it first reaches application code.
     return {
       success: false,
-      error: payResult.error ? stripPaymentErrorPrefix(payResult.error) : 'Failed to record bill payment',
-      errorCode: payResult.errorCode,
+      error: row?.error_message ? stripPaymentErrorPrefix(row.error_message) : 'Failed to assign match',
+      errorCode: row?.error_code ?? undefined,
     }
   }
+
   return { success: true }
 }
 
 // ============================================================
 // confirmReconciliationMatch
 // ============================================================
-// Handles every pending_review match type the same way (SPRO-82): records a
-// finance_bill_payments row at the bank amount/date/method via
-// applyBillPayment()/recordBillPayment() (covers check_amount_mismatch,
-// card_amount_vendor, amount_only, already_paid_non_check regardless of the
-// bill's current status — a 'paid' bill can still legitimately receive
-// another payment now). The old amendment E/F "bill.status === 'paid' →
-// backfill only missing fields" special case is gone along with the single-
-// payment-per-bill limitation that required it — see applyBillPayment()'s
-// own comment above.
-//
-// After confirming, dismisses all other pending_review rows for the same
-// bank_bs_id OR bill_id (amendment D).
+// SPRO-82 follow-up: no longer carries its own money logic. Confirming a
+// proposal LINKS the bank transaction to the bill the matcher already
+// proposed (logRow.bill_id) — it calls the exact same
+// assign_reconciliation_match RPC as the manual "Not the right bill?" path
+// (assignReconciliationMatch below), just with the target defaulted to the
+// row's own proposal instead of a user-picked one. The RPC does the actual
+// linking/creating, the overpay/void/spent/conflict guards, the log-row
+// upsert (preserving the original match_type on a plain Confirm — spec A3),
+// and the both-sides dismissal of conflicting pending_review rows — all of
+// that used to be reimplemented here in a second, subtly different way.
 
 export async function confirmReconciliationMatch(
   logId: string
-): Promise<{ success: boolean; error?: string; errorCode?: BillPaymentErrorCode }> {
+): Promise<{ success: boolean; error?: string; errorCode?: AssignMatchErrorCode }> {
   const auth = await requireFinance()
   if (!auth.authorized) return { success: false, error: auth.reason }
 
@@ -359,10 +394,12 @@ export async function confirmReconciliationMatch(
   try {
     const supabase = await createServiceClient()
 
-    // Fetch the log row — include suggested_payment_method and bank_bs_id for amendments D/E/F
+    // Cheap pre-checks purely for a nicer message than the RPC's own —
+    // the RPC re-checks status under a row lock regardless, so these are
+    // UX only, never the authority.
     const { data: logRow, error: fetchError } = await supabase
       .from('finance_reconciliation_log')
-      .select('id, bill_id, match_type, bank_amount, bank_date, bank_bs_id, suggested_payment_method, status')
+      .select('id, bill_id, status')
       .eq('id', logId)
       .single()
 
@@ -371,86 +408,22 @@ export async function confirmReconciliationMatch(
     }
 
     if (logRow.status !== 'pending_review') {
-      return { success: false, error: 'Only pending_review rows can be confirmed' }
-    }
-
-    const bankAmount = Math.abs(logRow.bank_amount ?? 0)
-    const bankDate   = logRow.bank_date ?? new Date().toISOString().substring(0, 10)
-    const payMethod  = normalizePaymentMethod(logRow.suggested_payment_method)
-
-    if (logRow.bill_id) {
-      // BUG-1 fix (SPRO-43 live-testing round): refuse if this bank
-      // transaction is already reconciled (auto_applied or confirmed)
-      // against a DIFFERENT bill. Without this, one bank transaction could
-      // pay multiple bills — reconcile_cleared_checks() only skips a
-      // transaction that already has an auto_applied row, NOT a confirmed
-      // one (20260624000000_bill_payment_model.sql:38-39), so a
-      // manually-confirmed transaction can get a fresh pending_review row
-      // pointing at a different bill on the next cron run. Same guard as
-      // assign_reconciliation_match()'s `bank_txn_spent` check.
-      const { data: spentRows, error: spentError } = await supabase
-        .from('finance_reconciliation_log')
-        .select('id')
-        .eq('bank_bs_id', logRow.bank_bs_id)
-        .in('status', ['auto_applied', 'confirmed'])
-        .not('bill_id', 'is', null)
-        .neq('bill_id', logRow.bill_id)
-        .limit(1)
-
-      if (spentError) {
-        console.error('confirmReconciliationMatch spent-check error:', spentError)
-        return { success: false, error: spentError.message }
-      }
-      if (spentRows && spentRows.length > 0) {
-        return {
-          success: false,
-          error: 'This bank transaction is already reconciled against another bill.',
-        }
-      }
-
-      // Amendment F: key off the bill's CURRENT status, not the stored match_type
-      const payResult = await applyBillPayment(logRow.bill_id, bankAmount, bankDate, payMethod, logRow.bank_bs_id)
-      if (!payResult.success) {
-        // applyBillPayment() already strips BILL_OVERPAY:/BILL_VOID: — see there.
-        return { success: false, error: payResult.error, errorCode: payResult.errorCode }
+      return {
+        success: false,
+        error: 'Only pending_review rows can be confirmed',
+        errorCode: 'not_pending',
       }
     }
 
-    // Set this row confirmed
-    const { error: updateError } = await supabase
-      .from('finance_reconciliation_log')
-      .update({
-        status: 'confirmed',
-        applied_by: userId,
-        applied_at: new Date().toISOString(),
-      })
-      .eq('id', logId)
-
-    if (updateError) {
-      console.error('confirmReconciliationMatch update error:', updateError)
-      return { success: false, error: updateError.message }
+    if (!logRow.bill_id) {
+      return {
+        success: false,
+        error: 'This transaction has no proposed bill to confirm.',
+        errorCode: 'target_required',
+      }
     }
 
-    // Amendment D: dismiss conflicting pending_review rows on BOTH sides —
-    // same bank_bs_id (other proposals for this charge) or same bill_id
-    // (other proposals pointing at this bill).
-    const orFilter = logRow.bill_id
-      ? `bank_bs_id.eq.${logRow.bank_bs_id},bill_id.eq.${logRow.bill_id}`
-      : `bank_bs_id.eq.${logRow.bank_bs_id}`
-
-    const { error: dismissError } = await supabase
-      .from('finance_reconciliation_log')
-      .update({ status: 'dismissed', applied_at: new Date().toISOString() })
-      .eq('status', 'pending_review')
-      .neq('id', logId)
-      .or(orFilter)
-
-    if (dismissError) {
-      // Non-fatal: log but don't fail the confirm
-      console.error('confirmReconciliationMatch dismiss-conflicts error:', dismissError)
-    }
-
-    return { success: true }
+    return await runAssignReconciliationMatch(supabase, logId, logRow.bill_id, userId)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     return { success: false, error: msg }
@@ -755,50 +728,20 @@ export async function getMatchCandidates(
 // assignReconciliationMatch
 // ============================================================
 // SPRO-43 (post-review): thin wrapper around the assign_reconciliation_match
-// RPC (20260728130000_assign_reconciliation_match_rpc.sql). The original
-// implementation applied the bill payment and recorded the log row in two
-// separate statements — if the second failed, the bill was left paid with
-// no record of why, and a retry against a different bill could pay it too.
-// The RPC does everything in one Postgres transaction with row-level locks
-// (SELECT ... FOR UPDATE) on both the log row and the target bill, so it's
-// impossible to observe a partially-applied result, and concurrent calls
-// (double-submit, or two different suggestions both targeting the same
-// bill) serialize instead of racing.
-
-// Mirrors the error_code values assign_reconciliation_match() can return.
-// BUG-3 fix (SPRO-43 live-testing round): error_code was declared and
-// threaded through the RPC but never actually read by the caller — every
-// rejection reason rendered as the same generic toast. 'auto_applied_conflict'
-// and 'bank_txn_spent' specifically mean the CALLER'S VIEW IS STALE (someone
-// else reconciled this bill/transaction between page load and this click),
-// so those two also trigger a data refresh, not just an error toast.
+// RPC (supabase/migrations/20260806220000_recon_link_payments.sql). The
+// original implementation applied the bill payment and recorded the log row
+// in two separate statements — if the second failed, the bill was left paid
+// with no record of why, and a retry against a different bill could pay it
+// too. The RPC does everything in one Postgres transaction with row-level
+// locks (SELECT ... FOR UPDATE) on both the log row and the target bill, so
+// it's impossible to observe a partially-applied result, and concurrent
+// calls (double-submit, or two different suggestions both targeting the
+// same bill) serialize instead of racing.
 //
-// SPRO-82: 'already_reconciled' is now UNREACHABLE — the RPC's rewrite
-// (spec A5) deletes that guard entirely, because a bill may now be settled
-// by several bank transactions (that removal is the central unblock of this
-// ticket). Left in the union rather than removed so any in-flight client
-// still checking for it doesn't hit a type error. 'would_overpay' is new:
-// the RPC's payment insert is wrapped in `BEGIN ... EXCEPTION WHEN
-// check_violation` and maps a 'BILL_OVERPAY:' message (spec A2's overpay
-// guard) to this code.
-export type AssignMatchErrorCode =
-  | 'log_not_found'
-  | 'not_pending'
-  | 'target_required'
-  | 'bill_not_found'
-  | 'bill_void'
-  | 'already_reconciled' // SPRO-82: unreachable — see comment above
-  | 'bank_txn_spent'
-  | 'auto_applied_conflict'
-  | 'invalid_amount'
-  | 'check_requires_ref'
-  | 'would_overpay'
-
-interface AssignReconciliationMatchRpcResult {
-  success: boolean
-  error_code: AssignMatchErrorCode | null
-  error_message: string | null
-}
+// The RPC call itself, the error_code union, and the error-shape parsing all
+// live in runAssignReconciliationMatch() above — shared with
+// confirmReconciliationMatch() so there is exactly one implementation of
+// "attach this bank transaction to this bill".
 
 export async function assignReconciliationMatch(
   logId: string,
@@ -816,35 +759,7 @@ export async function assignReconciliationMatch(
 
   try {
     const supabase = await createServiceClient()
-
-    const { data, error } = await supabase.rpc('assign_reconciliation_match', {
-      p_log_id: logId,
-      p_target_bill_id: targetBillId,
-      p_user_id: userId,
-    })
-
-    if (error) {
-      console.error('assignReconciliationMatch RPC error:', error)
-      return { success: false, error: error.message }
-    }
-
-    const row = (Array.isArray(data) ? data[0] : data) as AssignReconciliationMatchRpcResult | undefined
-
-    if (!row?.success) {
-      // row.error_message is the RPC's raw SQLERRM (spec A5) — for a
-      // would_overpay/bill_void rejection this is literally
-      // 'BILL_OVERPAY: ...'/'BILL_VOID: ...' text straight from the
-      // exception, unlike every other error path in this file which has
-      // already been through a TS layer. Strip it here, at the one place it
-      // first reaches application code.
-      return {
-        success: false,
-        error: row?.error_message ? stripPaymentErrorPrefix(row.error_message) : 'Failed to assign match',
-        errorCode: row?.error_code ?? undefined,
-      }
-    }
-
-    return { success: true }
+    return await runAssignReconciliationMatch(supabase, logId, targetBillId, userId)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     return { success: false, error: msg }

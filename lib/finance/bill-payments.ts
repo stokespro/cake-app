@@ -4,22 +4,28 @@
 // (actions/finance.ts, app/dashboard/finance/_actions/bank.ts) and from
 // tests without a database, same shape as app/dashboard/finance/_lib/bank-prefill.ts.
 //
-// Two of the exports below are lockstep mirrors of
-// supabase/migrations/20260805210000_bill_payments_ledger.sql — keep them in
-// sync EXACTLY, the same way normalizePaymentMethod() in
+// Three of the exports below are lockstep mirrors of SQL — keep them in sync
+// EXACTLY, the same way normalizePaymentMethod() in
 // app/dashboard/finance/_actions/bank.ts mirrors the SQL CASE in
 // 20260728130000_assign_reconciliation_match_rpc.sql:305-309 (that file
 // carries the reciprocal "Mirror normalizePaymentMethod() in bank.ts
 // exactly." comment; the same pairing should exist between this file and
-// the migration once it lands):
+// each migration below):
 //
 //   - computeBillTotals()    mirrors public.recompute_bill_totals(p_bill_id)
+//                            in 20260805210000_bill_payments_ledger.sql
 //                            (spec section A3 / fn_finance_bill_payments_recompute)
 //   - validatePaymentInput() mirrors fn_finance_bill_payments_guard_overpay()'s
-//                            overpay/void checks (spec section A2), plus the
-//                            same field rules actions/finance.ts has always
-//                            enforced in TS (method required, check needs a
-//                            ref, amount > 0).
+//                            overpay/void checks in
+//                            20260805210000_bill_payments_ledger.sql (spec
+//                            section A2), plus the same field rules
+//                            actions/finance.ts has always enforced in TS
+//                            (method required, check needs a ref, amount > 0).
+//   - selectPaymentToLink()  mirrors the payment-selection query in
+//                            assign_reconciliation_match() in
+//                            supabase/migrations/20260806220000_recon_link_payments.sql
+//                            (spec section A2) — "link an existing unlinked
+//                            payment vs. create a new one" for reconciliation.
 //
 // The DB is always the authority (the overpay guard runs inside a
 // row-locked transaction so it is race-proof; this module is not) — these
@@ -321,4 +327,86 @@ export function validatePaymentInput(
   }
 
   return { valid: true }
+}
+
+/** The subset of a finance_bill_payments row needed to pick a link candidate. */
+export interface PaymentForLink {
+  amount: number
+  paid_date: string
+  created_at: string
+}
+
+export type SelectPaymentToLinkResult<T extends PaymentForLink = PaymentForLink> =
+  | { action: 'link'; payment: T }
+  | { action: 'mismatch'; payment: T }
+  | { action: 'create' }
+
+/**
+ * Mirrors the payment-selection query in `assign_reconciliation_match()`,
+ * supabase/migrations/20260806220000_recon_link_payments.sql (spec section
+ * A2), EXACTLY:
+ *
+ *   SELECT * INTO v_payment
+ *   FROM public.finance_bill_payments
+ *   WHERE bill_id = p_target_bill_id AND bank_bs_id IS NULL
+ *   ORDER BY ABS(amount - v_bank_amount), paid_date, created_at
+ *   LIMIT 1
+ *
+ *   IF FOUND THEN
+ *     IF ABS(v_payment.amount - v_bank_amount) <= 0.01 THEN link ELSE mismatch
+ *   ELSE
+ *     create
+ *
+ * `unlinkedPayments` must already be filtered to the target bill's payments
+ * with `bank_bs_id === null` — this function does not know about bill ids or
+ * bank_bs_id, it only picks among whatever list it's handed, exactly as the
+ * SQL's WHERE clause does before the ORDER BY runs.
+ *
+ * No unlinked payments at all means the bill has no money recorded for this
+ * transaction yet, so the bank line itself becomes a new payment ('create') —
+ * that INSERT is where the SQL's overpay guard applies; this function never
+ * blocks a create.
+ *
+ * Otherwise the closest-amount payment wins (not the oldest — see the SQL's
+ * "Note the ordering choice" comment, spec A2), tie-broken by `paid_date`
+ * then `created_at`, both ascending (oldest first), matching
+ * `ORDER BY ABS(amount - v_bank_amount), paid_date, created_at`. If that
+ * closest payment is within $0.01 of the bank amount it's a 'link' (no money
+ * moves, only `bank_bs_id` is set); otherwise it's a genuine 'mismatch' and
+ * the caller must refuse rather than silently create a second payment
+ * (locked decision #2, spec).
+ *
+ * Compared in integer cents via toCents() (see its doc comment above
+ * computeBillTotals) for the same reason as everywhere else in this file:
+ * plain float subtraction can misjudge a boundary that Postgres NUMERIC
+ * arithmetic gets exactly right.
+ */
+export function selectPaymentToLink<T extends PaymentForLink>(
+  bankAmount: number,
+  unlinkedPayments: T[]
+): SelectPaymentToLinkResult<T> {
+  if (unlinkedPayments.length === 0) return { action: 'create' }
+
+  const bankCents = toCents(bankAmount)
+
+  let closest = unlinkedPayments[0]
+  let closestDiffCents = Math.abs(toCents(closest.amount) - bankCents)
+
+  for (let i = 1; i < unlinkedPayments.length; i++) {
+    const candidate = unlinkedPayments[i]
+    const diffCents = Math.abs(toCents(candidate.amount) - bankCents)
+    const isCloser =
+      diffCents < closestDiffCents ||
+      (diffCents === closestDiffCents &&
+        (candidate.paid_date < closest.paid_date ||
+          (candidate.paid_date === closest.paid_date && candidate.created_at < closest.created_at)))
+    if (isCloser) {
+      closest = candidate
+      closestDiffCents = diffCents
+    }
+  }
+
+  return closestDiffCents <= 1 // <= $0.01, in cents
+    ? { action: 'link', payment: closest }
+    : { action: 'mismatch', payment: closest }
 }
