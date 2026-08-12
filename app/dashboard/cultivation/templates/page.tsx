@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronRight,
   ListTodo,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth, canManageCultivation } from '@/lib/auth-context'
@@ -290,6 +291,15 @@ export default function TemplatesPage() {
               {PHASE_CONFIG[task.stage as GrowPhase]?.label || task.stage}
             </Badge>
           )}
+          {task.is_phase_switcher && (
+            <Badge
+              className="text-[10px] mr-1.5 bg-indigo-600 text-white"
+              title="Completing this task advances the cycle to this phase"
+            >
+              <Zap className="h-2.5 w-2.5 mr-0.5" />
+              Switcher
+            </Badge>
+          )}
           {formatPhaseDay(task)}: {task.name}
         </div>
         <div>
@@ -344,6 +354,15 @@ export default function TemplatesPage() {
             {showStage && task.stage && (
               <Badge className={`${PHASE_BADGE_CLASSES[task.stage] || 'bg-gray-500 text-white'} text-[10px] mr-1.5`}>
                 {PHASE_CONFIG[task.stage as GrowPhase]?.label || task.stage}
+              </Badge>
+            )}
+            {task.is_phase_switcher && (
+              <Badge
+                className="text-[10px] mr-1.5 bg-indigo-600 text-white"
+                title="Completing this task advances the cycle to this phase"
+              >
+                <Zap className="h-2.5 w-2.5 mr-0.5" />
+                Switcher
               </Badge>
             )}
             {formatPhaseDay(task)}: {task.name}

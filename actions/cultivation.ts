@@ -6,6 +6,8 @@ import { generateRecurringTasksCore } from '@/lib/cultivation/generate-recurring
 import {
   resolveTaskDueDate,
   resolveTaskPhaseAndDay,
+  resolveSwitcherAdvance,
+  resolveSwitcherRollback,
   type CycleMilestones,
 } from '@/lib/cultivation/helpers'
 import {
@@ -115,8 +117,11 @@ const ASSIGNEES_EMBED =
 // exactly one FK from cultivation_tasks to room_cycles (room_cycle_id), so
 // no FK hint is needed to disambiguate. Included so the UI can display the
 // cycle and so edit-mode can resolve a cycle that's no longer active (see
-// CreateTaskSheet's stale-cycle handling).
-const CYCLE_EMBED = 'cycle:room_cycles(id, cycle_number, current_stage, flower_start)'
+// CreateTaskSheet's stale-cycle handling). `status` is included so the
+// client-side phase-switcher preview helpers (getSwitcherAdvancePreview /
+// getSwitcherRollbackPreview in lib/cultivation/helpers.ts) can skip a
+// cycle that isn't active without a second round-trip.
+const CYCLE_EMBED = 'cycle:room_cycles(id, cycle_number, current_stage, flower_start, status)'
 
 interface AssigneesEmbedRow {
   assignees?: { user: { id: string; name: string } | null }[] | null
@@ -487,8 +492,16 @@ export interface CompleteTaskInput {
   notes: string | null
 }
 
+export interface CompleteTaskResult {
+  /** Set when this task was a phase switcher AND it actually advanced its
+   *  cycle — the stage the cycle was moved to. Undefined for a plain
+   *  completion (non-switcher, or a switcher that was already at/behind the
+   *  cycle's current stage — see resolveSwitcherAdvance). */
+  advancedTo?: string
+}
+
 export async function completeTask(input: CompleteTaskInput): Promise<
-  { error?: never } | { error: string }
+  (CompleteTaskResult & { error?: never }) | { error: string }
 > {
   const auth = await requireRole(COMPLETE_ROLES)
   if (!auth.authorized) return { error: auth.reason }
@@ -509,7 +522,77 @@ export async function completeTask(input: CompleteTaskInput): Promise<
     console.error('[cultivation] completeTask error:', error)
     return { error: 'Failed to complete task' }
   }
-  return {}
+
+  // Phase-switcher advance — best-effort, strictly additive. The task
+  // completion above already succeeded and must be reported as such
+  // regardless of what happens from here: never let a failure below turn a
+  // real completion into an error response, and never roll back the
+  // completion itself. Re-derive is_phase_switcher/phase/room_cycle_id from
+  // the DB — never trust anything the client might have sent about them (it
+  // didn't send them at all; CompleteTaskInput deliberately has no such
+  // fields).
+  const result: CompleteTaskResult & { error?: never } = {}
+  try {
+    const { data: task, error: taskErr } = await db
+      .from('cultivation_tasks')
+      .select('is_phase_switcher, phase, room_cycle_id')
+      .eq('id', input.taskId)
+      .maybeSingle()
+
+    if (taskErr) {
+      console.error('[cultivation] completeTask switcher-lookup error:', taskErr)
+      return result
+    }
+    if (!task || !task.is_phase_switcher || !task.phase || !task.room_cycle_id) {
+      return result
+    }
+
+    const { data: cycle, error: cycleErr } = await db
+      .from('room_cycles')
+      .select('id, room_id, status, current_stage')
+      .eq('id', task.room_cycle_id)
+      .maybeSingle()
+
+    if (cycleErr) {
+      console.error('[cultivation] completeTask cycle-lookup error:', cycleErr)
+      return result
+    }
+    if (!cycle || cycle.status !== 'active') {
+      return result
+    }
+
+    const nextStage = resolveSwitcherAdvance(cycle.current_stage, task.phase)
+    if (!nextStage) {
+      return result
+    }
+
+    const now = new Date().toISOString()
+    const today = now.split('T')[0]
+    const [cycleUpdate, roomUpdate] = await Promise.all([
+      db
+        .from('room_cycles')
+        .update({ current_stage: nextStage, updated_at: now })
+        .eq('id', cycle.id),
+      db
+        .from('grow_rooms')
+        .update({ current_phase: nextStage, phase_start_date: today, updated_at: now })
+        .eq('id', cycle.room_id),
+    ])
+
+    if (cycleUpdate.error || roomUpdate.error) {
+      console.error(
+        '[cultivation] completeTask phase-advance error:',
+        cycleUpdate.error || roomUpdate.error
+      )
+      return result
+    }
+
+    result.advancedTo = nextStage
+    return result
+  } catch (err) {
+    console.error('[cultivation] completeTask phase-advance threw:', err)
+    return result
+  }
 }
 
 export async function startTask(taskId: string): Promise<
@@ -536,6 +619,12 @@ export interface ReopenTaskResult {
   newDueDate: string
   /** true if due_date was recomputed from the cycle's current milestones. */
   reanchored: boolean
+  /** Set when this task was a phase switcher AND reopening it actually
+   *  rolled its cycle's stage back — the stage it was rolled back to.
+   *  Undefined for a plain reopen (non-switcher, or a switcher whose phase
+   *  no longer matches the cycle's current stage — see
+   *  resolveSwitcherRollback). */
+  rolledBackTo?: string
 }
 
 // Reopening a completed/skipped task is guarded by COMPLETE_ROLES — the same
@@ -558,7 +647,9 @@ export async function reopenTask(taskId: string): Promise<
   // status — re-derive everything from the DB.
   const { data: task, error: fetchErr } = await db
     .from('cultivation_tasks')
-    .select('id, title, status, phase, day_number, task_type, due_date, room_cycle_id, completed_at')
+    .select(
+      'id, title, status, phase, day_number, task_type, due_date, room_cycle_id, completed_at, is_phase_switcher'
+    )
     .eq('id', taskId)
     .maybeSingle()
 
@@ -577,7 +668,10 @@ export async function reopenTask(taskId: string): Promise<
   // rewriting closed-cycle history is deliberately unsupported, consistent
   // with updateCycle.
   let cycle: {
+    id: string
+    room_id: string
     status: string
+    current_stage: string
     dome_start: string | null
     veg_start: string | null
     flower_start: string | null
@@ -589,7 +683,9 @@ export async function reopenTask(taskId: string): Promise<
   if (task.room_cycle_id) {
     const { data: cycleRow, error: cycleErr } = await db
       .from('room_cycles')
-      .select('status, dome_start, veg_start, flower_start, harvest_date, dry_start, trim_start')
+      .select(
+        'id, room_id, status, current_stage, dome_start, veg_start, flower_start, harvest_date, dry_start, trim_start'
+      )
       .eq('id', task.room_cycle_id)
       .maybeSingle()
 
@@ -671,7 +767,43 @@ export async function reopenTask(taskId: string): Promise<
     return { error: 'Failed to reopen task' }
   }
 
-  return { title: task.title, newDueDate, reanchored }
+  const result: ReopenTaskResult & { error?: never } = { title: task.title, newDueDate, reanchored }
+
+  // Phase-switcher rollback — best-effort, strictly additive, mirrors
+  // completeTask's advance side effect. The reopen above already succeeded
+  // and must be reported as such regardless of what happens from here.
+  if (task.is_phase_switcher && task.phase && cycle) {
+    try {
+      const nextStage = resolveSwitcherRollback(cycle.current_stage, task.phase)
+      if (nextStage) {
+        const rollbackNow = new Date().toISOString()
+        const rollbackToday = rollbackNow.split('T')[0]
+        const [cycleUpdate, roomUpdate] = await Promise.all([
+          db
+            .from('room_cycles')
+            .update({ current_stage: nextStage, updated_at: rollbackNow })
+            .eq('id', cycle.id),
+          db
+            .from('grow_rooms')
+            .update({ current_phase: nextStage, phase_start_date: rollbackToday, updated_at: rollbackNow })
+            .eq('id', cycle.room_id),
+        ])
+
+        if (cycleUpdate.error || roomUpdate.error) {
+          console.error(
+            '[cultivation] reopenTask phase-rollback error:',
+            cycleUpdate.error || roomUpdate.error
+          )
+        } else {
+          result.rolledBackTo = nextStage
+        }
+      }
+    } catch (err) {
+      console.error('[cultivation] reopenTask phase-rollback threw:', err)
+    }
+  }
+
+  return result
 }
 
 export async function deleteTask(taskId: string): Promise<
@@ -1128,6 +1260,53 @@ export interface UpsertTemplateTaskInput {
   estimated_minutes: number | null
   priority: TaskPriority
   stage: string | null
+  /** See migration 20260812120000_add_phase_switcher.sql — completing a
+   *  cultivation_tasks row generated from this template task advances its
+   *  cycle to `stage`. Enforced server-side as one-per-(template, stage) —
+   *  see the pre-check in createTemplateTask/updateTemplateTask below, and
+   *  the partial unique index in the migration that backs it. */
+  is_phase_switcher: boolean
+}
+
+/**
+ * Checks whether `stage` on `templateId` already has a different phase
+ * switcher assigned, and if so returns a friendly error message —
+ * surfaces the DB's partial unique index
+ * (template_tasks_one_switcher_per_phase) as a clear product error instead
+ * of letting a raw constraint violation reach the client. `excludeTaskId`
+ * lets updateTemplateTask check without tripping over the row being edited.
+ */
+async function checkSwitcherConflict(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  templateId: string,
+  stage: string,
+  excludeTaskId?: string
+): Promise<string | null> {
+  let query = db
+    .from('template_tasks')
+    .select('id, name')
+    .eq('template_id', templateId)
+    .eq('stage', stage)
+    .eq('is_phase_switcher', true)
+
+  if (excludeTaskId) {
+    query = query.neq('id', excludeTaskId)
+  }
+
+  const { data: conflict, error } = await query.maybeSingle()
+
+  if (error) {
+    console.error('[cultivation] checkSwitcherConflict error:', error)
+    // Fail open on the pre-check itself — the DB's unique index is still
+    // the real backstop, so a lookup failure here shouldn't block a save
+    // that would otherwise succeed (or would still be correctly rejected
+    // by the index).
+    return null
+  }
+  if (conflict) {
+    return `"${conflict.name}" is already the phase switcher for ${stage}`
+  }
+  return null
 }
 
 export async function createTemplateTask(
@@ -1139,6 +1318,12 @@ export async function createTemplateTask(
   if (!auth.authorized) return { error: auth.reason }
 
   const db = await createServiceClient()
+
+  if (input.is_phase_switcher && input.stage) {
+    const conflict = await checkSwitcherConflict(db, templateId, input.stage)
+    if (conflict) return { error: conflict }
+  }
+
   const { error } = await db.from('template_tasks').insert({
     ...input,
     template_id: templateId,
@@ -1160,6 +1345,24 @@ export async function updateTemplateTask(
   if (!auth.authorized) return { error: auth.reason }
 
   const db = await createServiceClient()
+
+  if (input.is_phase_switcher && input.stage) {
+    const { data: existing, error: fetchErr } = await db
+      .from('template_tasks')
+      .select('template_id')
+      .eq('id', taskId)
+      .maybeSingle()
+
+    if (fetchErr) {
+      console.error('[cultivation] updateTemplateTask fetch error:', fetchErr)
+      return { error: 'Failed to load task' }
+    }
+    if (existing) {
+      const conflict = await checkSwitcherConflict(db, existing.template_id, input.stage, taskId)
+      if (conflict) return { error: conflict }
+    }
+  }
+
   const { error } = await db.from('template_tasks').update(input).eq('id', taskId)
 
   if (error) {
@@ -1284,6 +1487,10 @@ export async function startCycle(input: StartCycleInput): Promise<
         estimated_minutes: tt.estimated_minutes,
         status: 'pending' as const,
         created_by: input.userId,
+        // Denormalized from the template task at generation time — see
+        // migration 20260812120000_add_phase_switcher.sql for why this
+        // can't just be looked up via template_task_id later.
+        is_phase_switcher: tt.is_phase_switcher,
       }))
 
     await db.from('cultivation_tasks').insert(tasksToInsert)

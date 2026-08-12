@@ -605,6 +605,7 @@ export type Database = {
           estimated_minutes: number | null
           frequency: string | null
           id: string
+          is_phase_switcher: boolean
           last_generated_date: string | null
           phase: string | null
           priority: string
@@ -633,6 +634,7 @@ export type Database = {
           estimated_minutes?: number | null
           frequency?: string | null
           id?: string
+          is_phase_switcher?: boolean
           last_generated_date?: string | null
           phase?: string | null
           priority?: string
@@ -661,6 +663,7 @@ export type Database = {
           estimated_minutes?: number | null
           frequency?: string | null
           id?: string
+          is_phase_switcher?: boolean
           last_generated_date?: string | null
           phase?: string | null
           priority?: string
@@ -2807,6 +2810,7 @@ export type Database = {
           description: string | null
           estimated_minutes: number | null
           id: string
+          is_phase_switcher: boolean
           name: string
           priority: string
           sort_order: number | null
@@ -2821,6 +2825,7 @@ export type Database = {
           description?: string | null
           estimated_minutes?: number | null
           id?: string
+          is_phase_switcher?: boolean
           name: string
           priority?: string
           sort_order?: number | null
@@ -2835,6 +2840,7 @@ export type Database = {
           description?: string | null
           estimated_minutes?: number | null
           id?: string
+          is_phase_switcher?: boolean
           name?: string
           priority?: string
           sort_order?: number | null

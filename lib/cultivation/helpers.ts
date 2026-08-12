@@ -179,3 +179,80 @@ export function resolveTaskPhaseAndDay(
 
   return { phase: best.stage, day_number: dayNumber }
 }
+
+// ─── Phase-switcher tasks ────────────────────────────────────────────────────
+//
+// See migration 20260812120000_add_phase_switcher.sql for the schema this
+// backs. completeTask/reopenTask in actions/cultivation.ts are the only
+// callers that actually WRITE a stage change — these two functions are pure
+// and only ever compute what that write *should* be, so they can be shared
+// between the server actions and the client-side "should we show a confirm
+// dialog?" checks without duplicating the forward/backward rules in five
+// different places.
+
+/**
+ * Stage a cycle should move to when a phase-switcher task for `switcherPhase`
+ * is completed, or null if no advance applies (already at or past it).
+ */
+export function resolveSwitcherAdvance(currentStage: string, switcherPhase: string): string | null {
+  const currentIndex = STAGE_ORDER.indexOf(currentStage as PipelineStage)
+  const switcherIndex = STAGE_ORDER.indexOf(switcherPhase as PipelineStage)
+  if (currentIndex === -1 || switcherIndex === -1) return null
+  return switcherIndex > currentIndex ? switcherPhase : null
+}
+
+/**
+ * Stage a cycle should roll back to when a phase-switcher for `switcherPhase`
+ * is reopened, or null if no rollback applies.
+ */
+export function resolveSwitcherRollback(currentStage: string, switcherPhase: string): string | null {
+  // Only roll back if the switcher being reopened is what put the cycle at
+  // its current stage in the first place — a later switcher having already
+  // moved the cycle on must not be dragged backwards by reopening an earlier
+  // one.
+  if (currentStage !== switcherPhase) return null
+  const switcherIndex = STAGE_ORDER.indexOf(switcherPhase as PipelineStage)
+  // switcherIndex === -1 covers unknown/garbage stage strings; <= 0 also
+  // covers 'dome' (index 0), which has nothing to roll back to.
+  if (switcherIndex <= 0) return null
+  return STAGE_ORDER[switcherIndex - 1]
+}
+
+/** Minimal shape both getSwitcherAdvancePreview and getSwitcherRollbackPreview
+ *  need off a task — matches the fields available on CultivationTask (see
+ *  types/cultivation.ts) without requiring the full type, so callers can
+ *  pass a partially-loaded task. */
+export interface SwitcherPreviewTask {
+  is_phase_switcher?: boolean | null
+  phase?: string | null
+  room_cycle_id?: string | null
+  cycle?: { current_stage: string; status?: string | null } | null
+}
+
+/**
+ * Whether completing `task` would advance its cycle, and to what stage — the
+ * single source of truth for "does this task need the advance-confirmation
+ * dialog?", used by every completion entry point (TaskCompletionSheet, the
+ * TV board) so they can't drift from each other. Mirrors completeTask()'s
+ * server-side logic against the client's cached task/cycle; the server
+ * independently re-derives and re-validates everything from the DB before
+ * writing, so a stale value here can only produce a wrong dialog decision,
+ * never an incorrect stage write.
+ */
+export function getSwitcherAdvancePreview(task: SwitcherPreviewTask): PipelineStage | null {
+  if (!task.is_phase_switcher || !task.phase || !task.room_cycle_id || !task.cycle) return null
+  if (task.cycle.status && task.cycle.status !== 'active') return null
+  return resolveSwitcherAdvance(task.cycle.current_stage, task.phase) as PipelineStage | null
+}
+
+/**
+ * Whether reopening `task` would roll its cycle's stage back, and to what
+ * stage — the reopen-side counterpart to getSwitcherAdvancePreview above,
+ * used to decide whether the reopen confirmation should mention the
+ * rollback.
+ */
+export function getSwitcherRollbackPreview(task: SwitcherPreviewTask): PipelineStage | null {
+  if (!task.is_phase_switcher || !task.phase || !task.room_cycle_id || !task.cycle) return null
+  if (task.cycle.status && task.cycle.status !== 'active') return null
+  return resolveSwitcherRollback(task.cycle.current_stage, task.phase) as PipelineStage | null
+}
