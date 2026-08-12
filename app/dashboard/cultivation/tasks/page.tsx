@@ -61,6 +61,7 @@ import type {
   PipelineStage,
 } from '@/types/cultivation'
 import { STAGE_ORDER, PHASE_CONFIG } from '@/types/cultivation'
+import { getSwitcherRollbackPreview } from '@/lib/cultivation/helpers'
 import { TaskDetailSheet } from '@/components/cultivation/task-detail-sheet'
 import { TaskCompletionSheet } from '@/components/cultivation/task-completion-sheet'
 import { CreateTaskSheet } from '@/components/cultivation/create-task-sheet'
@@ -558,11 +559,12 @@ export default function CultivationTasksPage() {
         return
       }
       const dueLabel = format(parseLocalDate(result.newDueDate), 'MMM d')
-      toast.success(
-        result.reanchored
-          ? `"${result.title}" reopened — now due ${dueLabel}`
-          : `"${result.title}" reopened`
-      )
+      const rollbackLabel = result.rolledBackTo
+        ? PHASE_CONFIG[result.rolledBackTo as PipelineStage]?.label ?? result.rolledBackTo
+        : null
+      const dueSuffix = result.reanchored ? ` — now due ${dueLabel}` : ''
+      const rollbackSuffix = rollbackLabel ? ` Cycle moved back to ${rollbackLabel}.` : ''
+      toast.success(`"${result.title}" reopened${dueSuffix}.${rollbackSuffix}`)
       setReopenTaskTarget(null)
       setDetailOpen(false)
       fetchData()
@@ -1190,7 +1192,10 @@ export default function CultivationTasksPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Reopen Confirmation */}
+      {/* Reopen Confirmation — folds the phase-switcher rollback warning in
+          here rather than stacking a second dialog. See
+          getSwitcherRollbackPreview (lib/cultivation/helpers.ts) for the
+          single shared "does this need confirming?" check. */}
       <AlertDialog open={!!reopenTaskTarget} onOpenChange={(open) => !open && setReopenTaskTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1201,6 +1206,14 @@ export default function CultivationTasksPage() {
               {reopenTaskTarget?.task_type === 'scheduled' && reopenTaskTarget?.phase
                 ? ", with its due date updated to match the room's current schedule."
                 : '.'}
+              {reopenTaskTarget && getSwitcherRollbackPreview(reopenTaskTarget) && (
+                <>
+                  {' '}Reopening this task will move this cycle back to{' '}
+                  {PHASE_CONFIG[getSwitcherRollbackPreview(reopenTaskTarget) as PipelineStage]?.label ??
+                    getSwitcherRollbackPreview(reopenTaskTarget)}
+                  . Please confirm.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

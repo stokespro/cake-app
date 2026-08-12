@@ -56,6 +56,10 @@ export interface TemplateTask {
   priority: TaskPriority
   sort_order: number
   stage: string | null
+  /** Completing a cultivation_tasks row generated from this template task
+   *  advances its cycle's current_stage to `stage`. See migration
+   *  20260812120000_add_phase_switcher.sql. Meaningless without `stage` set. */
+  is_phase_switcher: boolean
   created_at: string
   updated_at: string
 }
@@ -117,11 +121,17 @@ export interface CultivationTask {
   day_of_week?: number | null
   recurring_parent_id?: string | null
   last_generated_date?: string | null
+  /** Denormalized from the originating template_tasks row at generation time
+   *  — see migration 20260812120000_add_phase_switcher.sql. When true (and
+   *  `phase`/`room_cycle_id` are set), completing this task advances its
+   *  cycle's current_stage to `phase` (see resolveSwitcherAdvance in
+   *  lib/cultivation/helpers.ts and completeTask in actions/cultivation.ts). */
+  is_phase_switcher: boolean
   created_at: string
   updated_at: string
   // Joined
   room?: GrowRoom
-  cycle?: Pick<RoomCycle, 'id' | 'cycle_number' | 'current_stage' | 'flower_start'> | null
+  cycle?: Pick<RoomCycle, 'id' | 'cycle_number' | 'current_stage' | 'flower_start' | 'status'> | null
   /** @deprecated Use `assignees` instead. Kept for legacy compat (single-assignee join). */
   assigned_user?: { id: string; name: string }
   completed_by_user?: { id: string; name: string }

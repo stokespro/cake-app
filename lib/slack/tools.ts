@@ -1,4 +1,6 @@
 import { ToolResult } from './types'
+import { resolveSwitcherAdvance } from '@/lib/cultivation/helpers'
+import { PHASE_CONFIG, type PipelineStage } from '@/types/cultivation'
 
 export async function queryTasks(supabase: any, params: {
   assigned_to?: string
@@ -49,12 +51,61 @@ export async function queryTasks(supabase: any, params: {
   }
 }
 
+/**
+ * Hard refusal path — NOT an LLM "please confirm" turn. Phase-switcher
+ * tasks change room_cycles.current_stage (and grow_rooms.current_phase) as
+ * a side effect of completion (see migration
+ * 20260812120000_add_phase_switcher.sql and completeTask in
+ * actions/cultivation.ts) — that's a state change no agent (Bud, or any
+ * future Slack/LLM caller) is allowed to make unsupervised, only a human
+ * confirming it in the app. This runs in plain code before any DB write and
+ * returns a refusal string, or null when completion is fine to proceed;
+ * there is no code path here the model can talk its way around by
+ * rephrasing, retrying, or being asked nicely — it is not a prompt-level
+ * instruction, it's a return value the caller is hard-wired to obey.
+ *
+ * Shared by both completeTask (the dedicated completion tool) and editTask
+ * (which can also set status: 'completed' — without this same check there
+ * that would be a second, unguarded path to exactly the write this
+ * function exists to block).
+ */
+async function refusalIfSwitcherWouldAdvance(supabase: any, taskId: string): Promise<string | null> {
+  const { data: task, error: taskErr } = await supabase
+    .from('cultivation_tasks')
+    .select('id, title, is_phase_switcher, phase, room_cycle_id, room:grow_rooms(room_name)')
+    .eq('id', taskId)
+    .maybeSingle()
+
+  if (taskErr) throw taskErr
+  if (!task?.is_phase_switcher || !task.phase || !task.room_cycle_id) return null
+
+  const { data: cycle, error: cycleErr } = await supabase
+    .from('room_cycles')
+    .select('current_stage, cycle_number, status')
+    .eq('id', task.room_cycle_id)
+    .maybeSingle()
+
+  if (cycleErr) throw cycleErr
+  if (cycle?.status !== 'active') return null
+
+  const advancesTo = resolveSwitcherAdvance(cycle.current_stage, task.phase)
+  if (!advancesTo) return null
+
+  const roomLabel = task.room?.room_name ? `${task.room.room_name} ` : ''
+  const cycleLabel = cycle.cycle_number != null ? `Cycle ${cycle.cycle_number} ` : ''
+  const stageLabel = PHASE_CONFIG[advancesTo as PipelineStage]?.label ?? advancesTo
+  return `"${task.title}" advances ${roomLabel}${cycleLabel}to ${stageLabel}. Please complete it in the app so the change is confirmed.`
+}
+
 export async function completeTask(supabase: any, params: {
   task_id: string
   notes?: string
   completed_by: string
 }): Promise<ToolResult> {
   try {
+    const refusal = await refusalIfSwitcherWouldAdvance(supabase, params.task_id)
+    if (refusal) return { success: false, error: refusal }
+
     const { data, error } = await supabase
       .from('cultivation_tasks')
       .update({
@@ -126,6 +177,14 @@ export async function editTask(supabase: any, params: {
   status?: string
 }): Promise<ToolResult> {
   try {
+    // editTask can also drive status to 'completed' — without this same
+    // refusal check, it would be a second, unguarded path around
+    // completeTask's phase-switcher guard above.
+    if (params.status === 'completed') {
+      const refusal = await refusalIfSwitcherWouldAdvance(supabase, params.task_id)
+      if (refusal) return { success: false, error: refusal }
+    }
+
     const updates: any = { updated_at: new Date().toISOString() }
     if (params.assigned_to !== undefined) updates.assigned_to = params.assigned_to
     if (params.priority) updates.priority = params.priority

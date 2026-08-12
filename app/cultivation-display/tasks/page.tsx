@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { getCultivationTasksForDisplay, completeTask } from '@/actions/cultivation'
 import { getCurrentSession } from '@/actions/auth'
 import { canCompleteCultivation, type UserRole } from '@/lib/auth-context'
+import { getSwitcherAdvancePreview } from '@/lib/cultivation/helpers'
 import { CheckCircle } from 'lucide-react'
 import {
   Table,
@@ -28,6 +29,10 @@ import {
 } from '@/components/ui/alert-dialog'
 import { PHASE_CONFIG } from '@/types/cultivation'
 import type { CultivationTask, PipelineStage } from '@/types/cultivation'
+
+function phaseLabel(stage: string): string {
+  return PHASE_CONFIG[stage as PipelineStage]?.label ?? stage
+}
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -425,11 +430,13 @@ export default function CultivationTasksDisplayPage() {
         completedBy: userId,
         notes: null,
       })
-      if (result.error) {
+      if ('error' in result) {
         toast.error(`Could not complete "${taskTitle}" — it will reappear on the board. (${result.error})`, {
           duration: 8000,
         })
         window.dispatchEvent(new CustomEvent('cultivation-task-revert'))
+      } else if (result.advancedTo) {
+        toast.success(`Task completed. Advanced to ${phaseLabel(result.advancedTo)}.`)
       }
     } catch (err) {
       // Thrown/rejected promise (network error, stale deployment, etc.) — treat
@@ -447,6 +454,15 @@ export default function CultivationTasksDisplayPage() {
 
   const overdueGroups = groupByRoom(overdueTasks)
   const todayGroups = groupByRoom(todayTasks)
+
+  // Single shared "does this need confirming?" check (see
+  // getSwitcherAdvancePreview in lib/cultivation/helpers.ts) — also drives
+  // TaskCompletionSheet's confirm step. On this touch-operated wall
+  // monitor, the warning is folded into the existing tap-to-complete
+  // confirmation dialog (below) rather than a second dialog, so it can't
+  // get lost behind an extra tap.
+  const confirmAdvanceTo = confirmTask ? getSwitcherAdvancePreview(confirmTask) : null
+  const confirmAdvanceLabel = confirmAdvanceTo ? phaseLabel(confirmAdvanceTo) : null
 
   if (loading) {
     return (
@@ -503,7 +519,10 @@ export default function CultivationTasksDisplayPage() {
         </div>
       )}
 
-      {/* Confirmation dialog — prevents accidental mis-taps on wall monitor */}
+      {/* Confirmation dialog — prevents accidental mis-taps on wall monitor.
+          When the task is a phase switcher that would actually advance the
+          cycle, that warning is folded in here (not a second dialog) so it
+          can't get missed on a touch-operated board. */}
       <AlertDialog open={confirmTask !== null} onOpenChange={(open) => { if (!open) setConfirmTask(null) }}>
         <AlertDialogContent className="max-w-xl">
           <AlertDialogHeader>
@@ -515,6 +534,12 @@ export default function CultivationTasksDisplayPage() {
               {confirmTask?.room?.room_name ? ` (${confirmTask.room.room_name})` : ''}
               {' '}This removes it from the board.
             </AlertDialogDescription>
+            {confirmAdvanceLabel && (
+              <p className="text-lg font-bold text-amber-400 mt-3 border-t border-zinc-700 pt-3">
+                By completing this task you are also advancing this cycle to {confirmAdvanceLabel}.
+                Please confirm.
+              </p>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="text-base">Cancel</AlertDialogCancel>

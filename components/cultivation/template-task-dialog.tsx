@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
 import { createTemplateTask, updateTemplateTask } from '@/actions/cultivation'
 import { TemplateTask, TaskPriority, STAGE_ORDER, PHASE_CONFIG, PipelineStage } from '@/types/cultivation'
@@ -65,6 +66,7 @@ export function TemplateTaskDialog({
   const [estimatedMinutes, setEstimatedMinutes] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [stage, setStage] = useState<string>('')
+  const [isPhaseSwitcher, setIsPhaseSwitcher] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const isEditing = !!task
@@ -79,6 +81,7 @@ export function TemplateTaskDialog({
       )
       setPriority(task.priority)
       setStage(task.stage || '')
+      setIsPhaseSwitcher(task.is_phase_switcher ?? false)
     } else {
       setName('')
       setDescription('')
@@ -86,8 +89,16 @@ export function TemplateTaskDialog({
       setEstimatedMinutes('')
       setPriority('medium')
       setStage(defaultStage || '')
+      setIsPhaseSwitcher(false)
     }
   }, [task, open, defaultDay, defaultStage])
+
+  // A switcher without a phase is meaningless — force it off whenever the
+  // stage is cleared (including via the "None" option on non-master
+  // templates) so a stale toggle can't silently save as true.
+  useEffect(() => {
+    if (!stage || stage === 'none') setIsPhaseSwitcher(false)
+  }, [stage])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -125,6 +136,10 @@ export function TemplateTaskDialog({
       estimated_minutes: minutes,
       priority,
       stage: stage && stage !== 'none' ? stage : null,
+      // A switcher without a phase is meaningless — the stage effect above
+      // already forces this false when stage is cleared, but re-assert it
+      // here too so the payload can never disagree with that invariant.
+      is_phase_switcher: stage && stage !== 'none' ? isPhaseSwitcher : false,
     }
 
     if (isEditing) {
@@ -205,6 +220,25 @@ export function TemplateTaskDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Hidden (not just disabled) when there's no stage — a switcher
+              without a phase is meaningless, so there's nothing useful to
+              show here until one is picked. */}
+          {stage && stage !== 'none' && (
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="task-phase-switcher">Phase Switcher</Label>
+                <p className="text-xs text-muted-foreground">
+                  Completing this task advances the cycle to this phase.
+                </p>
+              </div>
+              <Switch
+                id="task-phase-switcher"
+                checked={isPhaseSwitcher}
+                onCheckedChange={setIsPhaseSwitcher}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="task-day">Day within Phase *</Label>

@@ -11,6 +11,10 @@ import {
   getCycleStageLabel,
   resolveTaskDueDate,
   resolveTaskPhaseAndDay,
+  resolveSwitcherAdvance,
+  resolveSwitcherRollback,
+  getSwitcherAdvancePreview,
+  getSwitcherRollbackPreview,
   type CycleMilestones,
 } from './helpers'
 import { STAGE_ORDER } from '@/types/cultivation'
@@ -211,5 +215,194 @@ describe('resolveTaskPhaseAndDay', () => {
       phase: 'trim',
       day_number: 47,
     })
+  })
+})
+
+// ─── Phase-switcher tasks ────────────────────────────────────────────────────
+//
+// Regression coverage for the phase-switcher forward/backward rules — see
+// migration 20260812120000_add_phase_switcher.sql. resolveSwitcherAdvance is
+// the "completing this switcher task advances the cycle" rule (forward-only,
+// STAGE_ORDER index comparison). resolveSwitcherRollback is the inverse used
+// when a switcher task is reopened, and is intentionally NOT a pure inverse
+// of resolveSwitcherAdvance: it only rolls back one stage, and only when the
+// switcher being reopened is what put the cycle at its current stage.
+
+describe('resolveSwitcherAdvance', () => {
+  it('advances forward for every (currentStage, switcherPhase) pair where switcherPhase is later in STAGE_ORDER', () => {
+    for (let i = 0; i < STAGE_ORDER.length; i++) {
+      for (let j = i + 1; j < STAGE_ORDER.length; j++) {
+        const currentStage = STAGE_ORDER[i]
+        const switcherPhase = STAGE_ORDER[j]
+        expect(resolveSwitcherAdvance(currentStage, switcherPhase)).toBe(switcherPhase)
+      }
+    }
+  })
+
+  it('is a no-op when switcherPhase equals currentStage (same-stage)', () => {
+    for (const stage of STAGE_ORDER) {
+      expect(resolveSwitcherAdvance(stage, stage)).toBeNull()
+    }
+  })
+
+  it('is a no-op when switcherPhase is earlier than currentStage (backward)', () => {
+    for (let i = 0; i < STAGE_ORDER.length; i++) {
+      for (let j = 0; j < i; j++) {
+        const currentStage = STAGE_ORDER[i]
+        const switcherPhase = STAGE_ORDER[j]
+        expect(resolveSwitcherAdvance(currentStage, switcherPhase)).toBeNull()
+      }
+    }
+  })
+
+  it('returns null for an unrecognized currentStage', () => {
+    expect(resolveSwitcherAdvance('mystery-stage', 'flower')).toBeNull()
+  })
+
+  it('returns null for an unrecognized switcherPhase', () => {
+    expect(resolveSwitcherAdvance('veg', 'mystery-stage')).toBeNull()
+  })
+
+  it('returns null when both stages are unrecognized', () => {
+    expect(resolveSwitcherAdvance('mystery-a', 'mystery-b')).toBeNull()
+  })
+
+  it('returns null for empty-string inputs', () => {
+    expect(resolveSwitcherAdvance('', '')).toBeNull()
+    expect(resolveSwitcherAdvance('dome', '')).toBeNull()
+    expect(resolveSwitcherAdvance('', 'dome')).toBeNull()
+  })
+})
+
+describe('resolveSwitcherRollback', () => {
+  it('rolls back to the immediately preceding stage for every stage after dome', () => {
+    for (let i = 1; i < STAGE_ORDER.length; i++) {
+      const stage = STAGE_ORDER[i]
+      expect(resolveSwitcherRollback(stage, stage)).toBe(STAGE_ORDER[i - 1])
+    }
+  })
+
+  it('returns null rolling back from dome (the first stage — nothing precedes it)', () => {
+    expect(resolveSwitcherRollback('dome', 'dome')).toBeNull()
+  })
+
+  it('is blocked (returns null) when currentStage does not match switcherPhase — a later switcher already moved the cycle on', () => {
+    // e.g. cycle is now in 'trim' (a later switcher advanced it there);
+    // reopening the 'flower' switcher must not drag it back to 'veg'.
+    expect(resolveSwitcherRollback('trim', 'flower')).toBeNull()
+    expect(resolveSwitcherRollback('harvest', 'veg')).toBeNull()
+    expect(resolveSwitcherRollback('veg', 'flower')).toBeNull()
+  })
+
+  it('returns null for an unrecognized stage even when currentStage === switcherPhase', () => {
+    expect(resolveSwitcherRollback('mystery-stage', 'mystery-stage')).toBeNull()
+  })
+
+  it('returns null for empty-string inputs', () => {
+    expect(resolveSwitcherRollback('', '')).toBeNull()
+  })
+})
+
+describe('getSwitcherAdvancePreview', () => {
+  it('returns the advance stage for a switcher task on an active cycle behind the switcher phase', () => {
+    expect(
+      getSwitcherAdvancePreview({
+        is_phase_switcher: true,
+        phase: 'flower',
+        room_cycle_id: 'cycle-1',
+        cycle: { current_stage: 'veg', status: 'active' },
+      })
+    ).toBe('flower')
+  })
+
+  it('returns null for a non-switcher task', () => {
+    expect(
+      getSwitcherAdvancePreview({
+        is_phase_switcher: false,
+        phase: 'flower',
+        room_cycle_id: 'cycle-1',
+        cycle: { current_stage: 'veg', status: 'active' },
+      })
+    ).toBeNull()
+  })
+
+  it('returns null when the cycle is already at or past the switcher phase', () => {
+    expect(
+      getSwitcherAdvancePreview({
+        is_phase_switcher: true,
+        phase: 'veg',
+        room_cycle_id: 'cycle-1',
+        cycle: { current_stage: 'flower', status: 'active' },
+      })
+    ).toBeNull()
+  })
+
+  it('returns null when the cycle is not active', () => {
+    expect(
+      getSwitcherAdvancePreview({
+        is_phase_switcher: true,
+        phase: 'flower',
+        room_cycle_id: 'cycle-1',
+        cycle: { current_stage: 'veg', status: 'completed' },
+      })
+    ).toBeNull()
+  })
+
+  it('returns null when phase, room_cycle_id, or cycle is missing', () => {
+    expect(
+      getSwitcherAdvancePreview({ is_phase_switcher: true, phase: null, room_cycle_id: 'cycle-1', cycle: { current_stage: 'veg' } })
+    ).toBeNull()
+    expect(
+      getSwitcherAdvancePreview({ is_phase_switcher: true, phase: 'flower', room_cycle_id: null, cycle: { current_stage: 'veg' } })
+    ).toBeNull()
+    expect(
+      getSwitcherAdvancePreview({ is_phase_switcher: true, phase: 'flower', room_cycle_id: 'cycle-1', cycle: null })
+    ).toBeNull()
+  })
+})
+
+describe('getSwitcherRollbackPreview', () => {
+  it('returns the rollback stage for a switcher task whose phase matches the cycle current stage', () => {
+    expect(
+      getSwitcherRollbackPreview({
+        is_phase_switcher: true,
+        phase: 'flower',
+        room_cycle_id: 'cycle-1',
+        cycle: { current_stage: 'flower', status: 'active' },
+      })
+    ).toBe('veg')
+  })
+
+  it('returns null when a later switcher already moved the cycle past this phase', () => {
+    expect(
+      getSwitcherRollbackPreview({
+        is_phase_switcher: true,
+        phase: 'flower',
+        room_cycle_id: 'cycle-1',
+        cycle: { current_stage: 'harvest', status: 'active' },
+      })
+    ).toBeNull()
+  })
+
+  it('returns null for a non-switcher task', () => {
+    expect(
+      getSwitcherRollbackPreview({
+        is_phase_switcher: false,
+        phase: 'flower',
+        room_cycle_id: 'cycle-1',
+        cycle: { current_stage: 'flower', status: 'active' },
+      })
+    ).toBeNull()
+  })
+
+  it('returns null when the cycle is not active', () => {
+    expect(
+      getSwitcherRollbackPreview({
+        is_phase_switcher: true,
+        phase: 'flower',
+        room_cycle_id: 'cycle-1',
+        cycle: { current_stage: 'flower', status: 'cancelled' },
+      })
+    ).toBeNull()
   })
 })
