@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, type ReactNode } from 'react'
+import { useEffect, useState, useCallback, Fragment, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -66,9 +66,11 @@ import type {
   ProposedTransaction,
   MatchCandidate,
   UnreconciledPayment,
+  AssignMatchErrorCode,
 } from './_actions/bank'
 import { getBillPayments } from '@/actions/finance'
 import type { BillPayment } from '@/actions/finance'
+import { selectPaymentToLink } from '@/lib/finance/bill-payments'
 import {
   Sheet,
   SheetContent,
@@ -518,11 +520,21 @@ interface BillReviewSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   row: ReconciliationLogRow | null
-  onConfirm: (logId: string) => Promise<void>
+  onConfirm: (logId: string) => Promise<{ success: boolean; errorCode?: AssignMatchErrorCode }>
   onDismiss: (logId: string) => Promise<void>
   onAssigned: () => Promise<void>
   confirmingId: string | null
   dismissingId: string | null
+  /**
+   * SPRO-82 follow-up: the server's amount_mismatch message for this row, if
+   * Confirm or assign was last rejected for that reason — kept in the parent
+   * (ReconciliationPanel) so it survives independent of this sheet's own
+   * load/unload effects, and rendered inline rather than as a toast that
+   * disappears (locked decision #2: a real discrepancy must surface, never
+   * be papered over).
+   */
+  mismatchError: string | null
+  onMismatchError: (logId: string, message: string | null) => void
 }
 
 function BillReviewSheet({
@@ -534,6 +546,8 @@ function BillReviewSheet({
   onAssigned,
   confirmingId,
   dismissingId,
+  mismatchError,
+  onMismatchError,
 }: BillReviewSheetProps) {
   const [detail, setDetail] = useState<BillReviewDetail | null>(null)
   const [loading, setLoading] = useState(false)
@@ -666,12 +680,55 @@ function BillReviewSheet({
   const bill = detail?.bill ?? null
   const siblings = detail?.siblings ?? []
 
+  // SPRO-82 follow-up: preview, client-side, whether Confirm is about to hit
+  // the RPC's amount_mismatch guard — mirrors selectPaymentToLink()'s
+  // selection rule (lib/finance/bill-payments.ts), which itself mirrors the
+  // SQL exactly (spec A2), so this is advisory only; the RPC under a row
+  // lock is the actual authority. Lets the user see *why* Confirm will
+  // refuse before they click it, not just after.
+  const bankAmountAbs = row.bank_amount !== null ? Math.abs(row.bank_amount) : null
+  const unlinkedPayments = payments.filter((p) => p.bank_bs_id === null)
+  const linkPreview =
+    bankAmountAbs !== null && unlinkedPayments.length > 0
+      ? selectPaymentToLink(bankAmountAbs, unlinkedPayments)
+      : null
+  const proactiveMismatch = linkPreview?.action === 'mismatch' ? linkPreview : null
+  // The server's own amount_mismatch message (from a Confirm/assign attempt
+  // that already ran) takes priority over the client-side preview above —
+  // it's authoritative and already names the exact figures.
+  const mismatchMessage =
+    mismatchError ??
+    (proactiveMismatch
+      ? `This bill has a recorded payment of ${formatMoney(proactiveMismatch.payment.amount)} but the bank ` +
+        `transaction is ${formatMoney(bankAmountAbs ?? 0)}. Correct the payment amount on the bill, or pick a ` +
+        `different bill.`
+      : null)
+
   const handleAssign = async (candidateId: string) => {
     setAssigningId(candidateId)
+    // Clear any mismatch banner left over from a previous attempt before
+    // this one lands.
+    onMismatchError(row.id, null)
     try {
       const result = await assignReconciliationMatch(row.id, candidateId)
       if (!result.success) {
         toast.error(result.error ?? 'Failed to assign match')
+
+        // SPRO-82 follow-up: the target bill has a recorded payment whose
+        // amount doesn't match the bank transaction by more than $0.01 — a
+        // real discrepancy (locked decision #2), never papered over. Render
+        // the server's message (it already names both figures) inline on
+        // this transaction's row rather than refetching it away — the user
+        // needs to read it and go correct the payment, not have the sheet
+        // close out from under them.
+        if (result.errorCode === 'amount_mismatch') {
+          onMismatchError(
+            row.id,
+            result.error ?? 'This bill has a recorded payment that does not match the bank transaction.'
+          )
+          return
+        }
+
         // BUG-3 fix: 'auto_applied_conflict' and 'bank_txn_spent' both mean
         // our view is stale — someone else (a cron run or another user)
         // already reconciled this bill or this bank transaction between page
@@ -703,6 +760,7 @@ function BillReviewSheet({
         return
       }
       toast.success('Match assigned')
+      onMismatchError(row.id, null)
       await onAssigned()
       onOpenChange(false)
     } catch (err) {
@@ -906,6 +964,20 @@ function BillReviewSheet({
                       </div>
                     )}
                   </div>
+
+                  {/* SPRO-82 follow-up: call out an amount mismatch here,
+                      right where the bank amount and the bill's payments are
+                      shown together, so the user sees why Confirm will
+                      refuse before clicking it. */}
+                  {mismatchMessage && (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                      <div className="text-xs text-destructive space-y-0.5">
+                        <p className="font-medium">Amount mismatch — Confirm will refuse</p>
+                        <p>{mismatchMessage}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 !loading && (
@@ -1090,8 +1162,14 @@ function BillReviewSheet({
               className="h-8 text-xs"
               disabled={isConfirming || isDismissing}
               onClick={async () => {
-                await onConfirm(row.id)
-                onOpenChange(false)
+                const result = await onConfirm(row.id)
+                // SPRO-82 follow-up: amount_mismatch must NOT silently close
+                // the sheet — the user needs to read the inline message above
+                // and go correct the payment. Every other outcome (success,
+                // or any other rejection) closes as before.
+                if (result.errorCode !== 'amount_mismatch') {
+                  onOpenChange(false)
+                }
               }}
             >
               {isLinkOnly ? (
@@ -1125,6 +1203,28 @@ function ReconciliationPanel() {
   const [activeTab, setActiveTab] = useState('pending')
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [dismissingId, setDismissingId] = useState<string | null>(null)
+
+  // SPRO-82 follow-up: server-reported amount_mismatch messages, keyed by
+  // finance_reconciliation_log id. Unlike the stale-view error codes
+  // (auto_applied_conflict/bank_txn_spent/would_overpay/not_pending), an
+  // amount_mismatch is never refetched away — the underlying row is still
+  // exactly what it was, only the recorded payment and the bank amount
+  // genuinely disagree (locked decision #2: never paper over a real
+  // discrepancy). Rendered inline, both on the table row and in the review
+  // sheet, until the user fixes the payment or dismisses/reassigns the row.
+  const [mismatchErrors, setMismatchErrors] = useState<Record<string, string>>({})
+
+  const setMismatchError = useCallback((logId: string, message: string | null) => {
+    setMismatchErrors((prev) => {
+      if (message === null) {
+        if (!(logId in prev)) return prev
+        const next = { ...prev }
+        delete next[logId]
+        return next
+      }
+      return { ...prev, [logId]: message }
+    })
+  }, [])
 
   // Review sheet state
   const [reviewSheetOpen, setReviewSheetOpen] = useState(false)
@@ -1176,27 +1276,51 @@ function ReconciliationPanel() {
     }
   }
 
-  const handleConfirm = async (logId: string) => {
+  const handleConfirm = async (
+    logId: string
+  ): Promise<{ success: boolean; errorCode?: AssignMatchErrorCode }> => {
     setConfirmingId(logId)
+    // Clear any mismatch banner left over from a previous attempt on this
+    // row before this one lands.
+    setMismatchError(logId, null)
     try {
       const result = await confirmReconciliationMatch(logId)
       if (!result.success) {
         toast.error(result.error ?? 'Failed to confirm')
-        // SPRO-82: 'would_overpay' means the bill's remaining balance no
-        // longer covers this bank amount (e.g. another payment landed on it
-        // since the row was proposed) — the underlying data is stale in the
-        // same way 'auto_applied_conflict'/'bank_txn_spent' are, so refetch
-        // rather than leaving a doomed "Confirm" button on screen.
-        if (result.errorCode === 'would_overpay') {
+
+        if (result.errorCode === 'amount_mismatch') {
+          // SPRO-82 follow-up: the bill already has a recorded payment whose
+          // amount differs from the bank transaction by more than $0.01 — a
+          // real discrepancy (locked decision #2), never papered over. Render
+          // the server's message (it already names both figures) inline on
+          // this row instead of refetching it away — the user needs to read
+          // it and go correct the payment.
+          setMismatchError(
+            logId,
+            result.error ?? 'This bill has a recorded payment that does not match the bank transaction.'
+          )
+        } else if (
+          result.errorCode === 'would_overpay' ||
+          result.errorCode === 'auto_applied_conflict' ||
+          result.errorCode === 'bank_txn_spent' ||
+          result.errorCode === 'not_pending'
+        ) {
+          // These four all mean the underlying data is stale — the bill's
+          // remaining balance no longer covers this bank amount, or someone
+          // else (a cron run or another user) already reconciled this bill/
+          // transaction between page load and this click. Refetch rather
+          // than leaving a doomed "Confirm" button on screen.
           await fetchLog()
         }
-        return
+        return { success: false, errorCode: result.errorCode }
       }
       toast.success('Match confirmed')
       await fetchLog()
+      return { success: true }
     } catch (err) {
       console.error('Confirm error:', err)
       toast.error('Failed to confirm')
+      return { success: false }
     } finally {
       setConfirmingId(null)
     }
@@ -1211,6 +1335,7 @@ function ReconciliationPanel() {
         return
       }
       toast.success('Match dismissed')
+      setMismatchError(logId, null)
       await fetchLog()
     } catch (err) {
       console.error('Dismiss error:', err)
@@ -1297,7 +1422,8 @@ function ReconciliationPanel() {
                         row.match_type === 'amount_only' ||
                         row.match_type === 'already_paid_non_check'
                       return (
-                      <TableRow key={row.id}>
+                      <Fragment key={row.id}>
+                      <TableRow>
                         <TableCell className="hidden sm:table-cell text-xs text-muted-foreground whitespace-nowrap">
                           {row.bank_date ? format(parseISO(row.bank_date), 'MMM d, yyyy') : '—'}
                         </TableCell>
@@ -1389,6 +1515,20 @@ function ReconciliationPanel() {
                           </div>
                         </TableCell>
                       </TableRow>
+                      {mismatchErrors[row.id] && (
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell
+                            colSpan={8}
+                            className="bg-destructive/5 border-t-0 py-2 px-4"
+                          >
+                            <div className="flex items-start gap-1.5 text-xs text-destructive">
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                              <span>{mismatchErrors[row.id]}</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      </Fragment>
                       )
                     })}
                   </TableBody>
@@ -1466,6 +1606,8 @@ function ReconciliationPanel() {
         onAssigned={fetchLog}
         confirmingId={confirmingId}
         dismissingId={dismissingId}
+        mismatchError={reviewRow ? (mismatchErrors[reviewRow.id] ?? null) : null}
+        onMismatchError={setMismatchError}
       />
     </Card>
   )
