@@ -10,6 +10,22 @@ export interface Strain {
   id: string
   name: string
   created_at: string
+  slug?: string
+  type?: 'indica' | 'sativa' | 'hybrid' | null
+  description?: string | null
+  effects?: string | null
+  flavor_notes?: string | null
+  lineage?: string | null
+  thc_percent?: number | null
+  thc_min?: number | null
+  thc_max?: number | null
+  terpene_min?: number | null
+  terpene_max?: number | null
+  logo_url?: string | null
+  logo_path?: string | null
+  background_url?: string | null
+  background_path?: string | null
+  updated_at?: string
 }
 
 export interface Batch {
