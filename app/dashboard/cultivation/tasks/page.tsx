@@ -45,11 +45,16 @@ import {
   Trash2,
   X,
   ArrowLeft,
-  ArrowRight,
   Loader2,
 } from 'lucide-react'
-import { format, isPast, subDays, addDays, addWeeks, startOfWeek, endOfWeek } from 'date-fns'
+import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
+import { DatePresetFilter } from '@/components/filters/date-preset-filter'
+import {
+  CULTIVATION_TASK_DATE_PRESETS,
+  resolveDatePresetRange,
+  type DatePresetKey,
+} from '@/lib/date-filters'
 import Link from 'next/link'
 import { useAuth, canManageCultivation, canCompleteCultivation } from '@/lib/auth-context'
 import type {
@@ -116,24 +121,9 @@ interface TaskStats {
 
 const EMPTY_STATS: TaskStats = { overdue: 0, dueToday: 0, inProgress: 0, completedToday: 0 }
 
-type TimeframePreset =
-  | 'past_due_today'
-  | 'today'
-  | 'yesterday'
-  | 'this_week'
-  | 'next_week'
-  | 'next_14_days'
-  | 'custom'
-
-const TIMEFRAME_OPTIONS: { value: TimeframePreset; label: string }[] = [
-  { value: 'past_due_today', label: 'Past Due & Today' },
-  { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-  { value: 'this_week', label: 'This Week' },
-  { value: 'next_week', label: 'Next Week' },
-  { value: 'next_14_days', label: 'Next 14 Days' },
-  { value: 'custom', label: 'Custom' },
-]
+/** Timeframe presets/labels and the preset → date-window resolution now live in
+ * `lib/date-filters.ts`, shared with the orders page. */
+const DEFAULT_TIMEFRAME: DatePresetKey = 'past_due_today'
 
 /** Maps the Status filter dropdown to the server-side statuses param. "All
  * Status" intentionally resolves to the incomplete set (pending, in_progress)
@@ -206,7 +196,7 @@ export default function CultivationTasksPage() {
   const [filterAssignee, setFilterAssignee] = useState('all')
   const [filterType, setFilterType] = useState('all')
   const [filterStage, setFilterStage] = useState('all')
-  const [timeframe, setTimeframe] = useState<TimeframePreset>('past_due_today')
+  const [timeframe, setTimeframe] = useState<DatePresetKey>(DEFAULT_TIMEFRAME)
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
 
@@ -225,54 +215,10 @@ export default function CultivationTasksPage() {
   const canComplete = user ? canCompleteCultivation(user.role) : false
 
   /** Resolves the active Timeframe preset (or Custom dates) to a
-   * dateFrom/dateTo window to send to getCultivationTasks(). */
+   * dateFrom/dateTo window to send to getCultivationTasks(). Preset semantics
+   * are shared with the other list pages — see lib/date-filters.ts. */
   function computeTimeframeRange(): { dateFrom: string | null; dateTo: string | null } {
-    const today = new Date()
-    const todayStr = format(today, 'yyyy-MM-dd')
-
-    switch (timeframe) {
-      case 'today':
-        return { dateFrom: todayStr, dateTo: todayStr }
-      case 'yesterday': {
-        const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd')
-        return { dateFrom: yesterdayStr, dateTo: yesterdayStr }
-      }
-      case 'this_week':
-        return {
-          dateFrom: format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-          dateTo: format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-        }
-      case 'next_week': {
-        const nextWeek = addWeeks(today, 1)
-        return {
-          dateFrom: format(startOfWeek(nextWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-          dateTo: format(endOfWeek(nextWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-        }
-      }
-      case 'next_14_days':
-        return { dateFrom: todayStr, dateTo: format(addDays(today, 14), 'yyyy-MM-dd') }
-      case 'custom':
-        return { dateFrom: filterDateFrom || null, dateTo: filterDateTo || null }
-      case 'past_due_today':
-      default:
-        // Unbounded start so overdue tasks always show, regardless of age.
-        return { dateFrom: null, dateTo: todayStr }
-    }
-  }
-
-  /** Switch the active Timeframe preset. Entering Custom seeds both dates to
-   * today (rather than leaving them unbounded) so we don't accidentally
-   * re-trigger the original full-table over-fetch. */
-  function handleTimeframeChange(value: TimeframePreset) {
-    setTimeframe(value)
-    if (value === 'custom') {
-      const todayStr = format(new Date(), 'yyyy-MM-dd')
-      setFilterDateFrom((prev) => prev || todayStr)
-      setFilterDateTo((prev) => prev || todayStr)
-    } else {
-      setFilterDateFrom('')
-      setFilterDateTo('')
-    }
+    return resolveDatePresetRange(timeframe, { from: filterDateFrom, to: filterDateTo })
   }
 
   /** Full refetch from page 0 — used for the initial load and any
@@ -604,14 +550,14 @@ export default function CultivationTasksPage() {
     setFilterType('all')
     setFilterStage('all')
     setFilterAssignee('all')
-    setTimeframe('past_due_today')
+    setTimeframe(DEFAULT_TIMEFRAME)
     setFilterDateFrom('')
     setFilterDateTo('')
     setViewMode(user && canManageCultivation(user.role) ? 'all' : 'mine')
   }
 
   const hasFilters =
-    search || filterRoom !== 'all' || filterStatus !== 'all' || filterPriority !== 'all' || filterType !== 'all' || filterStage !== 'all' || filterAssignee !== 'all' || timeframe !== 'past_due_today'
+    search || filterRoom !== 'all' || filterStatus !== 'all' || filterPriority !== 'all' || filterType !== 'all' || filterStage !== 'all' || filterAssignee !== 'all' || timeframe !== DEFAULT_TIMEFRAME
 
   // --- Helpers ---
 
@@ -830,40 +776,18 @@ export default function CultivationTasksPage() {
           </SelectContent>
         </Select>
 
-        <Select value={timeframe} onValueChange={(v) => handleTimeframeChange(v as TimeframePreset)}>
-          <SelectTrigger className="w-full sm:w-[170px]">
-            <SelectValue placeholder="Timeframe" />
-          </SelectTrigger>
-          <SelectContent>
-            {TIMEFRAME_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {timeframe === 'custom' && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Input
-              id="task-date-from"
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => setFilterDateFrom(e.target.value)}
-              aria-label="Start date"
-              className="flex-1 min-w-0 sm:flex-none sm:w-[140px]"
-            />
-            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
-            <Input
-              id="task-date-to"
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => setFilterDateTo(e.target.value)}
-              aria-label="End date"
-              className="flex-1 min-w-0 sm:flex-none sm:w-[140px]"
-            />
-          </div>
-        )}
+        <DatePresetFilter
+          value={timeframe}
+          onValueChange={setTimeframe}
+          presets={CULTIVATION_TASK_DATE_PRESETS}
+          customFrom={filterDateFrom}
+          customTo={filterDateTo}
+          onCustomFromChange={setFilterDateFrom}
+          onCustomToChange={setFilterDateTo}
+          placeholder="Timeframe"
+          idPrefix="task-date"
+          className="w-full sm:w-[170px]"
+        />
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9">
@@ -1137,7 +1061,7 @@ export default function CultivationTasksPage() {
         onEdit={() => detailTask && openEditFlow(detailTask)}
         onDelete={() => {
           setDetailOpen(false)
-          detailTask && setDeleteTask(detailTask)
+          if (detailTask) setDeleteTask(detailTask)
         }}
         onReopen={() => {
           setDetailOpen(false)

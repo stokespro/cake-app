@@ -62,6 +62,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { format, parseISO } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
+import { DatePresetFilter } from '@/components/filters/date-preset-filter'
+import {
+  isWithinDateRange,
+  ORDER_DATE_PRESETS,
+  resolveDatePresetRange,
+  type DatePresetKey,
+} from '@/lib/date-filters'
 import { StatusBadgeDropdown } from '@/components/orders/status-badge-dropdown'
 import { ErrorState } from '@/components/ui/error-state'
 import type { Order, OrderStatus } from '@/types/database'
@@ -106,6 +113,9 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
+  // Delivery-date filter: a preset from lib/date-filters, plus the two custom
+  // dates that only apply when the preset is 'custom'.
+  const [filterDatePreset, setFilterDatePreset] = useState<DatePresetKey>('all')
   const [filterDeliveryFrom, setFilterDeliveryFrom] = useState('')
   const [filterDeliveryTo, setFilterDeliveryTo] = useState('')
   const [editingOrder, setEditingOrder] = useState<string | null>(null)
@@ -144,7 +154,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     filterAndSortOrders()
-  }, [orders, searchTerm, filterStatus, filterDeliveryFrom, filterDeliveryTo, sortField, sortDirection, userSortOverride])
+  }, [orders, searchTerm, filterStatus, filterDatePreset, filterDeliveryFrom, filterDeliveryTo, sortField, sortDirection, userSortOverride])
 
   const fetchSKUs = async () => {
     const result = await getOrderSkus()
@@ -205,23 +215,17 @@ export default function OrdersPage() {
       filtered = filtered.filter(order => order.status === filterStatus)
     }
 
-    // Filter by delivery date range
-    if (filterDeliveryFrom) {
-      const fromDate = parseLocalDate(filterDeliveryFrom)
-      filtered = filtered.filter(order => {
-        if (!order.requested_delivery_date) return false
-        const deliveryDate = parseLocalDate(order.requested_delivery_date)
-        return deliveryDate >= fromDate
-      })
-    }
-
-    if (filterDeliveryTo) {
-      const toDate = new Date(filterDeliveryTo + 'T23:59:59')
-      filtered = filtered.filter(order => {
-        if (!order.requested_delivery_date) return false
-        const deliveryDate = parseLocalDate(order.requested_delivery_date)
-        return deliveryDate <= toDate
-      })
+    // Filter by requested delivery date, using the selected preset (or the
+    // custom from/to dates when the preset is 'custom'). 'all' resolves to an
+    // unbounded range, which leaves every order in.
+    const deliveryRange = resolveDatePresetRange(filterDatePreset, {
+      from: filterDeliveryFrom,
+      to: filterDeliveryTo,
+    })
+    if (deliveryRange.dateFrom || deliveryRange.dateTo) {
+      filtered = filtered.filter(order =>
+        isWithinDateRange(order.requested_delivery_date, deliveryRange)
+      )
     }
 
     // Status priority weights — pending (upcoming) first
@@ -643,13 +647,14 @@ export default function OrdersPage() {
               <span className="text-sm text-muted-foreground">
                 {filteredOrders.length} of {orders.length} orders
               </span>
-              {(searchTerm || filterStatus !== 'all' || filterDeliveryFrom || filterDeliveryTo) && (
+              {(searchTerm || filterStatus !== 'all' || filterDatePreset !== 'all') && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     setSearchTerm('')
                     setFilterStatus('all')
+                    setFilterDatePreset('all')
                     setFilterDeliveryFrom('')
                     setFilterDeliveryTo('')
                   }}
@@ -684,17 +689,16 @@ export default function OrdersPage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              type="date"
-              value={filterDeliveryFrom}
-              onChange={(e) => setFilterDeliveryFrom(e.target.value)}
-              placeholder="Delivery from"
-            />
-            <Input
-              type="date"
-              value={filterDeliveryTo}
-              onChange={(e) => setFilterDeliveryTo(e.target.value)}
-              placeholder="Delivery to"
+            <DatePresetFilter
+              value={filterDatePreset}
+              onValueChange={setFilterDatePreset}
+              presets={ORDER_DATE_PRESETS}
+              customFrom={filterDeliveryFrom}
+              customTo={filterDeliveryTo}
+              onCustomFromChange={setFilterDeliveryFrom}
+              onCustomToChange={setFilterDeliveryTo}
+              placeholder="Delivery date"
+              idPrefix="order-delivery-date"
             />
           </div>
         </CardContent>
@@ -1418,7 +1422,7 @@ export default function OrdersPage() {
 
                 {editForm.order_items?.filter(item => !item._deleted).length === 0 ? (
                   <div className="text-sm text-muted-foreground text-center py-4 border rounded-md">
-                    No items. Click "Add Item" to add products.
+                    No items. Click ‘Add Item’ to add products.
                   </div>
                 ) : (
                   <div className="space-y-3">
