@@ -1288,25 +1288,28 @@ function ReconciliationPanel() {
       if (!result.success) {
         toast.error(result.error ?? 'Failed to confirm')
 
-        if (result.errorCode === 'amount_mismatch') {
-          // SPRO-82 follow-up: the bill already has a recorded payment whose
-          // amount differs from the bank transaction by more than $0.01 — a
-          // real discrepancy (locked decision #2), never papered over. Render
-          // the server's message (it already names both figures) inline on
-          // this row instead of refetching it away — the user needs to read
-          // it and go correct the payment.
+        if (result.errorCode === 'amount_mismatch' || result.errorCode === 'would_overpay') {
+          // SPRO-82 follow-up / SPRO-122: both of these are a real refusal to
+          // apply this match, not evidence the view is stale — refetching
+          // would just reload the same doomed row and make the refusal look
+          // like the button silently did nothing. amount_mismatch: the bill
+          // already has a recorded payment whose amount differs from the
+          // bank transaction by more than $0.01 (locked decision #2).
+          // would_overpay: applying this match would push the bill's total
+          // payments past its amount (fn_finance_bill_payments_guard_overpay()).
+          // Render the server's message inline on this row so the user reads
+          // it and goes to fix the underlying payment/bill instead of
+          // retrying a click that cannot succeed.
           setMismatchError(
             logId,
-            result.error ?? 'This bill has a recorded payment that does not match the bank transaction.'
+            result.error ?? 'This match cannot be applied — it would overpay or does not match the bill.'
           )
         } else if (
-          result.errorCode === 'would_overpay' ||
           result.errorCode === 'auto_applied_conflict' ||
           result.errorCode === 'bank_txn_spent' ||
           result.errorCode === 'not_pending'
         ) {
-          // These four all mean the underlying data is stale — the bill's
-          // remaining balance no longer covers this bank amount, or someone
+          // These three all mean the underlying data is stale — someone
           // else (a cron run or another user) already reconciled this bill/
           // transaction between page load and this click. Refetch rather
           // than leaving a doomed "Confirm" button on screen.
