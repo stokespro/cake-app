@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-08-22",
+  "lastUpdated": "2026-08-23",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-08-22",
+    "lastVerified": "2026-08-23",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -45,8 +45,8 @@
         ]
       }
     ],
-    "expeditedWindow": "AUGUST 22 UPDATE: CORRECTED TRANSCRIPT DUE AUGUST 26 — ALJ Derek Julius ordered 294 corrections to the 2,500-page hearing transcript (Aug 20); corrected version with changes shown in red must be posted on DEA.gov by August 26, 2026. All post-hearing briefs were filed by the August 17 deadline. ALJ recommended decision timeline: no fixed deadline — expected months from now; an NPRM is anticipated before year-end 2026, with a final rule possible in 2027 absent legal challenges. D.C. Circuit stay motion remains FULLY BRIEFED (since July 17) — no ruling as of August 22, 2026; court can act at any time. OBNDD enforcement grace period: January 1, 2027.",
-    "caution": "AUGUST 22 UPDATE: KEY RISKS — (1) D.C. CIRCUIT STAY: No ruling issued as of August 22; a granted stay would suspend the Schedule III order and could void DEA registrations. Monitor deadiversion.usdoj.gov and dc.uscourts.gov. (2) TRANSCRIPT CORRECTION MISINFORMATION: The 294 corrections ALJ Julius ordered (Aug 20) include some substantive language changes (e.g., 'there's adulterants' corrected to 'there's no adulterants'). Claims that these corrections signal hearing manipulation or reversed testimony are FALSE — routine procedural correction, not a substantive outcome signal. (3) CONSULTANT LATE-FILER MARKETING: Post-June 29 consultants continue to market 'late registration' services without disclosing that the expedited safe-harbor window is permanently closed. (4) CR HEMP DELAY NOT YET LAW: The Senate CR provision delaying the hemp ban to Dec 11 is NOT enacted — the House must still pass it when it returns from recess on August 31. November 12 remains the operative deadline until the House acts.",
+    "expeditedWindow": "AUGUST 23 UPDATE: CORRECTED TRANSCRIPT DUE AUGUST 26 — ALJ Derek Julius ordered 294 corrections to the 2,500-page hearing transcript (Aug 20); corrected version with changes shown in red must be posted on DEA.gov by August 26, 2026. All post-hearing briefs were filed by the August 17 deadline. ALJ recommended decision timeline: no fixed deadline — expected months from now; an NPRM is anticipated before year-end 2026, with a final rule possible in 2027 absent legal challenges. D.C. Circuit stay motion remains FULLY BRIEFED (since July 17) — no ruling as of August 23, 2026; court can act at any time. OBNDD enforcement grace period: January 1, 2027.",
+    "caution": "AUGUST 23 UPDATE: KEY RISKS — (1) D.C. CIRCUIT STAY: No ruling issued as of August 23; a granted stay would suspend the Schedule III order and could void DEA registrations. Monitor deadiversion.usdoj.gov and dc.uscourts.gov. (2) TRANSCRIPT CORRECTION MISINFORMATION: The 294 corrections ALJ Julius ordered (Aug 20) include some substantive language changes (e.g., 'there's adulterants' corrected to 'there's no adulterants'). Claims that these corrections signal hearing manipulation or reversed testimony are FALSE — routine procedural correction, not a substantive outcome signal. (3) CONSULTANT LATE-FILER MARKETING: Post-June 29 consultants continue to market 'late registration' services without disclosing that the expedited safe-harbor window is permanently closed. (4) CR HEMP DELAY NOT YET LAW: The Senate CR provision delaying the hemp ban to Dec 11 is NOT enacted — the House must still pass it when it returns from recess on August 31. November 12 remains the operative deadline until the House acts. (5) STATES GETTING NO FEDERAL GUIDANCE: A South Dakota official confirmed August 22 that federal agencies have provided states little-to-no implementation guidance four months after Schedule III took effect — 'at the state level, we probably have more questions than answers.' The September 30 response deadline on the bipartisan House guidance letter is the nearest federal-clarity milestone.",
     "officialSources": [
       {
         "name": "DEA — Marijuana Rescheduling Regulatory Actions",
@@ -111,6 +111,25 @@
     }
   ],
   "items": [
+    {
+      "id": "feds-not-answering-states-rescheduling-implementation-aug22",
+      "headline": "States Report Getting No Federal Implementation Guidance Four Months After Schedule III — South Dakota Official: 'We Have More Questions Than Answers'",
+      "date": "2026-08-22",
+      "summary": "A South Dakota medical marijuana official confirmed publicly on August 22, 2026 that federal agencies have provided states with little to no implementation guidance on how the April 28, 2026 Schedule III rescheduling order translates into state regulatory requirements — saying 'at the state level, we probably have more questions than answers.' This tracks directly with the bipartisan congressional letter sent August 18 by four U.S. House members to President Trump, HHS, Treasury, and the AG requesting formal guidance on Schedule III's implementation across multiple policy domains, with a requested response deadline of September 30. No formal federal agency guidance on state program integration, federal-state registration coordination, or enforcement posture under the new Schedule III framework has been issued by DEA, HHS, or IRS as of August 22, 2026.",
+      "whyItMatters": "For CAKE and its Oklahoma wholesale dispensary customers, the absence of federal-to-state implementation guidance is directly material to two active compliance obligations. First, OBNDD's mandatory DEA registration requirement for manufacturers and distributors (enforcement grace period through January 1, 2027) depends on DEA processing — if DEA has not provided OBNDD or OMMA with a framework for how state license status interacts with federal registration, Oklahoma operators filing Form 225 have no confirmation of how their state license will be treated in the federal review queue. Second, the IRS's still-unissued 280E transition guidance leaves Oklahoma cultivators and processors without confirmed authority to begin deducting ordinary business expenses for the 2026 tax year. The September 30 response deadline requested by the bipartisan House letter (see: bipartisan-house-letter-trump-schedule-iii-guidance-aug18) is now the nearest concrete federal-guidance milestone — if the Trump administration misses that date, federal regulatory opacity on Schedule III implementation will extend into Q4 2026 with the OBNDD grace period ending January 1, 2027.",
+      "tags": [
+        "federal",
+        "oklahoma",
+        "cultivation",
+        "dispensary",
+        "pending"
+      ],
+      "source": {
+        "name": "Marijuana Moment — Feds Aren't Answering States' Questions On Marijuana Rescheduling Process, South Dakota Official Says (August 22, 2026)",
+        "url": "https://www.marijuanamoment.net/feds-arent-answering-states-questions-on-marijuana-rescheduling-process-south-dakota-official-says"
+      },
+      "pinned": false
+    },
     {
       "id": "omma-audit-response-aug17-2026",
       "headline": "OMMA Formally Responds to State Auditor's Operational Audit — Highlights Metrc Controls, Multi-Agency Enforcement Model",
@@ -2222,6 +2241,17 @@
     }
   ],
   "discourse": [
+    {
+      "id": "watch-mmj-intl-aug22-games-dea-attorneys-play",
+      "headline": "MMJ International Holdings Publishes August 22 'Games DEA Attorneys Play' Attack on DEA Closing Brief",
+      "claim": "MMJ International Holdings (an active D.C. Circuit petitioner in Cases 26-1106/26-1136 seeking to vacate the April 28 Schedule III order) published an August 22, 2026 commentary on healthtechnologynet.com titled 'The Games DEA Attorneys Play: What Marijuana Rescheduling Closing Brief Didn't Tell Judge Julius' — alleging that DEA attorneys deliberately omitted or mischaracterized key evidence in their August 17 post-hearing brief and failed to disclose information material to ALJ Julius's recommended decision.",
+      "caution": "This piece is authored by or in close collaboration with MMJ International Holdings, an active litigant seeking to vacate the April 28 Schedule III order — it is advocacy by an adverse party, not journalism or neutral legal analysis. Its claims about DEA attorney conduct are precisely what the ALJ proceeding and D.C. Circuit appeal are designed to adjudicate and cannot be evaluated from a healthtechnologynet.com post. The DEA's brief was filed through the official administrative record and formally urged Schedule III. A compliance director encountering this piece should treat it as one litigant's closing argument, not as established fact about the DEA brief's integrity. MMJ International Holdings has a documented pattern of publishing Newswire/healthtechnologynet.com advocacy pieces designed to shape public perception of the ALJ proceeding — see prior discourse entries: watch-mmj-intl-aug9-alj-crystal-ball, watch-mmj-intl-aug1-foundation-holds-piece, watch-mmj-intl-july30-rescheduling-in-jeopardy, watch-mmj-intl-july15-norml1977-stay-piece, watch-mmj-intl-july19-bet-goes-wrong.",
+      "source": {
+        "name": "Health Technology Net — MMJ International Holdings: 'The Games DEA Attorneys Play' (August 22, 2026)",
+        "url": "https://healthtechnologynet.com/2026/08/22/the-games-dea-attorneys-play-what-marijuana-rescheduling-closing-brief-didnt-tell-judge-julius/"
+      },
+      "date": "2026-08"
+    },
     {
       "id": "watch-fda-social-media-monitoring-dispensary-crackdown-misread",
       "headline": "FDA Social Media Solicitation Misread as Imminent Crackdown on Dispensary Marketing Accounts",
