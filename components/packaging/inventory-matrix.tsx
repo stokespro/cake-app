@@ -244,9 +244,9 @@ function MatrixCellView({
           color (blue = filled, green = cased) — not the washed-out uniform
           muted line from the original mockup. */}
       <span className="flex items-center gap-1 text-[9px]">
-        <span className="font-semibold text-blue-400">F:{sku.filled}</span>
+        <span className="font-semibold text-blue-400">{`F: ${sku.filled}`}</span>
         <span className="text-muted-foreground">-</span>
-        <span className="font-semibold text-green-400">C:{sku.cased}</span>
+        <span className="font-semibold text-green-400">{`C: ${sku.cased}`}</span>
       </span>
       {label && (
         <span className={cn('text-[8px] font-extrabold uppercase tracking-wide', styles.text)}>
