@@ -3,7 +3,7 @@ import {
   InventoryMap,
   Order,
   Task, TaskType, TaskStatus, TaskSource, PriorityTier, KanbanColumn,
-  SKUStatus, Container
+  SKUStatus, SKUFormat, InventoryCellState, Container
 } from './types';
 import { isTomorrow, isWithinDays, daysUntil } from './utils';
 
@@ -12,6 +12,73 @@ const BACKFILL_TARGET = 8;
 
 // Low stock threshold (partial container warning)
 const LOW_STOCK_THRESHOLD = 4;
+
+// ============================================
+// FORMAT DERIVATION (SPRO-128)
+// ============================================
+
+// grams_per_unit comes back from Supabase as a numeric string (e.g. "3.50"),
+// so compare tolerantly after Number() rather than with strict ===.
+function isCloseTo(value: number, target: number, epsilon = 0.01): boolean {
+  return Math.abs(value - target) < epsilon;
+}
+
+// Derive a SKU's packaging format from structured columns ONLY — never by
+// string-parsing the free-form `code` column, which is unvalidated
+// (components/products/product-sheet.tsx:164-186). Rules verified against
+// live data:
+//   product_type "Bites"                                     -> Bites
+//   product_type "A Buds" + grams_per_unit 14                 -> Half
+//   product_type "A Buds" + grams_per_unit 3.5 + units_per_case 8 -> Variety
+//   product_type "A Buds" + grams_per_unit 3.5                -> Eighth
+//   anything else                                              -> Other
+export function deriveFormat(
+  productTypeName: string | null | undefined,
+  gramsPerUnit: number | string | null | undefined,
+  unitsPerCase: number | string | null | undefined
+): SKUFormat {
+  const grams = Number(gramsPerUnit);
+  const units = Number(unitsPerCase);
+  const type = (productTypeName || '').trim();
+
+  if (type === 'Bites') return 'Bites';
+
+  if (type === 'A Buds') {
+    if (isCloseTo(grams, 14)) return 'Half';
+    if (isCloseTo(grams, 3.5) && units === 8) return 'Variety';
+    if (isCloseTo(grams, 3.5)) return 'Eighth';
+  }
+
+  return 'Other';
+}
+
+// ============================================
+// INVENTORY CELL STATE (SPRO-128)
+// ============================================
+
+// Precedence matters and is deliberate: `short` (gap > 0) always outranks
+// `restage`, which outranks `low`. A SKU with staged === 0 AND a gap must
+// render SHORT, not RESTAGE — a gap means demand already exceeds total
+// on-hand (cased+filled+staged), which is strictly more urgent than
+// "nothing staged yet, but on-hand inventory still covers demand" (restage).
+//
+// `restage` is the fix for the pre-SPRO-128 blind spot: the old `lowStock`
+// signal required `staged > 0`, so a SKU sitting at staged===0 with open
+// pending orders rendered no warning at all, even though the pipeline was
+// about to run dry.
+export function computeInventoryState(params: {
+  staged: number;
+  pending: number;
+  gap: number;
+}): InventoryCellState {
+  const { staged, pending, gap } = params;
+
+  if (gap > 0) return 'short';
+  if (staged === 0 && pending > 0) return 'restage';
+  if (staged > 0 && staged < LOW_STOCK_THRESHOLD) return 'low';
+  if (staged >= LOW_STOCK_THRESHOLD) return 'ok';
+  return 'idle';
+}
 
 // Mutable available inventory during allocation
 interface AvailableInventory {
@@ -392,6 +459,7 @@ export function generateSKUStatus(
       pending,
       gap,
       lowStock: levels.staged < LOW_STOCK_THRESHOLD && levels.staged > 0,
+      state: computeInventoryState({ staged: levels.staged, pending, gap }),
     };
   });
 }

@@ -20,7 +20,7 @@ import {
   readSKUInventory,
   getSkuId,
 } from '@/lib/packaging/db'
-import { generateTaskQueue, generateSKUStatus } from '@/lib/packaging/allocation-engine'
+import { generateTaskQueue, generateSKUStatus, deriveFormat } from '@/lib/packaging/allocation-engine'
 import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 // DISABLED: Materials imports - re-enable when materials module is complete
@@ -255,31 +255,79 @@ export async function getDashboardData(): Promise<DashboardData> {
     // Generate SKU status for inventory bar
     const skuStatus = generateSKUStatus(inventory, orders)
 
-    // Enrich with product type info for dynamic grouping on packaging page
+    // Enrich with product type / strain / format info for the SPRO-128
+    // strain x format inventory matrix (and dynamic grouping elsewhere on
+    // the packaging page).
     try {
       const supabase = await createServiceClient()
       const { data: skuRows } = await supabase
         .from('skus')
-        .select('code, product_type_id, product_types(name)')
-      const typeByCode = new Map<string, { id: string; name: string }>()
-      for (const row of skuRows || []) {
-        const pt = Array.isArray((row as { product_types?: unknown }).product_types)
-          ? (row as { product_types: { name: string }[] }).product_types[0]
-          : (row as { product_types?: { name: string } }).product_types
-        typeByCode.set((row as { code: string }).code, {
-          id: (row as { product_type_id: string }).product_type_id,
-          name: pt?.name || 'Unknown',
+        .select('code, name, strain_id, grams_per_unit, units_per_case, product_type_id, product_types(name), strains(name)')
+
+      interface SkuEnrichmentRow {
+        code: string
+        name: string
+        strain_id: string | null
+        grams_per_unit: number | string | null
+        units_per_case: number | string | null
+        product_type_id: string
+        product_types?: { name: string } | { name: string }[] | null
+        strains?: { name: string } | { name: string }[] | null
+      }
+
+      const infoByCode = new Map<string, {
+        name: string
+        productTypeId: string
+        productTypeName: string
+        strainId?: string
+        strainName?: string
+        gramsPerUnit: number
+        unitsPerCase: number
+        format: ReturnType<typeof deriveFormat>
+      }>()
+
+      for (const raw of skuRows || []) {
+        const row = raw as unknown as SkuEnrichmentRow
+
+        // Supabase returns embedded relations as either an array or a single
+        // object depending on the join — handle both defensively (same
+        // pattern already used for product_types above).
+        const productType = Array.isArray(row.product_types)
+          ? row.product_types[0]
+          : row.product_types
+        const strain = Array.isArray(row.strains) ? row.strains[0] : row.strains
+
+        const productTypeName = productType?.name || 'Unknown'
+        const gramsPerUnit = Number(row.grams_per_unit)
+        const unitsPerCase = Number(row.units_per_case)
+
+        infoByCode.set(row.code, {
+          name: row.name,
+          productTypeId: row.product_type_id,
+          productTypeName,
+          strainId: row.strain_id || undefined,
+          strainName: strain?.name || undefined,
+          gramsPerUnit,
+          unitsPerCase,
+          format: deriveFormat(productTypeName, gramsPerUnit, unitsPerCase),
         })
       }
+
       for (const status of skuStatus) {
-        const t = typeByCode.get(status.sku)
-        if (t) {
-          status.productTypeId = t.id
-          status.productTypeName = t.name
+        const info = infoByCode.get(status.sku)
+        if (info) {
+          status.name = info.name
+          status.productTypeId = info.productTypeId
+          status.productTypeName = info.productTypeName
+          status.strainId = info.strainId
+          status.strainName = info.strainName
+          status.gramsPerUnit = info.gramsPerUnit
+          status.unitsPerCase = info.unitsPerCase
+          status.format = info.format
         }
       }
     } catch (err) {
-      console.error('Failed to enrich SKU status with product types:', err)
+      console.error('Failed to enrich SKU status with product/strain/format info:', err)
     }
 
     // Filter to only AVAILABLE containers

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { FloatingMenu } from '@/components/ui/floating-menu'
 import { OrderAlertBar } from '@/components/packaging/order-alert-bar'
+import { InventoryMatrix } from '@/components/packaging/inventory-matrix'
 import {
   getDashboardData,
   advanceTask,
@@ -300,21 +301,11 @@ export default function PackagingPage() {
                 <div className="text-red-400 text-sm text-center">{data.error}</div>
               )}
 
-              {skuGroups.map(group => (
-                <div key={group.name}>
-                  <p className="text-xs text-muted-foreground mb-2 text-center font-semibold">{group.name}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {group.skus.map(sku => (
-                      <div key={sku.sku} className="min-w-[120px] flex-1">
-                        <InventoryCard
-                          sku={sku}
-                          onClick={() => handleEditOpen(sku)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              <InventoryMatrix
+                skus={data?.inventory || []}
+                onCellClick={handleEditOpen}
+                variant="desktop"
+              />
             </div>
           )}
 
@@ -564,23 +555,14 @@ export default function PackagingPage() {
               <div className="text-red-400 text-sm text-center">{data.error}</div>
             )}
 
-            {skuGroups.map(group => (
-              <div key={group.name}>
-                <p className="text-sm font-semibold text-muted-foreground mb-3">{group.name}</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {group.skus.map(sku => (
-                    <InventoryCard
-                      key={sku.sku}
-                      sku={sku}
-                      onClick={() => {
-                        setMobileInventoryOpen(false)
-                        handleEditOpen(sku)
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
+            <InventoryMatrix
+              skus={data?.inventory || []}
+              onCellClick={(sku) => {
+                setMobileInventoryOpen(false)
+                handleEditOpen(sku)
+              }}
+              variant="mobile"
+            />
           </div>
         </SheetContent>
       </Sheet>
@@ -592,51 +574,6 @@ export default function PackagingPage() {
 // ============================================
 // COMPONENTS
 // ============================================
-
-function InventoryCard({ sku, onClick }: { sku: SKUStatus; onClick: () => void }) {
-  const hasGap = sku.gap > 0
-  const borderClass = hasGap ? 'border-red-500 border-2' : sku.lowStock ? 'border-amber-500 border-2' : ''
-
-  return (
-    <Card
-      className={`cursor-pointer hover:bg-muted/50 transition-colors ${borderClass}`}
-      onClick={onClick}
-    >
-      <CardContent className="p-2">
-        <p className="font-bold text-sm text-center mb-1">{sku.sku}</p>
-        <div className="grid grid-cols-3 gap-1 text-xs">
-          <div className="text-center">
-            <div className="text-green-400 font-semibold">{sku.cased}</div>
-            <div className="text-muted-foreground text-[10px]">CASED</div>
-          </div>
-          <div className="text-center">
-            <div className="text-blue-400 font-semibold">{sku.filled}</div>
-            <div className="text-muted-foreground text-[10px]">FILLED</div>
-          </div>
-          <div className="text-center">
-            <div className={`font-semibold ${sku.lowStock ? 'text-amber-400' : 'text-purple-400'}`}>
-              {sku.staged}
-            </div>
-            <div className="text-muted-foreground text-[10px]">STAGED</div>
-          </div>
-        </div>
-        {sku.pending > 0 && (
-          <p className="text-xs mt-1 text-center">Orders: {sku.pending}</p>
-        )}
-        {hasGap && (
-          <p className="text-xs mt-1 text-center text-red-400">Stage: {sku.gap}</p>
-        )}
-        {sku.lowStock && !hasGap && (
-          <div className="text-center mt-1">
-            <Badge variant="outline" className="text-[9px] text-amber-400 border-amber-400">
-              Low Stock
-            </Badge>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
 
 function KanbanColumnComponent({
   title,

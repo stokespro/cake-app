@@ -21,11 +21,17 @@ async function loadSkuMappings(): Promise<void> {
   if (skuCodeToId !== null) return;
 
   const supabase = await createServiceClient();
-  // Only load active SKUs — staged/discontinued must not appear in packaging boards
+  // Only load active SKUs — staged/discontinued must not appear in packaging boards.
+  // .order('code') is the fix for SPRO-128: without it, Supabase returns rows in
+  // arbitrary/unstable order, which is what made the inventory strip's card order
+  // shuffle across restarts. Downstream (readInventory()'s Map, generateSKUStatus's
+  // Object.keys()) all preserve insertion order, so this one .order() call is what
+  // makes the whole pipeline deterministic.
   const { data, error } = await supabase
     .from('skus')
     .select('id, code')
-    .eq('status', 'active');
+    .eq('status', 'active')
+    .order('code');
 
   if (error) throw new Error(`Failed to load SKUs: ${error.message}`);
 

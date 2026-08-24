@@ -108,18 +108,44 @@ export interface CompletedTask {
   sources?: TaskSource[];
 }
 
+// Packaging format, derived server-side from grams_per_unit + units_per_case +
+// product type name — NEVER by string-parsing the free-form `code` column.
+// See deriveFormat() in allocation-engine.ts for the derivation rules.
+// 'Other' covers anything that doesn't map to a known matrix column; SKUs in
+// that bucket must still render (see the inventory matrix's "Other" section),
+// never be silently dropped.
+export type SKUFormat = 'Eighth' | 'Half' | 'Variety' | 'Bites' | 'Other';
+
+// Inventory cell urgency state (SPRO-128). Precedence — computed by
+// computeInventoryState() in allocation-engine.ts — is short > restage > low
+// > ok > idle:
+//   short   - gap > 0 (demand exceeds cased+filled+staged on hand)
+//   restage - staged === 0 && pending > 0 (nothing staged, but open orders —
+//             the "blind spot" this redesign exists to fix)
+//   low     - 0 < staged < LOW_STOCK_THRESHOLD
+//   ok      - staged >= LOW_STOCK_THRESHOLD
+//   idle    - active SKU, zero everything, no pending demand
+export type InventoryCellState = 'short' | 'restage' | 'low' | 'ok' | 'idle';
+
 // SKU status for inventory bar display
 export interface SKUStatus {
   sku: SKU;
   name?: string;
   productTypeId?: string;
   productTypeName?: string;
+  strainId?: string;
+  strainName?: string;
+  format?: SKUFormat;
+  gramsPerUnit?: number;
+  unitsPerCase?: number;
   cased: number;
   filled: number;
   staged: number;
   pending: number;    // Sum of pending/confirmed orders
   gap: number;        // Shortfall if any (demand - available)
-  lowStock: boolean;  // STAGED < 4 (partial container)
+  lowStock: boolean;  // STAGED < 4 (partial container) — superseded by `state`,
+                       // kept so nothing else consuming this field breaks
+  state: InventoryCellState;
 }
 
 // Dashboard data returned from API
