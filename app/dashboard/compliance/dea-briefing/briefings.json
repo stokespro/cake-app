@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-08-23",
+  "lastUpdated": "2026-08-24",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-08-23",
+    "lastVerified": "2026-08-24",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -45,8 +45,8 @@
         ]
       }
     ],
-    "expeditedWindow": "AUGUST 23 UPDATE: CORRECTED TRANSCRIPT DUE AUGUST 26 — ALJ Derek Julius ordered 294 corrections to the 2,500-page hearing transcript (Aug 20); corrected version with changes shown in red must be posted on DEA.gov by August 26, 2026. All post-hearing briefs were filed by the August 17 deadline. ALJ recommended decision timeline: no fixed deadline — expected months from now; an NPRM is anticipated before year-end 2026, with a final rule possible in 2027 absent legal challenges. D.C. Circuit stay motion remains FULLY BRIEFED (since July 17) — no ruling as of August 23, 2026; court can act at any time. OBNDD enforcement grace period: January 1, 2027.",
-    "caution": "AUGUST 23 UPDATE: KEY RISKS — (1) D.C. CIRCUIT STAY: No ruling issued as of August 23; a granted stay would suspend the Schedule III order and could void DEA registrations. Monitor deadiversion.usdoj.gov and dc.uscourts.gov. (2) TRANSCRIPT CORRECTION MISINFORMATION: The 294 corrections ALJ Julius ordered (Aug 20) include some substantive language changes (e.g., 'there's adulterants' corrected to 'there's no adulterants'). Claims that these corrections signal hearing manipulation or reversed testimony are FALSE — routine procedural correction, not a substantive outcome signal. (3) CONSULTANT LATE-FILER MARKETING: Post-June 29 consultants continue to market 'late registration' services without disclosing that the expedited safe-harbor window is permanently closed. (4) CR HEMP DELAY NOT YET LAW: The Senate CR provision delaying the hemp ban to Dec 11 is NOT enacted — the House must still pass it when it returns from recess on August 31. November 12 remains the operative deadline until the House acts. (5) STATES GETTING NO FEDERAL GUIDANCE: A South Dakota official confirmed August 22 that federal agencies have provided states little-to-no implementation guidance four months after Schedule III took effect — 'at the state level, we probably have more questions than answers.' The September 30 response deadline on the bipartisan House guidance letter is the nearest federal-clarity milestone.",
+    "expeditedWindow": "AUGUST 24 UPDATE: CORRECTED TRANSCRIPT DUE WEDNESDAY AUGUST 26 (2 DAYS) — ALJ Derek Julius ordered 294 corrections to the 2,500-page hearing transcript (Aug 20); corrected version with changes shown in red must be posted on DEA.gov by August 26, 2026. All post-hearing briefs were filed by the August 17 deadline. ALJ recommended decision timeline: no fixed deadline — expected months from now; an NPRM is anticipated before year-end 2026, with a final rule possible in 2027 absent legal challenges. D.C. Circuit stay motion remains FULLY BRIEFED (since July 17) — no ruling as of August 24, 2026; court can act at any time. CR HEMP DELAY: House returns approximately August 31 — Roll Call confirmed August 24 that the CR hemp provision still faces significant obstacles in the House (Budd/Ricketts committed to stripping it); November 12 is the operative hemp compliance deadline until the President signs reconciled legislation. OBNDD enforcement grace period: January 1, 2027.",
+    "caution": "AUGUST 24 UPDATE: KEY RISKS — (1) D.C. CIRCUIT STAY: No ruling issued as of August 24; a granted stay would suspend the Schedule III order and could void DEA registrations. Monitor deadiversion.usdoj.gov and dc.uscourts.gov. (2) TRANSCRIPT CORRECTION MISINFORMATION: The 294 corrections ALJ Julius ordered (Aug 20) include some substantive language changes (e.g., 'there's adulterants' corrected to 'there's no adulterants'). Claims that these corrections signal hearing manipulation or reversed testimony are FALSE — routine procedural correction, not a substantive outcome signal. (3) CONSULTANT LATE-FILER MARKETING: Post-June 29 consultants continue to market 'late registration' services without disclosing that the expedited safe-harbor window is permanently closed. (4) CR HEMP DELAY NOT YET LAW: Roll Call confirmed August 24 ('Stopgap funding bill's hemp troubles aren't over') that the Senate CR hemp provision still faces substantial opposition in the House — Sens. Budd and Ricketts have committed to pressing House leadership to strip the delay when Congress returns approximately August 31. November 12 remains the operative hemp deadline until the President signs reconciled legislation. Do not plan around December 11. (5) STATES GETTING NO FEDERAL GUIDANCE: A South Dakota official confirmed August 22 that federal agencies have provided states little-to-no implementation guidance four months after Schedule III took effect — 'at the state level, we probably have more questions than answers.' The September 30 response deadline on the bipartisan House guidance letter is the nearest federal-clarity milestone. (6) ALJ TIMELINE PROJECTION RISK: CPAs and law blogs (GreenGrowth CPAs, Cannabis Industry Lawyer) are circulating 'ALJ decision by late 2026 / early 2027' projections that operators are using for capital planning. These projections have NO announced basis — the ALJ has no regulatory deadline to issue his recommended decision, and historical DEA scheduling proceedings have taken years after hearing close. Adult-use broader rescheduling is a separate track from the current April 28 medical-cannabis Schedule III order.",
     "officialSources": [
       {
         "name": "DEA — Marijuana Rescheduling Regulatory Actions",
@@ -111,6 +111,19 @@
     }
   ],
   "items": [
+    {
+      "id": "house-cr-hemp-troubles-not-over-aug24-rollcall",
+      "headline": "Roll Call Reports August 24: 'Stopgap Funding Bill's Hemp Troubles Aren't Over' — House Returns August 31; November 12 Remains Operative Deadline",
+      "date": "2026-08-24",
+      "summary": "Roll Call reported on August 24, 2026 that the hemp delay provision in the Senate-passed Continuing Appropriations and Extensions Act, 2027 faces significant obstacles in the House when it returns from recess on approximately August 31, 2026. Senators Ted Budd (R-NC) and Mike Ricketts (R-NE) — who attempted to strip the hemp delay from the Senate CR — have publicly committed to pressing House leadership to reject or strip the provision in conference. The House passed its own CR in July 2026 with no hemp language; the two chambers must reconcile before any delay can be enacted. No House floor vote on the hemp provision has been scheduled. November 12, 2026 remains the operative federal hemp compliance deadline unless and until the House passes the Senate's version and the President signs it.",
+      "whyItMatters": "For CAKE and its Oklahoma wholesale dispensary customers, the Roll Call August 24 report confirms that exactly one week before the House returns, the CR hemp delay is unresolved — and the senators most committed to stripping the delay have stated they will carry that fight into House negotiations. Oklahoma dispensaries carrying hemp-derived THCA-flower, delta-8, delta-10, or hemp beverages should not reduce November 12 compliance preparations based on the Senate's 90-6 CR passage. Even if the House ultimately adopts the Senate language, the enacted delay would cover only naturally-occurring cannabinoids and extends the deadline only 29 days (to December 11) — synthetic cannabinoids not naturally produced by Cannabis sativa L. (HHC, THC-O acetate) face November 12 recriminalization under the Senate CR's own carve-out language regardless of House action. Square's October 15 merchant deadline and November 5 account-closure date for hemp-heavy businesses are unaffected by any legislative outcome. Plan for November 12 as the operative date.",
+      "tags": ["federal", "deadline", "pending", "dispensary", "cultivation"],
+      "source": {
+        "name": "Roll Call — Stopgap funding bill's hemp troubles aren't over (August 24, 2026)",
+        "url": "https://rollcall.com/2026/08/24/stopgap-funding-bills-hemp-troubles-arent-over/"
+      },
+      "pinned": false
+    },
     {
       "id": "feds-not-answering-states-rescheduling-implementation-aug22",
       "headline": "States Report Getting No Federal Implementation Guidance Four Months After Schedule III — South Dakota Official: 'We Have More Questions Than Answers'",
@@ -2241,6 +2254,17 @@
     }
   ],
   "discourse": [
+    {
+      "id": "watch-alj-recommended-decision-late-2026-timeline-projection",
+      "headline": "CPAs and Law Blogs Projecting 'ALJ Decision by Late 2026 / Early 2027' — No Announced Timeline; Historical DEA Norm Is Months to Years",
+      "claim": "GreenGrowth CPAs, Cannabis Industry Lawyer, and other advisors are publicly projecting the DEA ALJ's recommended decision will be issued by late 2026 or early 2027 — and operators are reportedly making capital and compliance planning decisions on this projected date.",
+      "caution": "No ALJ timeline has been announced. Chief ALJ Derek Julius has no published or regulatory-required deadline to issue his recommended decision — the CSA requires only 'as soon as practicable.' The last comparable DEA cannabis scheduling proceeding ran for years. Even under an accelerated schedule, a 'late 2026' ALJ recommended decision initiates more steps: a 20-day period for parties to file exceptions to the recommendation, DEA Administrator review and final administrative order, and an NPRM-equivalent before any final broader-rescheduling rule. The adult-use broader rescheduling ALJ proceeding is a completely separate track from the April 28 medical-cannabis Schedule III order that already governs Oklahoma OMMA operators. Oklahoma operators should not make irreversible capital decisions on the basis of a speculative ALJ date. The ALJ's recommended decision, whenever it arrives, is an advisory recommendation — the DEA Administrator issues the binding final order.",
+      "source": {
+        "name": "GreenGrowth CPAs — DEA Hearing Outcome July 2026 Cannabis",
+        "url": "https://greengrowthcpas.com/dea-hearing-outcome-july-2026-cannabis/"
+      },
+      "date": "2026-08"
+    },
     {
       "id": "watch-mmj-intl-aug22-games-dea-attorneys-play",
       "headline": "MMJ International Holdings Publishes August 22 'Games DEA Attorneys Play' Attack on DEA Closing Brief",
