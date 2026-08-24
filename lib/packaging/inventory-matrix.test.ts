@@ -18,6 +18,12 @@ function makeSku(overrides: Partial<SKUStatus> & { sku: string }): SKUStatus {
   };
 }
 
+describe('FORMAT_COLUMNS', () => {
+  it('is fixed to Eighth, Half, Bites, Variety — the stable column order both the desktop table and mobile grid render in', () => {
+    expect(FORMAT_COLUMNS).toEqual(['Eighth', 'Half', 'Bites', 'Variety']);
+  });
+});
+
 describe('buildInventoryMatrix', () => {
   it('rows are alphabetical strain names, independent of input order', () => {
     const skus: SKUStatus[] = [

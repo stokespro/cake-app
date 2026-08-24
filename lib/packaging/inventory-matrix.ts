@@ -6,7 +6,7 @@ import type { SKUStatus, InventoryCellState } from './types';
 
 // Fixed column order — never re-sorted, never data-driven. Row/column
 // stability across realtime refresh is the core promise of this redesign.
-export const FORMAT_COLUMNS = ['Eighth', 'Half', 'Variety', 'Bites'] as const;
+export const FORMAT_COLUMNS = ['Eighth', 'Half', 'Bites', 'Variety'] as const;
 export type FormatColumn = (typeof FORMAT_COLUMNS)[number];
 
 export type MatrixCell =

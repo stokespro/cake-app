@@ -13,7 +13,7 @@ import {
 
 // SPRO-128 — strain x format inventory matrix. Replaces the old flat,
 // arbitrarily-ordered InventoryCard strip. Rows = strain (alphabetical,
-// fixed). Columns = format (Eighth, Half, Variety, Bites — fixed order).
+// fixed). Columns = format (Eighth, Half, Bites, Variety — fixed order).
 // Row/column position never changes on realtime refresh.
 //
 // STAGED is the dominant number in every cell (large, colored by state) —

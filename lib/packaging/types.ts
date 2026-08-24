@@ -114,7 +114,7 @@ export interface CompletedTask {
 // 'Other' covers anything that doesn't map to a known matrix column; SKUs in
 // that bucket must still render (see the inventory matrix's "Other" section),
 // never be silently dropped.
-export type SKUFormat = 'Eighth' | 'Half' | 'Variety' | 'Bites' | 'Other';
+export type SKUFormat = 'Eighth' | 'Half' | 'Bites' | 'Variety' | 'Other';
 
 // Inventory cell urgency state (SPRO-128). Precedence — computed by
 // computeInventoryState() in allocation-engine.ts — is short > restage > low
