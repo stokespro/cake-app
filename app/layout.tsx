@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,6 +52,10 @@ export default function RootLayout({
         >
           <AuthProvider>
             {children}
+            {/* Sonner's portal. Without this mounted, every toast.success/
+                toast.error call in the app is a silent no-op — which is how
+                failed saves looked like successful ones (SPRO-130). */}
+            <Toaster position="top-center" richColors closeButton />
           </AuthProvider>
         </ThemeProvider>
       </body>
