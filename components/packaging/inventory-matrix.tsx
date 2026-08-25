@@ -16,12 +16,16 @@ import {
 // fixed). Columns = format (Eighth, Half, Bites, Variety — fixed order).
 // Row/column position never changes on realtime refresh.
 //
-// STAGED is the dominant number in every cell (large, colored by state) —
-// it's the one packaging acts on. FILLED/CASED drop to a small secondary
-// line, each with its own color chip (blue/green, matching the app's
-// existing FILLED/CASED color semantics) so they stay legible on a phone
-// instead of collapsing into a washed-out grey line. Pending orders are a
-// small corner pill so cell height never changes.
+// SPRO-132 — CASED is the dominant number in every cell: it's finished,
+// sellable inventory, and the Packaging Manager reads the board for "how
+// much do we actually have." The big number is intentionally neutral
+// (text-foreground) rather than state-colored — state now reads from the
+// card itself (tinted background + full colored border, with a stronger
+// left accent), so color communicates urgency at the card level instead of
+// competing with the number for attention. STAGED/FILLED sit in a
+// full-width bottom row (staged left, filled right) so both stay legible
+// without shrinking to an unreadable line. Pending orders are a small
+// corner pill so cell height stays fixed regardless of state.
 interface InventoryMatrixProps {
   skus: SKUStatus[]
   onCellClick: (sku: SKUStatus) => void
@@ -68,7 +72,7 @@ export function InventoryMatrix({ skus, onCellClick, variant }: InventoryMatrixP
                 <p className="mb-1 truncate text-[10px] text-muted-foreground">
                   {sku.strainName || 'No strain'} · {sku.format || 'Unknown format'}
                 </p>
-                <MatrixCellView cell={{ kind: 'sku', sku }} onClick={onCellClick} />
+                <MatrixCellView cell={{ kind: 'sku', sku }} onClick={onCellClick} variant="desktop" />
               </div>
             ))}
           </div>
@@ -118,6 +122,7 @@ function DesktopMatrix({
                   <MatrixCellView
                     cell={cells.get(strain)?.get(format) ?? { kind: 'na' }}
                     onClick={onCellClick}
+                    variant="desktop"
                   />
                 </td>
               ))}
@@ -154,6 +159,7 @@ function MobileMatrix({
                 <MatrixCellView
                   cell={cells.get(strain)?.get(format) ?? { kind: 'na' }}
                   onClick={onCellClick}
+                  variant="mobile"
                 />
               </div>
             ))}
@@ -166,12 +172,24 @@ function MobileMatrix({
 
 // Colors/labels per cell state. `short`/`restage`/`low` share amber-ish
 // urgency but restage/low differ in label; short is red (highest precedence).
-const STATE_STYLES: Record<InventoryCellState, { border: string; bg: string; text: string }> = {
-  short: { border: 'border-l-red-500', bg: 'bg-red-500/10', text: 'text-red-400' },
-  restage: { border: 'border-l-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-400' },
-  low: { border: 'border-l-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-400' },
-  ok: { border: 'border-l-green-500', bg: 'bg-green-500/5', text: 'text-green-400' },
-  idle: { border: 'border-l-border', bg: 'bg-muted/40', text: 'text-muted-foreground' },
+// `borderAll` tints all four sides of the card; `borderL` layers a heavier
+// left accent on top of it (Tailwind resolves the more specific `border-l-*`
+// utility over the general `border-*` color for the left edge, which is the
+// standard pattern for accent-bordered cards).
+const STATE_STYLES: Record<
+  InventoryCellState,
+  { borderAll: string; borderL: string; bg: string; text: string }
+> = {
+  short: { borderAll: 'border-red-500/40', borderL: 'border-l-red-500', bg: 'bg-red-500/10', text: 'text-red-400' },
+  restage: {
+    borderAll: 'border-amber-500/40',
+    borderL: 'border-l-amber-500',
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-400',
+  },
+  low: { borderAll: 'border-amber-500/40', borderL: 'border-l-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-400' },
+  ok: { borderAll: 'border-green-500/30', borderL: 'border-l-green-500', bg: 'bg-green-500/5', text: 'text-green-400' },
+  idle: { borderAll: 'border-border', borderL: 'border-l-border', bg: 'bg-muted/40', text: 'text-muted-foreground' },
 }
 
 function stateLabel(sku: SKUStatus): string | null {
@@ -190,14 +208,16 @@ function stateLabel(sku: SKUStatus): string | null {
 function MatrixCellView({
   cell,
   onClick,
+  variant,
 }: {
   cell: MatrixCell
   onClick: (sku: SKUStatus) => void
+  variant: 'desktop' | 'mobile'
 }) {
   if (cell.kind === 'na') {
     return (
       <div
-        className="min-h-[60px] rounded-md border border-dashed border-border/70 opacity-40"
+        className="min-h-[68px] rounded-md border border-dashed border-border/70 opacity-40"
         style={{
           backgroundImage:
             'repeating-linear-gradient(135deg, var(--border) 0, var(--border) 3px, transparent 3px, transparent 9px)',
@@ -209,7 +229,7 @@ function MatrixCellView({
 
   if (cell.kind === 'inactive') {
     return (
-      <div className="flex min-h-[60px] flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-border opacity-50">
+      <div className="flex min-h-[68px] flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-border opacity-50">
         <span className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">
           INACTIVE
         </span>
@@ -220,40 +240,68 @@ function MatrixCellView({
   const { sku } = cell
   const styles = STATE_STYLES[sku.state]
   const label = stateLabel(sku)
+  const cornerTextSize = variant === 'desktop' ? 'text-[11px]' : 'text-[9px]'
 
   return (
     <button
       type="button"
       onClick={() => onClick(sku)}
       className={cn(
-        'relative flex min-h-[60px] w-full flex-col items-center justify-center gap-0.5 rounded-md border-l-[3px] px-1.5 pt-3 pb-1 text-left transition-colors hover:brightness-110',
-        styles.border,
+        'relative flex min-h-[68px] w-full flex-col items-center justify-between gap-1 rounded-md border border-l-[3px] px-1.5 pt-4 pb-1 text-left transition-colors hover:brightness-110',
+        styles.borderAll,
+        styles.borderL,
         styles.bg
       )}
     >
-      <span className="absolute left-1.5 top-1 text-[8px] font-bold uppercase tracking-wide text-muted-foreground">
+      {/* Bounded via left+right (not just a font-size guess) so the code can
+          never run under the pending pill: reserve ~1.25rem on the right
+          when the pill renders, truncate rather than wrap. */}
+      <span
+        className={cn(
+          'absolute left-1.5 top-1 truncate font-bold uppercase tracking-wide text-muted-foreground',
+          cornerTextSize,
+          sku.pending > 0 ? 'right-5' : 'right-1'
+        )}
+      >
         {sku.sku}
       </span>
       {sku.pending > 0 && (
-        <span className="absolute right-1 top-1 rounded-full border border-border bg-card px-1 text-[8px] font-bold text-muted-foreground">
+        <span
+          className={cn(
+            'absolute right-1 top-1 rounded-full border border-border bg-card px-1 font-bold text-muted-foreground',
+            cornerTextSize
+          )}
+        >
           {sku.pending}
         </span>
       )}
-      <span className={cn('text-lg font-extrabold leading-none', styles.text)}>{sku.staged}</span>
-      {/* Amendment: order is FILLED then CASED, each with its own established
-          color (blue = filled, green = cased) — not the washed-out uniform
-          muted line from the original mockup. */}
-      <span className="flex items-center gap-1 text-[9px]">
-        <span className="font-semibold text-blue-400">{`F: ${sku.filled}`}</span>
-        <span className="text-muted-foreground">-</span>
-        <span className="font-semibold text-green-400">{`C: ${sku.cased}`}</span>
+
+      <span className="flex flex-1 flex-col items-center justify-center gap-0.5">
+        <span className="text-lg font-extrabold leading-none text-foreground">{sku.cased}</span>
+        {label && (
+          <span className={cn('text-[8px] font-extrabold uppercase tracking-wide', styles.text)}>
+            {label}
+          </span>
+        )}
+        {sku.state === 'idle' && (
+          <span className="text-[8px] text-muted-foreground">no demand</span>
+        )}
       </span>
-      {label && (
-        <span className={cn('text-[8px] font-extrabold uppercase tracking-wide', styles.text)}>
-          {label}
+
+      {/* Full-width bottom row: staged (left) / filled (right). Staged stays
+          neutral — state color already lives on the card border/bg — while
+          filled keeps the app's established blue so it reads consistently
+          with FILLED elsewhere on the board. */}
+      <span className="flex w-full items-center justify-between text-[9px]">
+        <span>
+          <span className="text-muted-foreground">{variant === 'desktop' ? 'STAGED: ' : 'S: '}</span>
+          <span className="font-semibold text-foreground">{sku.staged}</span>
         </span>
-      )}
-      {sku.state === 'idle' && <span className="text-[8px] text-muted-foreground">no demand</span>}
+        <span>
+          <span className="text-muted-foreground">{variant === 'desktop' ? 'FILLED: ' : 'F: '}</span>
+          <span className="font-semibold text-blue-400">{sku.filled}</span>
+        </span>
+      </span>
     </button>
   )
 }
