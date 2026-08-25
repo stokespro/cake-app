@@ -109,6 +109,10 @@ export async function readSKUInventory(sku: SKU): Promise<InventoryLevels> {
     .single();
 
   if (error) {
+    // PGRST116 = no row. A SKU with no inventory row genuinely holds nothing,
+    // so zeros are the right read. This fallback is only safe because the
+    // write path upserts (SPRO-131) — when it was update-only, this quietly
+    // handed callers a 0 to increment and then threw the result away.
     if (error.code === 'PGRST116') {
       return { cased: 0, filled: 0, staged: 0 };
     }
@@ -132,15 +136,38 @@ export async function updateInventoryCell(
   const fieldName = field.toLowerCase() as 'cased' | 'staged' | 'filled';
 
   const supabase = await createServiceClient();
-  const { error } = await supabase
+  // SPRO-131: upsert, not update — see updateInventoryWithLog() below for why.
+  const { data, error } = await supabase
     .from('inventory')
-    .update({ [fieldName]: value })
-    .eq('sku_id', skuId);
+    .upsert({ sku_id: skuId, [fieldName]: value }, { onConflict: 'sku_id' })
+    .select('sku_id');
 
   if (error) throw new Error(`Failed to update inventory: ${error.message}`);
+  if (!data || data.length === 0) {
+    throw new Error(`Failed to update inventory: no row written for SKU ${sku}`);
+  }
 }
 
-// Update inventory with logging
+// Update inventory with logging.
+//
+// SPRO-131: this was a bare `.update().eq('sku_id', skuId)`. A SKU with no
+// `inventory` row — which is every SKU created since the original vault seed,
+// because nothing has ever inserted one — made that UPDATE match zero rows,
+// and Postgres does not treat a zero-row UPDATE as an error. Supabase returned
+// `error: null`, the inventory_log row was written regardless, and the UI
+// toasted success for a write that never happened. Aloha Sugar was staged
+// three times and stayed at 0.
+//
+// The upsert is the fix: `sku_id` is the primary key (`inventory_pkey`) and
+// cased/filled/staged are NOT NULL DEFAULT 0, so writing one field either
+// inserts the row with the other two at 0, or updates just that field on the
+// existing row. Concurrent partial upserts on the same missing row are safe —
+// the first inserts, the rest take the ON CONFLICT DO UPDATE branch — which
+// matters because updateInventoryLevels() and completeWeighAndFill() both fire
+// several of these through Promise.all.
+//
+// The `.select()` is not decoration: it is what makes a zero-row write
+// impossible to mistake for success ever again.
 async function updateInventoryWithLog(
   skuId: string,
   field: 'cased' | 'filled' | 'staged',
@@ -154,12 +181,15 @@ async function updateInventoryWithLog(
   const supabase = await createServiceClient();
 
   // Update inventory
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from('inventory')
-    .update({ [field]: newValue })
-    .eq('sku_id', skuId);
+    .upsert({ sku_id: skuId, [field]: newValue }, { onConflict: 'sku_id' })
+    .select('sku_id');
 
   if (updateError) throw new Error(`Failed to update inventory: ${updateError.message}`);
+  if (!updated || updated.length === 0) {
+    throw new Error(`Failed to update inventory: no row written for sku_id ${skuId}`);
+  }
 
   // Log the change
   const { error: logError } = await supabase

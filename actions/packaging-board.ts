@@ -546,7 +546,7 @@ export async function advanceClaimed(params: AdvanceClaimedParams): Promise<Adva
       return { success: false, error: 'Insufficient staged inventory — another worker may have advanced' }
     }
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('inventory')
       .update({
         staged: invData.staged - qty,
@@ -554,9 +554,21 @@ export async function advanceClaimed(params: AdvanceClaimedParams): Promise<Adva
       })
       .eq('sku_id', skuId)
       .gte('staged', qty) // atomic guard
+      .select('sku_id')
 
     if (updateError) {
       return { success: false, error: `Inventory update failed: ${updateError.message}` }
+    }
+
+    // SPRO-131: the `.gte()` guard is what makes this atomic, but a guard that
+    // rejects matches zero rows — and a zero-row UPDATE is not an error. Without
+    // this check the claim below would be completed against inventory that never
+    // moved, which is the same silent-no-op that broke staging.
+    if (!updated || updated.length === 0) {
+      return {
+        success: false,
+        error: 'Insufficient staged inventory — another worker may have advanced',
+      }
     }
 
     // Write inventory logs (informational, non-blocking)
@@ -594,7 +606,7 @@ export async function advanceClaimed(params: AdvanceClaimedParams): Promise<Adva
       return { success: false, error: 'Insufficient filled inventory — another worker may have advanced' }
     }
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('inventory')
       .update({
         filled: invData.filled - qty,
@@ -602,9 +614,19 @@ export async function advanceClaimed(params: AdvanceClaimedParams): Promise<Adva
       })
       .eq('sku_id', skuId)
       .gte('filled', qty) // atomic guard
+      .select('sku_id')
 
     if (updateError) {
       return { success: false, error: `Inventory update failed: ${updateError.message}` }
+    }
+
+    // See the FILL branch above — a rejected guard is a zero-row UPDATE, not an
+    // error, and must not be allowed to complete the claim (SPRO-131).
+    if (!updated || updated.length === 0) {
+      return {
+        success: false,
+        error: 'Insufficient filled inventory — another worker may have advanced',
+      }
     }
 
     // Write inventory logs (informational)

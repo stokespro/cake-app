@@ -163,7 +163,7 @@ export async function createSku(input: CreateSkuInput): Promise<
 
   const db = await createServiceClient()
 
-  const { error } = await db
+  const { data: created, error } = await db
     .from('skus')
     .insert({
       code: input.code.trim().toUpperCase(),
@@ -175,6 +175,8 @@ export async function createSku(input: CreateSkuInput): Promise<
       status: input.status,
       description: input.description?.trim() || null,
     })
+    .select('id')
+    .single()
 
   if (error) {
     console.error('[products] createSku error:', error)
@@ -182,6 +184,28 @@ export async function createSku(input: CreateSkuInput): Promise<
       return { error: 'A product with this code or name already exists. Please choose different values.' }
     }
     return { error: `Failed to create product: ${error.message}` }
+  }
+
+  // SPRO-131: give every new SKU its inventory row up front. Creating a SKU
+  // without one is what made Aloha Sugar unstageable — the packaging write
+  // paths now upsert so they recover on their own, but a SKU that starts life
+  // with a real row is the actual invariant, and it keeps every read path
+  // (inventory dashboard, order availability, in_stock derivation) honest from
+  // the first day rather than from the first time someone stages it.
+  //
+  // ignoreDuplicates so this stays correct once the DB-level trigger in
+  // 20260825170000_backfill_inventory_rows.sql is applied.
+  const { error: inventoryError } = await db
+    .from('inventory')
+    .upsert(
+      { sku_id: created.id, cased: 0, filled: 0, staged: 0 },
+      { onConflict: 'sku_id', ignoreDuplicates: true }
+    )
+
+  if (inventoryError) {
+    // The SKU exists and the packaging write paths upsert, so this is
+    // recoverable — surface it rather than failing the whole creation.
+    console.error('[products] createSku inventory row error:', inventoryError)
   }
 
   return {}

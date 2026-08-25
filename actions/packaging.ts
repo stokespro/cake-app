@@ -144,15 +144,16 @@ export async function advanceTask(
 
   const skuId = skuData.id
 
-  const { data: inventory, error: invError } = await supabase
+  // SPRO-131: a SKU with no inventory row holds nothing. Read it as zeros so
+  // the insufficiency guards below produce an accurate message instead of a
+  // misleading "Inventory not found".
+  const { data: inventoryRow } = await supabase
     .from('inventory')
     .select('*')
     .eq('sku_id', skuId)
-    .single()
+    .maybeSingle()
 
-  if (invError) {
-    return { success: false, error: 'Inventory not found' }
-  }
+  const inventory = inventoryRow ?? { staged: 0, filled: 0, cased: 0 }
 
   if (fromColumn === 'TO_FILL') {
     // STAGED -> FILLED
@@ -160,16 +161,23 @@ export async function advanceTask(
       return { success: false, error: 'Insufficient staged inventory' }
     }
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('inventory')
       .update({
         staged: inventory.staged - quantity,
         filled: inventory.filled + quantity,
       })
       .eq('sku_id', skuId)
+      .select('sku_id')
 
     if (updateError) {
       return { success: false, error: updateError.message }
+    }
+
+    // A decrement must never create a row, so this stays an UPDATE — but an
+    // UPDATE matching nothing is not an error, so prove a row moved.
+    if (!updated || updated.length === 0) {
+      return { success: false, error: `Inventory update failed: no row for ${sku}` }
     }
 
     // Update task state to TO_CASE
@@ -191,16 +199,21 @@ export async function advanceTask(
       return { success: false, error: 'Insufficient filled inventory' }
     }
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('inventory')
       .update({
         filled: inventory.filled - quantity,
         cased: inventory.cased + quantity,
       })
       .eq('sku_id', skuId)
+      .select('sku_id')
 
     if (updateError) {
       return { success: false, error: updateError.message }
+    }
+
+    if (!updated || updated.length === 0) {
+      return { success: false, error: `Inventory update failed: no row for ${sku}` }
     }
 
     // Update task state to DONE
@@ -246,28 +259,37 @@ export async function revertTask(
 
   const skuId = skuData.id
 
-  const { data: inventory, error: invError } = await supabase
+  // SPRO-131: read a missing row as zeros; the guards below then reject the
+  // revert with a reason instead of a bare "Inventory not found".
+  const { data: inventoryRow } = await supabase
     .from('inventory')
     .select('*')
     .eq('sku_id', skuId)
-    .single()
+    .maybeSingle()
 
-  if (invError) {
-    return { success: false, error: 'Inventory not found' }
-  }
+  const inventory = inventoryRow ?? { staged: 0, filled: 0, cased: 0 }
 
   if (fromColumn === 'TO_CASE') {
     // FILLED -> STAGED
-    const { error: updateError } = await supabase
+    if (inventory.filled < quantity) {
+      return { success: false, error: 'Insufficient filled inventory to revert' }
+    }
+
+    const { data: updated, error: updateError } = await supabase
       .from('inventory')
       .update({
         filled: inventory.filled - quantity,
         staged: inventory.staged + quantity,
       })
       .eq('sku_id', skuId)
+      .select('sku_id')
 
     if (updateError) {
       return { success: false, error: updateError.message }
+    }
+
+    if (!updated || updated.length === 0) {
+      return { success: false, error: `Inventory update failed: no row for ${sku}` }
     }
 
     // Update task state to TO_FILL
@@ -285,16 +307,25 @@ export async function revertTask(
     }
   } else if (fromColumn === 'DONE') {
     // CASED -> FILLED
-    const { error: updateError } = await supabase
+    if (inventory.cased < quantity) {
+      return { success: false, error: 'Insufficient cased inventory to revert' }
+    }
+
+    const { data: updated, error: updateError } = await supabase
       .from('inventory')
       .update({
         cased: inventory.cased - quantity,
         filled: inventory.filled + quantity,
       })
       .eq('sku_id', skuId)
+      .select('sku_id')
 
     if (updateError) {
       return { success: false, error: updateError.message }
+    }
+
+    if (!updated || updated.length === 0) {
+      return { success: false, error: `Inventory update failed: no row for ${sku}` }
     }
 
     // Update task state to TO_CASE
@@ -336,23 +367,31 @@ export async function addStagedInventory(
     return { success: false, error: 'SKU not found' }
   }
 
-  const { data: inventory, error: invError } = await supabase
+  // SPRO-131: a missing inventory row used to hard-fail here with "Inventory
+  // not found". A SKU that has never been stocked simply holds 0 — treat it as
+  // such and let the upsert below create the row.
+  const { data: inventory } = await supabase
     .from('inventory')
     .select('staged')
     .eq('sku_id', skuData.id)
-    .single()
+    .maybeSingle()
 
-  if (invError) {
-    return { success: false, error: 'Inventory not found' }
-  }
+  const currentStaged = inventory?.staged ?? 0
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from('inventory')
-    .update({ staged: inventory.staged + quantity })
-    .eq('sku_id', skuData.id)
+    .upsert(
+      { sku_id: skuData.id, staged: currentStaged + quantity },
+      { onConflict: 'sku_id' }
+    )
+    .select('sku_id')
 
   if (updateError) {
     return { success: false, error: updateError.message }
+  }
+
+  if (!updated || updated.length === 0) {
+    return { success: false, error: `Staging failed: no inventory row written for ${sku}` }
   }
 
   return { success: true }
@@ -389,13 +428,20 @@ export async function updateInventory(
     return { success: false, error: 'No updates provided' }
   }
 
-  const { error: updateError } = await supabase
+  // SPRO-131: upsert so a SKU with no inventory row gets one instead of the
+  // UPDATE silently matching nothing. This is the path behind the "Edit
+  // inventory" dialog — it reported "Updated AS" for a write that never landed.
+  const { data: updated, error: updateError } = await supabase
     .from('inventory')
-    .update(updateData)
-    .eq('sku_id', skuData.id)
+    .upsert({ sku_id: skuData.id, ...updateData }, { onConflict: 'sku_id' })
+    .select('sku_id')
 
   if (updateError) {
     return { success: false, error: updateError.message }
+  }
+
+  if (!updated || updated.length === 0) {
+    return { success: false, error: `Update failed: no inventory row written for ${sku}` }
   }
 
   // Log the adjustment
