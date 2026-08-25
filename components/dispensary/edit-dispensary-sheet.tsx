@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DispensaryProfile } from '@/types/database'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
@@ -77,6 +77,30 @@ export function EditDispensarySheet({
     setErrors({})
   }
 
+  // formData is seeded by useState, which only runs on first mount. This sheet
+  // stays mounted for the life of the page, so without this the form keeps
+  // showing whatever the record looked like when the page first rendered —
+  // reopening right after a save displayed the pre-edit values and looked like
+  // the save had been discarded (SPRO-130). Re-seed each time the sheet opens
+  // (or the record changes); neither dep changes while the user is mid-edit,
+  // so this never clobbers typing.
+  useEffect(() => {
+    if (!open) return
+    setFormData({
+      business_name: dispensary?.business_name || '',
+      license_name: dispensary?.license_name || '',
+      address: dispensary?.address || '',
+      phone_number: dispensary?.phone_number || '',
+      email: dispensary?.email || '',
+      omma_license: dispensary?.omma_license || '',
+      ob_license: dispensary?.ob_license || '',
+      is_active: dispensary?.is_active !== false,
+      commission_exempt: dispensary?.commission_exempt === true
+    })
+    setErrors({})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, dispensary?.id])
+
   // Handle open state changes
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
@@ -142,6 +166,11 @@ export function EditDispensarySheet({
 
     if (result.error) {
       console.error('Error updating dispensary:', result.error)
+      // Pin the message to the offending field (e.g. a duplicate business name)
+      // so it stays on screen after the toast auto-dismisses.
+      if (result.field) {
+        setErrors(prev => ({ ...prev, [result.field as string]: result.error }))
+      }
       toast.error(result.error)
       return
     }

@@ -12,6 +12,33 @@ const MANAGE_ROLES = ['management', 'admin'] as const
 // Roles that can create dispensaries (includes sales/agent who self-assign)
 const CREATE_ROLES = ['sales', 'agent', 'management', 'admin'] as const
 
+// Roles that can edit a dispensary's profile fields. Deliberately wider than
+// MANAGE_ROLES: sales/agent own the customer relationship and have always been
+// able to correct a profile. Gating this on MANAGE_ROLES silently blocked every
+// sales user's save (SPRO-130). Field-level restrictions still apply below —
+// commission_exempt remains admin-only.
+const EDIT_PROFILE_ROLES = ['sales', 'agent', 'management', 'admin'] as const
+
+// Postgres unique-violation. `customers` carries a UNIQUE INDEX on
+// lower(business_name), so a rename onto an existing dispensary is rejected
+// here rather than silently merging the two records.
+const PG_UNIQUE_VIOLATION = '23505'
+
+/**
+ * Write result for customer create/update. `field` lets the caller attach the
+ * message to the offending input instead of only firing a toast.
+ */
+export type CustomerWriteResult =
+  | { error?: never; field?: never }
+  | { error: string; field?: 'business_name' }
+
+function duplicateNameError(name: string): CustomerWriteResult {
+  return {
+    error: `A dispensary named "${name}" already exists. Business names must be unique — add a location or suffix to tell them apart (e.g. "${name} - Tulsa").`,
+    field: 'business_name',
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -529,9 +556,7 @@ export interface CreateCustomerInput {
   assigned_sales_id?: string | null
 }
 
-export async function createCustomer(input: CreateCustomerInput): Promise<
-  { error?: never } | { error: string }
-> {
+export async function createCustomer(input: CreateCustomerInput): Promise<CustomerWriteResult> {
   const auth = await requireRole([...CREATE_ROLES])
   if (!auth.authorized) return { error: auth.reason }
 
@@ -541,8 +566,10 @@ export async function createCustomer(input: CreateCustomerInput): Promise<
 
   const db = await createServiceClient()
 
+  const businessName = input.business_name.trim()
+
   const { error } = await db.from('customers').insert({
-    business_name: input.business_name.trim(),
+    business_name: businessName,
     license_name: input.license_name?.trim() || null,
     address: input.address?.trim() || null,
     phone_number: input.phone_number?.trim() || null,
@@ -554,6 +581,9 @@ export async function createCustomer(input: CreateCustomerInput): Promise<
 
   if (error) {
     console.error('[customers] createCustomer error:', error)
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      return duplicateNameError(businessName)
+    }
     return { error: 'Failed to create dispensary' }
   }
 
@@ -579,8 +609,8 @@ export interface UpdateCustomerInput {
 export async function updateCustomer(
   customerId: string,
   input: UpdateCustomerInput
-): Promise<{ error?: never } | { error: string }> {
-  const auth = await requireRole([...MANAGE_ROLES])
+): Promise<CustomerWriteResult> {
+  const auth = await requireRole([...EDIT_PROFILE_ROLES])
   if (!auth.authorized) return { error: auth.reason }
 
   if (!input.business_name?.trim()) {
@@ -589,8 +619,10 @@ export async function updateCustomer(
 
   const db = await createServiceClient()
 
+  const businessName = input.business_name.trim()
+
   const updateData: Record<string, unknown> = {
-    business_name: input.business_name.trim(),
+    business_name: businessName,
     license_name: input.license_name?.trim() || null,
     address: input.address?.trim() || null,
     phone_number: input.phone_number?.trim() || null,
@@ -615,6 +647,9 @@ export async function updateCustomer(
 
   if (error) {
     console.error('[customers] updateCustomer error:', error)
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      return duplicateNameError(businessName)
+    }
     return { error: 'Failed to update dispensary' }
   }
 
