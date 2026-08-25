@@ -23,13 +23,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -42,6 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { SkuCombobox } from '@/components/orders/sku-combobox'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2, Check, ChevronsUpDown } from 'lucide-react'
@@ -627,22 +621,13 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
                   <div key={index} className="p-3 border rounded-lg bg-muted/50 space-y-2">
                     {/* SKU Selection Row */}
                     <div className="flex items-center gap-2">
-                      <Select
+                      <SkuCombobox
+                        skus={skus}
                         value={item.sku_id}
-                        onValueChange={(value) => updateOrderItem(index, 'sku_id', value)}
+                        onChange={(value) => updateOrderItem(index, 'sku_id', value)}
                         disabled={loading}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {skus.map((sku) => (
-                            <SelectItem key={sku.id} value={sku.id}>
-                              {sku.code} - {sku.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        className="flex-1"
+                      />
                       <Button
                         type="button"
                         variant="ghost"
