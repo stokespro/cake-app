@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SkuCombobox } from '@/components/orders/sku-combobox'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1431,21 +1432,12 @@ export default function OrdersPage() {
                         <div key={index} className="p-3 border rounded-md bg-muted/50 space-y-2">
                           {/* SKU Selection */}
                           <div className="flex items-center gap-2">
-                            <Select
+                            <SkuCombobox
+                              skus={skus}
                               value={item.sku_id}
-                              onValueChange={(value) => updateEditItem(index, 'sku_id', value)}
-                            >
-                              <SelectTrigger className="flex-1">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {skus.map((sku) => (
-                                  <SelectItem key={sku.id} value={sku.id}>
-                                    {sku.code} - {sku.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              onChange={(value) => updateEditItem(index, 'sku_id', value)}
+                              className="flex-1"
+                            />
                             <Button
                               type="button"
                               size="icon"

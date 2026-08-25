@@ -17,13 +17,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -36,6 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { SkuCombobox } from '@/components/orders/sku-combobox'
 import { ArrowLeft, Loader2, Plus, Trash2, DollarSign, Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 // Use types from the server actions layer
@@ -453,27 +447,13 @@ export default function NewOrderPage() {
                     <div className="flex items-center gap-4">
                       <div className="flex-1 space-y-2">
                         <Label>SKU</Label>
-                        <Select
+                        <SkuCombobox
+                          skus={skus}
                           value={item.sku_id}
-                          onValueChange={(value) => updateOrderItem(index, 'sku_id', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {skus.map((sku) => (
-                              <SelectItem
-                                key={sku.id}
-                                value={sku.id}
-                                disabled={!sku.in_stock}
-                                className={!sku.in_stock ? 'text-muted-foreground opacity-50' : ''}
-                              >
-                                {sku.code} - {sku.name} ({sku.units_per_case || 32}/case)
-                                {!sku.in_stock && ' — Out of Stock'}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          onChange={(value) => updateOrderItem(index, 'sku_id', value)}
+                          showUnitsPerCase
+                          showOutOfStock
+                        />
                       </div>
                       <Button
                         type="button"
