@@ -2,6 +2,7 @@
 
 import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
+import { resolveInitials } from '@/lib/initials'
 
 // Roles that can view dispensaries — mirrors canViewSection('dispensaries') in lib/auth-context.tsx
 const DISPENSARY_ROLES = ['sales', 'agent', 'management', 'admin'] as const
@@ -187,6 +188,141 @@ export async function getCustomers(filters: CustomerFilters = {}): Promise<
   }
 
   return { data: data ?? [], count: count ?? 0 }
+}
+
+// ---------------------------------------------------------------------------
+// Read — dispensary map points (SPRO-115)
+// ---------------------------------------------------------------------------
+
+/**
+ * Which pin colour a dispensary gets.
+ *
+ * `customer` wins over `claimed`: an account that is buying is a customer
+ * first, even though it also has a rep assigned. Checking has_orders first is
+ * what keeps the three buckets mutually exclusive.
+ */
+export type MapBucket = 'customer' | 'claimed' | 'unclaimed'
+
+export interface DispensaryMapPoint {
+  id: string
+  name: string
+  address: string | null
+  city: string | null
+  phone: string | null
+  omma_license: string | null
+  latitude: number
+  longitude: number
+  is_active: boolean
+  bucket: MapBucket
+  /** Assigned rep. Null on unclaimed pins, which show no agent by design. */
+  rep_name: string | null
+  rep_initials: string | null
+  order_count: number | null
+  last_order_date: string | null
+}
+
+/**
+ * Every geocoded dispensary in one payload, for the map at
+ * /dashboard/dispensaries/map.
+ *
+ * Deliberately unpaginated and unfiltered, unlike getCustomers() above. The map
+ * filters by bucket and active status client-side, and a filter that refetched
+ * would repaint every pin on each toggle. At ~1,900 rows of these fields the
+ * response is a few hundred KB — small enough to send once, and the alternative
+ * (fetch per viewport) means pins appearing and vanishing as the user pans,
+ * which reads as flicker rather than filtering.
+ *
+ * Rows without coordinates are excluded rather than dropped silently at render
+ * time; the caller is told how many via `ungeocoded` so the UI can say so
+ * instead of quietly showing fewer dispensaries than the CRM holds.
+ */
+export async function getDispensaryMapPoints(): Promise<
+  | { data: DispensaryMapPoint[]; ungeocoded: number; error?: never }
+  | { data?: never; ungeocoded?: never; error: string }
+> {
+  const auth = await requireRole([...DISPENSARY_ROLES])
+  if (!auth.authorized) return { error: auth.reason }
+
+  const db = await createServiceClient()
+
+  // PostgREST caps a single response at 1000 rows regardless of .limit(), so
+  // page explicitly. Ordering by id keeps the pages disjoint and stable.
+  const PAGE = 1000
+  const rows: Array<Record<string, unknown>> = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db
+      .from('customers')
+      .select(
+        'id, business_name, address, city, phone_number, omma_license, latitude, longitude, is_active, has_orders, assigned_sales_id, order_count, last_order_date, assigned_sales:users!customers_assigned_sales_id_fkey(id, name, initials)'
+      )
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .order('id')
+      .range(from, from + PAGE - 1)
+
+    if (error) {
+      console.error('[customers] getDispensaryMapPoints error:', error)
+      return { error: 'Failed to load map' }
+    }
+    rows.push(...(data ?? []))
+    if ((data?.length ?? 0) < PAGE) break
+  }
+
+  const { count: ungeocoded } = await db
+    .from('customers')
+    .select('id', { count: 'exact', head: true })
+    .is('latitude', null)
+
+  const data: DispensaryMapPoint[] = rows.map((row) => {
+    const r = row as {
+      id: string
+      business_name: string
+      address: string | null
+      city: string | null
+      phone_number: string | null
+      omma_license: string | null
+      latitude: number
+      longitude: number
+      is_active: boolean | null
+      has_orders: boolean | null
+      assigned_sales_id: string | null
+      order_count: number | null
+      last_order_date: string | null
+      assigned_sales: { id: string; name: string; initials: string | null } | null
+    }
+
+    const bucket: MapBucket = r.has_orders
+      ? 'customer'
+      : r.assigned_sales_id
+        ? 'claimed'
+        : 'unclaimed'
+
+    return {
+      id: r.id,
+      name: r.business_name,
+      address: r.address,
+      city: r.city,
+      phone: r.phone_number,
+      omma_license: r.omma_license,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      is_active: r.is_active ?? true,
+      bucket,
+      // Unclaimed pins carry no agent at all, so the popup has nothing to show
+      // even if a stale join came back.
+      rep_name: bucket === 'unclaimed' ? null : (r.assigned_sales?.name ?? null),
+      rep_initials:
+        bucket === 'unclaimed'
+          ? null
+          : r.assigned_sales
+            ? resolveInitials(r.assigned_sales.initials, r.assigned_sales.name)
+            : null,
+      order_count: r.order_count,
+      last_order_date: r.last_order_date,
+    }
+  })
+
+  return { data, ungeocoded: ungeocoded ?? 0 }
 }
 
 // ---------------------------------------------------------------------------

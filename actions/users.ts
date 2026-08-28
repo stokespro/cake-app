@@ -3,6 +3,17 @@
 import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 
+/**
+ * Store null rather than an empty string when an admin clears the field, so
+ * `initials IS NULL` is the single "fall back to the name" signal and the
+ * length CHECK constraint has nothing to reject. Capped at 3 to match that
+ * constraint — a longer paste is truncated instead of failing the whole save.
+ */
+function normalizeInitials(value: string | null | undefined): string | null {
+  const trimmed = String(value ?? '').trim().toUpperCase()
+  return trimmed ? trimmed.slice(0, 3) : null
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -10,6 +21,8 @@ import { createServiceClient } from '@/lib/supabase/server'
 export interface UserRecord {
   id: string
   name: string
+  /** Map-pin / compact label. Null means "derive from name" — see lib/initials.ts. */
+  initials: string | null
   role: string
   created_at: string
   slack_user_id?: string
@@ -42,7 +55,7 @@ export async function getUsers(): Promise<
   const db = await createServiceClient()
 
   const [usersResult, mappingsResult] = await Promise.all([
-    db.from('users').select('id, name, role, created_at').order('name'),
+    db.from('users').select('id, name, initials, role, created_at').order('name'),
     db.from('slack_user_mappings').select('id, slack_user_id, cake_user_id'),
   ])
 
@@ -80,7 +93,7 @@ export async function getUser(userId: string): Promise<
   const [userResult, mappingResult] = await Promise.all([
     db
       .from('users')
-      .select('id, name, role, created_at')
+      .select('id, name, initials, role, created_at')
       .eq('id', userId)
       .single(),
     db
@@ -113,6 +126,8 @@ export interface CreateUserInput {
   pin: string
   role: string
   slack_user_id?: string
+  /** Optional override; omitted or blank means derive from name. */
+  initials?: string
 }
 
 /**
@@ -146,7 +161,7 @@ export async function createUser(input: CreateUserInput): Promise<
 
   const { data: newUser, error: insertError } = await db
     .from('users')
-    .insert({ name: input.name, pin: input.pin, role: input.role })
+    .insert({ name: input.name, pin: input.pin, role: input.role, initials: normalizeInitials(input.initials) })
     .select('id')
     .single()
 
@@ -177,6 +192,8 @@ export async function createUser(input: CreateUserInput): Promise<
 
 export interface UpdateUserInput {
   name: string
+  /** Optional override; blank clears it back to derived-from-name. */
+  initials?: string
   // Optional and write-only: the client never reads back a user's existing
   // PIN (see getUser()/getUsers() above — the plaintext PIN is never sent to
   // the browser), so there is nothing to "leave unchanged" by resubmitting a
@@ -229,6 +246,7 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
     .update({
       name: input.name,
       role: input.role,
+      initials: normalizeInitials(input.initials),
       ...(isChangingPin ? { pin: newPin } : {}),
     })
     .eq('id', userId)

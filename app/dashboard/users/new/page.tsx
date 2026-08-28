@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { deriveInitials } from '@/lib/initials'
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ export default function NewUserPage() {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
+    initials: '',
     pin: generatePin(),
     role: 'standard',
     slack_user_id: ''
@@ -40,6 +42,7 @@ export default function NewUserPage() {
     try {
       const result = await createUser({
         name: formData.name,
+        initials: formData.initials,
         pin: formData.pin,
         role: formData.role,
         slack_user_id: formData.slack_user_id,
@@ -110,6 +113,24 @@ export default function NewUserPage() {
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 required
               />
+            </div>
+
+            {/* Initials */}
+            <div className="space-y-2">
+              <Label htmlFor="initials">Map initials</Label>
+              <Input
+                id="initials"
+                placeholder={deriveInitials(formData.name)}
+                value={formData.initials}
+                maxLength={3}
+                className="w-24 uppercase"
+                onChange={(e) => handleInputChange('initials', e.target.value.toUpperCase().slice(0, 3))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown on dispensary map pins for accounts this user is assigned to.
+                Leave blank to use{' '}
+                <span className="font-medium">{deriveInitials(formData.name)}</span>.
+              </p>
             </div>
 
             {/* PIN */}

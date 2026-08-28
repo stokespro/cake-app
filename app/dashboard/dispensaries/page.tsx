@@ -53,6 +53,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   Plus,
+  MapPin,
   Search,
   Building2,
   Phone,
@@ -274,14 +275,22 @@ function DispensariesPageContent() {
           <h1 className="text-2xl md:text-3xl font-bold">Dispensaries</h1>
           <p className="text-muted-foreground mt-1">Manage customer profiles and information</p>
         </div>
-        {canAddDispensary && (
-          <Button asChild>
-            <Link href="/dashboard/dispensaries/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Dispensary
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/dashboard/dispensaries/map">
+              <MapPin className="mr-2 h-4 w-4" />
+              Map
             </Link>
           </Button>
-        )}
+          {canAddDispensary && (
+            <Button asChild>
+              <Link href="/dashboard/dispensaries/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Dispensary
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}

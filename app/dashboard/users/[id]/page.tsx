@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth, canManageUsers } from '@/lib/auth-context'
 import { getUser, updateUser } from '@/actions/users'
+import { deriveInitials } from '@/lib/initials'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +24,7 @@ export default function EditUserPage() {
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
+    initials: '',
     pin: '',
     role: 'standard',
     slack_user_id: ''
@@ -56,6 +58,7 @@ export default function EditUserPage() {
       const { data: user } = result
       setFormData({
         name: user.name || '',
+        initials: user.initials || '',
         // The server never sends back the existing plaintext PIN (see
         // actions/users.ts) — leave this blank. An empty/untouched PIN field
         // means "keep the current PIN"; only a non-empty value here changes it.
@@ -167,6 +170,24 @@ export default function EditUserPage() {
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 required
               />
+            </div>
+
+            {/* Initials */}
+            <div className="space-y-2">
+              <Label htmlFor="initials">Map initials</Label>
+              <Input
+                id="initials"
+                placeholder={deriveInitials(formData.name)}
+                value={formData.initials}
+                maxLength={3}
+                className="w-24 uppercase"
+                onChange={(e) => handleInputChange('initials', e.target.value.toUpperCase().slice(0, 3))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown on dispensary map pins for accounts this user is assigned to.
+                Leave blank to use{' '}
+                <span className="font-medium">{deriveInitials(formData.name)}</span>.
+              </p>
             </div>
 
             {/* PIN */}

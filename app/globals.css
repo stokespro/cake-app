@@ -133,3 +133,51 @@ body {
     display: none;
   }
 }
+
+/*
+ * Mapbox popups ship their own light-mode chrome — a white bubble with a white
+ * tip and a dark close button — which is unreadable over the dark base style
+ * and ignores the app theme entirely. mapbox-gl renders these as real DOM (not
+ * canvas), so they are restyled here rather than through paint properties.
+ */
+.mapboxgl-popup.dispensary-map-popup .mapboxgl-popup-content {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.45);
+}
+
+/* The tip is a bordered triangle; both the fill and its border must follow. */
+.mapboxgl-popup.dispensary-map-popup .mapboxgl-popup-tip {
+  border-top-color: var(--popover);
+  border-bottom-color: var(--popover);
+  border-left-color: var(--popover);
+  border-right-color: var(--popover);
+}
+
+.mapboxgl-popup.dispensary-map-popup .mapboxgl-popup-close-button {
+  color: var(--muted-foreground);
+  font-size: 1.05rem;
+  padding: 0 0.35rem;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.mapboxgl-popup.dispensary-map-popup .mapboxgl-popup-close-button:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+/* Mapbox's own controls are light-only for the same reason. */
+.dark .mapboxgl-ctrl-group {
+  background: var(--popover);
+}
+
+.dark .mapboxgl-ctrl-group button + button {
+  border-top-color: var(--border);
+}
+
+.dark .mapboxgl-ctrl-group button .mapboxgl-ctrl-icon {
+  filter: invert(1);
+}

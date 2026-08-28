@@ -42,6 +42,7 @@ import {
   Wallet,
   Factory,
   Warehouse,
+  MapPin,
 } from 'lucide-react'
 import {
   Collapsible,
@@ -131,6 +132,7 @@ const allNavigation: NavigationItem[] = [
     children: [
       { name: 'Orders', href: '/dashboard/orders', icon: BadgeDollarSign, roles: ['sales', 'agent', 'management', 'admin'] },
       { name: 'Dispensaries', href: '/dashboard/dispensaries', icon: Store, roles: ['sales', 'agent', 'management', 'admin'] },
+      { name: 'Dispensary Map', href: '/dashboard/dispensaries/map', icon: MapPin, roles: ['sales', 'agent', 'management', 'admin'] },
       { name: 'Communications', href: '/dashboard/communications', icon: MessageSquare, roles: ['sales', 'agent', 'management', 'admin'] },
       { name: 'Tasks', href: '/dashboard/tasks', icon: CheckSquare, roles: ['sales', 'agent', 'management', 'admin'] },
       { name: 'My Commissions', href: '/dashboard/my-commissions', icon: DollarSign, roles: ['sales', 'agent', 'management', 'admin'] },
