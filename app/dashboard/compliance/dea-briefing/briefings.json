@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-08-26",
+  "lastUpdated": "2026-08-28",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-08-26",
+    "lastVerified": "2026-08-28",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -1116,22 +1116,6 @@
         "url": "https://www.marijuanamoment.net/oklahoma-lawmakers-vote-to-extend-medical-marijuana-business-license-moratorium"
       },
       "pinned": true
-    },
-    {
-      "id": "schedule-iii-single-convention-five-compliance-burdens",
-      "headline": "Schedule III + Single Convention Activates Five New Compliance Burdens for Cultivators",
-      "date": "2026-04-28",
-      "summary": "Because the rescheduling order is grounded in treaty-implementation authority, it increases — not reduces — cultivator compliance burdens: (1) SSNs for all personnel with controlled-substance access; (2) disclosure of upstream supplier DEA numbers; (3) DEA on-demand unscheduled inspection authority; (4) a crop purchase-and-resale mechanism where DEA serves as exclusive purchaser at a nominal price before crops can leave the facility; (5) parallel federal recordkeeping including quota reporting and import/export permits. The 2026 cultivator administrative fee is $113/kg on the 6,675 kg aggregate quota.",
-      "whyItMatters": "Operators who assumed \"rescheduling = deregulation\" face a compliance shock; the DEA purchase-resale mechanism restructures the cultivation supply chain.",
-      "tags": [
-        "federal",
-        "cultivation"
-      ],
-      "source": {
-        "name": "Cannabis Tech",
-        "url": "https://cannabistech.com/articles/dea-registration-medical-cannabis/"
-      },
-      "pinned": false
     },
     {
       "id": "legal-challenges-dc-circuit-vacate-rescheduling",
