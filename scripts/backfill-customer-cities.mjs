@@ -18,6 +18,16 @@
  * reported at the end instead, so a human can decide.
  *
  *   node scripts/backfill-customer-cities.mjs [--dry-run] [--limit N]
+ *   node scripts/backfill-customer-cities.mjs --fix-street-fragments [--dry-run]
+ *
+ * `--fix-street-fragments` is the one mode that DOES overwrite existing values,
+ * and only for a narrow class: a city that is not a city at all but a piece of
+ * the street ("S ND ST", "W TH AVE"), left behind when a bad import split an
+ * address one comma too early. Nobody typed those on purpose — cake-site
+ * hard-codes corrections for the same values on its public Find Us page — and
+ * they surface as fake towns in the map's city picker. A replacement is written
+ * only when the geocoder returns a real city for that row, so a row we cannot
+ * resolve keeps whatever it has rather than being blanked.
  *
  * Re-runnable and idempotent: rows that already have a city are skipped.
  */
@@ -49,6 +59,7 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 
 const args = process.argv.slice(2)
 const DRY_RUN = args.includes('--dry-run')
+const FIX_FRAGMENTS = args.includes('--fix-street-fragments')
 const LIMIT = (() => {
   const i = args.indexOf('--limit')
   return i >= 0 ? Number(args[i + 1]) : null
@@ -178,14 +189,14 @@ async function censusBatch(batch) {
  * row is asserted rather than assumed. The `.is('city', null)` guard makes the
  * write a no-op if someone filled the city in between the read and here.
  */
-async function writeCity(id, city) {
+async function writeCity(id, city, { overwrite = false } = {}) {
   if (DRY_RUN) return true
-  const { data, error } = await db
-    .from('customers')
-    .update({ city })
-    .eq('id', id)
-    .is('city', null)
-    .select('id')
+  let q = db.from('customers').update({ city }).eq('id', id)
+  // The null guard makes the fill path a no-op if someone set a city between
+  // the read and here. The fragment fix is deliberately exempt: it is
+  // replacing a value, so requiring null would match nothing.
+  if (!overwrite) q = q.is('city', null)
+  const { data, error } = await q.select('id')
   if (error) {
     console.error(`  write failed for ${id}: ${error.message}`)
     return false
@@ -233,7 +244,84 @@ async function reportJunk() {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])
 }
 
+/**
+ * Replace city values that are actually street fragments with the real city.
+ * Reports every change as `before -> after` so the rewrite is reviewable rather
+ * than a silent bulk edit.
+ */
+async function fixStreetFragments() {
+  console.log(`Street-fragment city fix${DRY_RUN ? ' (DRY RUN — no writes)' : ''}\n`)
+
+  const rows = []
+  const PAGE = 1000
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db
+      .from('customers')
+      .select('id, business_name, address, city')
+      .not('city', 'is', null)
+      .not('address', 'is', null)
+      .order('id')
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    rows.push(...data)
+    if (data.length < PAGE) break
+  }
+
+  const suspect = rows.filter((r) => looksLikeStreet(r.city))
+  console.log(`  ${suspect.length} rows carry a street fragment as their city\n`)
+  if (!suspect.length) return
+
+  const work = suspect
+    .map((r) => ({ id: r.id, name: r.business_name, raw: r.address, was: r.city, ...(parseAddress(r) ?? {}) }))
+
+  let fixed = 0
+  const unresolved = []
+
+  for (let i = 0; i < work.length; i += CENSUS_BATCH) {
+    const batch = work.slice(i, i + CENSUS_BATCH)
+    const geocodable = batch.filter((r) => r.street && r.city)
+    let hits = new Map()
+    if (geocodable.length) {
+      try {
+        hits = await censusBatch(geocodable)
+      } catch (err) {
+        console.error(`  batch ${i + 1}: ${err.message}`)
+      }
+    }
+
+    for (const row of batch) {
+      let city = hits.get(row.id)
+
+      // Census misses rural addresses, but the row's own address usually still
+      // names the town ("101 HOLIDAY LN, LOCUST GROVE") — it is only the city
+      // *column* that holds the fragment. Trust that when it does not itself
+      // look like a street.
+      if ((!city || looksLikeStreet(city)) && row.city && !looksLikeStreet(row.city)) {
+        city = row.city.toUpperCase()
+      }
+
+      // Still nothing confident means leave the bad value alone. Blanking it
+      // would trade a wrong city for a missing one and lose the audit trail.
+      if (!city || looksLikeStreet(city)) {
+        unresolved.push(row)
+        continue
+      }
+      if (await writeCity(row.id, city, { overwrite: true })) {
+        fixed++
+        console.log(`  ${JSON.stringify(row.was)} -> ${JSON.stringify(city)}   ${row.name}`)
+      }
+    }
+  }
+
+  console.log(`\n${fixed} corrected, ${unresolved.length} left as-is (no confident city).`)
+  for (const r of unresolved.slice(0, 20)) {
+    console.log(`  kept ${JSON.stringify(r.was)} — ${r.name} — ${JSON.stringify(r.raw)}`)
+  }
+}
+
 async function main() {
+  if (FIX_FRAGMENTS) return fixStreetFragments()
+
   console.log(`City backfill${DRY_RUN ? ' (DRY RUN — no writes)' : ''}`)
 
   const pending = await fetchPending()
