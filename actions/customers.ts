@@ -206,6 +206,12 @@ export type MapBucket = 'customer' | 'claimed' | 'unclaimed'
 export interface DispensaryMapPoint {
   id: string
   name: string
+  /**
+   * Licensed entity name, which differs from the trading name on 383 of these
+   * ("OKIE Riverside - A-Z dispensary LLC" is licensed as "A-Z DISPENSARY").
+   * Carried so map search can match either.
+   */
+  license_name: string | null
   address: string | null
   city: string | null
   phone: string | null
@@ -253,7 +259,7 @@ export async function getDispensaryMapPoints(): Promise<
     const { data, error } = await db
       .from('customers')
       .select(
-        'id, business_name, address, city, phone_number, omma_license, latitude, longitude, is_active, has_orders, assigned_sales_id, order_count, last_order_date, assigned_sales:users!customers_assigned_sales_id_fkey(id, name, initials)'
+        'id, business_name, license_name, address, city, phone_number, omma_license, latitude, longitude, is_active, has_orders, assigned_sales_id, order_count, last_order_date, assigned_sales:users!customers_assigned_sales_id_fkey(id, name, initials)'
       )
       .not('latitude', 'is', null)
       .not('longitude', 'is', null)
@@ -277,6 +283,7 @@ export async function getDispensaryMapPoints(): Promise<
     const r = row as {
       id: string
       business_name: string
+      license_name: string | null
       address: string | null
       city: string | null
       phone_number: string | null
@@ -300,6 +307,7 @@ export async function getDispensaryMapPoints(): Promise<
     return {
       id: r.id,
       name: r.business_name,
+      license_name: r.license_name,
       address: r.address,
       city: r.city,
       phone: r.phone_number,
