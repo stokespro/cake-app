@@ -60,8 +60,39 @@ const BUCKET_LABEL: Record<MapBucket, string> = {
   unclaimed: 'Unclaimed',
 }
 
+/**
+ * Cap the label length before it reaches Mapbox.
+ *
+ * `text-max-width` wraps rather than truncates, so a name like
+ * "GREEN MEDICAL PATIENTS LLC - EDMOND" becomes a four-line block that shoulders
+ * its neighbours out of the collision pass. Cutting it here keeps every label to
+ * a predictable footprint; the full name is in the popup.
+ */
+function truncateLabel(name: string): string {
+  const clean = String(name ?? '').trim()
+  return clean.length > 26 ? `${clean.slice(0, 25).trimEnd()}…` : clean
+}
+
+/**
+ * Cities arrive in mixed case ("Bartlesville" and "BARTLESVILLE" are both in
+ * the table) with stray whitespace. Normalising on the way in stops one town
+ * appearing twice in the picker and stops a lookup missing its own rows.
+ */
+export function normalizeCity(city: string | null | undefined): string {
+  return String(city ?? '').trim().toUpperCase()
+}
+
 export type BucketFilter = Record<MapBucket, boolean>
 export type StatusFilter = 'all' | 'active' | 'inactive'
+
+/**
+ * A request to move the camera to a city.
+ *
+ * `nonce` exists so that picking the same city twice re-frames it. Without it
+ * the prop is unchanged, the effect does not re-run, and the control silently
+ * does nothing the second time — which reads as a broken dropdown.
+ */
+export type CityFocus = { city: string; nonce: number }
 
 type Props = {
   points: DispensaryMapPoint[]
@@ -69,9 +100,17 @@ type Props = {
   status: StatusFilter
   /** Reports the filtered count back up so the toolbar can show it. */
   onVisibleCountChange?: (count: number) => void
+  /** Set by the city picker; moves the camera without changing what is plotted. */
+  cityFocus?: CityFocus | null
 }
 
-export function DispensaryMap({ points, buckets, status, onVisibleCountChange }: Props) {
+export function DispensaryMap({
+  points,
+  buckets,
+  status,
+  onVisibleCountChange,
+  cityFocus,
+}: Props) {
   const mapRef = useRef<MapRef>(null)
   const { resolvedTheme } = useTheme()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -135,7 +174,7 @@ export function DispensaryMap({ points, buckets, status, onVisibleCountChange }:
         properties: {
           id: p.id,
           bucket: p.bucket,
-          initials: p.rep_initials ?? '',
+          label: truncateLabel(p.name),
         },
       })),
     }),
@@ -169,6 +208,61 @@ export function DispensaryMap({ points, buckets, status, onVisibleCountChange }:
       [maxLng + padLng, maxLat + padLat],
     ] as [[number, number], [number, number]]
   }, [points])
+
+  /**
+   * Fly to a city when the picker asks for one.
+   *
+   * Frames every dispensary in that city rather than a single centre point, so
+   * a spread-out town like Oklahoma City arrives at a zoom that shows all of
+   * it. Deliberately does NOT filter — the surrounding dispensaries stay
+   * plotted, which is the point when you are working out who else is nearby.
+   *
+   * Matched against the whole `points` set, not `visible`: a city picked while
+   * the Customer layer is off should still take you there rather than silently
+   * doing nothing.
+   */
+  useEffect(() => {
+    if (!cityFocus) return
+    const map = mapRef.current?.getMap()
+    if (!map) return
+
+    // Empty city is the "clear" signal from the picker: go back to the whole
+    // state rather than sitting wherever the last city left the camera.
+    if (!normalizeCity(cityFocus.city)) {
+      if (fitBounds) map.fitBounds(fitBounds, { padding: 24, maxZoom: 11, duration: 900 })
+      return
+    }
+
+    const inCity = points.filter(
+      (p) => normalizeCity(p.city) === normalizeCity(cityFocus.city)
+    )
+    if (!inCity.length) return
+
+    let minLng = Infinity
+    let minLat = Infinity
+    let maxLng = -Infinity
+    let maxLat = -Infinity
+    for (const p of inCity) {
+      minLng = Math.min(minLng, p.longitude)
+      maxLng = Math.max(maxLng, p.longitude)
+      minLat = Math.min(minLat, p.latitude)
+      maxLat = Math.max(maxLat, p.latitude)
+    }
+
+    // A town with one dispensary, or several at one address, has zero extent.
+    // fitBounds on a degenerate box zooms to maximum; the floor keeps the
+    // arrival at street level with context around it.
+    const padLng = Math.max((maxLng - minLng) * 0.15, 0.01)
+    const padLat = Math.max((maxLat - minLat) * 0.15, 0.01)
+
+    map.fitBounds(
+      [
+        [minLng - padLng, minLat - padLat],
+        [maxLng + padLng, maxLat + padLat],
+      ],
+      { padding: 64, maxZoom: 14, duration: 900 }
+    )
+  }, [cityFocus, points, fitBounds])
 
   const onMapClick = useCallback((event: MapMouseEvent) => {
     const feature = event.features?.[0]
@@ -344,22 +438,32 @@ export function DispensaryMap({ points, buckets, status, onVisibleCountChange }:
             }}
           />
           <Layer
-            id="pin-initials"
+            id="pin-labels"
             type="symbol"
-            // Only claimed and customer pins carry a rep, and only once zoomed
-            // past the cluster threshold is there room to draw two characters
-            // inside a 7px circle.
-            filter={['all', ['!', ['has', 'point_count']], ['!=', ['get', 'initials'], '']]}
+            // The dispensary name on the pin itself, so an un-clicked dot is
+            // identifiable without opening its popup. This replaced a rep-
+            // initials label; the rep still shows in the popup, which is the
+            // only place it is unambiguous anyway.
+            //
+            // Below the cluster threshold there is nothing to label — the dots
+            // are clusters — so this starts where clustering stops.
+            filter={['!', ['has', 'point_count']]}
             minzoom={11}
             layout={{
-              'text-field': ['get', 'initials'],
+              'text-field': ['get', 'label'],
               'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-              'text-size': 10,
-              'text-offset': [0, -1.4],
+              'text-size': 11,
+              'text-offset': [0, -1.3],
+              // Collision handling rather than allow-overlap: dispensary names
+              // are long and these sit on top of each other in Tulsa and OKC.
+              // Mapbox drops labels that would overlap, so what remains is
+              // legible; allowing overlap turns a dense area into a smear.
               'text-allow-overlap': false,
+              'text-optional': true,
+              'text-max-width': 9,
             }}
             paint={{
-              'text-color': resolvedTheme === 'dark' ? '#ffffff' : '#0f172a',
+              'text-color': resolvedTheme === 'dark' ? '#f8fafc' : '#0f172a',
               'text-halo-color': resolvedTheme === 'dark' ? '#000000' : '#ffffff',
               'text-halo-width': 1.5,
             }}
