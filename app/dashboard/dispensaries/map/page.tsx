@@ -40,6 +40,7 @@ import {
   type StatusFilter,
 } from '@/components/dispensaries/dispensary-map'
 import { cn } from '@/lib/utils'
+import { buildSearchIndex, searchDispensaries } from '@/lib/dispensary-search'
 
 /**
  * mapbox-gl touches `window` at module scope, so it cannot be evaluated during
@@ -66,38 +67,12 @@ function titleCase(city: string): string {
     .replace(/\b[a-z]/g, (c) => c.toUpperCase())
 }
 
-/** How many matches to render. See SEARCH_LIMIT use for why this exists. */
-const SEARCH_LIMIT = 40
-
-type SearchHit = {
-  point: DispensaryMapPoint
-  /** Which field matched, so the row can show why it came back. */
-  matchedOn: 'name' | 'license_name' | 'omma_license'
-}
-
 /**
- * Match a dispensary on trading name, licensed entity name, or OMMA licence.
- *
- * Substring rather than prefix: staff search for the distinctive middle of a
- * name ("releaf", "420") far more often than they type one from the start.
- * Licence numbers are matched with punctuation stripped from both sides, so
- * "DAAA4YAE" finds "DAAA-4YAE-YRGF" — nobody types the hyphens.
+ * Rendered-result cap. A two-letter query matches over a thousand of the 1,785
+ * and rendering them all makes each keystroke stutter; the count of what was
+ * dropped is shown instead of truncating silently.
  */
-function matchPoint(point: DispensaryMapPoint, query: string): SearchHit | null {
-  const q = query.trim().toLowerCase()
-  if (!q) return null
-
-  if (point.name?.toLowerCase().includes(q)) return { point, matchedOn: 'name' }
-  if (point.license_name?.toLowerCase().includes(q)) {
-    return { point, matchedOn: 'license_name' }
-  }
-
-  const bare = q.replace(/[^a-z0-9]/g, '')
-  const licence = point.omma_license?.toLowerCase().replace(/[^a-z0-9]/g, '')
-  if (bare && licence?.includes(bare)) return { point, matchedOn: 'omma_license' }
-
-  return null
-}
+const SEARCH_LIMIT = 40
 
 export default function DispensaryMapPage() {
   const { handleSessionError } = useAuth()
@@ -175,27 +150,22 @@ export default function DispensaryMapPage() {
   }, [points])
 
   /**
+   * Normalise every point's searchable fields once, when the data loads.
+   * Doing it per keystroke meant ~5,300 lowercase calls and regex replacements
+   * per character typed, all recomputing the same values.
+   */
+  const searchIndex = useMemo(() => buildSearchIndex(points), [points])
+
+  /**
    * Matches run over every point, not just the visible ones, so a dispensary is
    * always findable even when its layer is switched off. `selectResult` below
    * then switches that layer back on rather than flying to a pin that is not
    * drawn.
-   *
-   * Capped at SEARCH_LIMIT because a two-letter query matches hundreds of the
-   * 1,785 and rendering them all makes each keystroke stutter. The count of
-   * what was dropped is shown rather than silently truncating.
    */
-  const searchResults = useMemo(() => {
-    if (!query.trim()) return { hits: [] as SearchHit[], total: 0 }
-    const hits: SearchHit[] = []
-    let total = 0
-    for (const p of points) {
-      const hit = matchPoint(p, query)
-      if (!hit) continue
-      total++
-      if (hits.length < SEARCH_LIMIT) hits.push(hit)
-    }
-    return { hits, total }
-  }, [points, query])
+  const searchResults = useMemo(
+    () => searchDispensaries(searchIndex, query, SEARCH_LIMIT),
+    [searchIndex, query]
+  )
 
   /**
    * Fly to a search result and open it.
