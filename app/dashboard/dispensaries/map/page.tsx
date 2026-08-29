@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { ArrowLeft, Check, ChevronsUpDown, Loader2, MapPin, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronsUpDown, Loader2, MapPin, Search, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { getDispensaryMapPoints, type DispensaryMapPoint, type MapBucket } from '@/actions/customers'
 import { Button } from '@/components/ui/button'
@@ -36,9 +36,11 @@ import {
   normalizeCity,
   type BucketFilter,
   type CityFocus,
+  type PointFocus,
   type StatusFilter,
 } from '@/components/dispensaries/dispensary-map'
 import { cn } from '@/lib/utils'
+import { buildSearchIndex, searchDispensaries } from '@/lib/dispensary-search'
 
 /**
  * mapbox-gl touches `window` at module scope, so it cannot be evaluated during
@@ -65,6 +67,13 @@ function titleCase(city: string): string {
     .replace(/\b[a-z]/g, (c) => c.toUpperCase())
 }
 
+/**
+ * Rendered-result cap. A two-letter query matches over a thousand of the 1,785
+ * and rendering them all makes each keystroke stutter; the count of what was
+ * dropped is shown instead of truncating silently.
+ */
+const SEARCH_LIMIT = 40
+
 export default function DispensaryMapPage() {
   const { handleSessionError } = useAuth()
 
@@ -82,6 +91,9 @@ export default function DispensaryMapPage() {
   const [visibleCount, setVisibleCount] = useState(0)
   const [cityFocus, setCityFocus] = useState<CityFocus | null>(null)
   const [cityPickerOpen, setCityPickerOpen] = useState(false)
+  const [pointFocus, setPointFocus] = useState<PointFocus | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [query, setQuery] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -136,6 +148,42 @@ export default function DispensaryMapPage() {
       .map(([city, count]) => ({ city, count }))
       .sort((a, b) => a.city.localeCompare(b.city))
   }, [points])
+
+  /**
+   * Normalise every point's searchable fields once, when the data loads.
+   * Doing it per keystroke meant ~5,300 lowercase calls and regex replacements
+   * per character typed, all recomputing the same values.
+   */
+  const searchIndex = useMemo(() => buildSearchIndex(points), [points])
+
+  /**
+   * Matches run over every point, not just the visible ones, so a dispensary is
+   * always findable even when its layer is switched off. `selectResult` below
+   * then switches that layer back on rather than flying to a pin that is not
+   * drawn.
+   */
+  const searchResults = useMemo(
+    () => searchDispensaries(searchIndex, query, SEARCH_LIMIT),
+    [searchIndex, query]
+  )
+
+  /**
+   * Fly to a search result and open it.
+   *
+   * Un-hides the dispensary first if the current filters exclude it. Searching
+   * for something by name and being taken to a blank patch of map because its
+   * bucket is toggled off is the kind of thing that reads as a broken feature.
+   */
+  const selectResult = (point: DispensaryMapPoint) => {
+    setSearchOpen(false)
+    setQuery('')
+    if (!buckets[point.bucket]) {
+      setBuckets((prev) => ({ ...prev, [point.bucket]: true }))
+    }
+    if (status === 'active' && !point.is_active) setStatus('all')
+    if (status === 'inactive' && point.is_active) setStatus('all')
+    setPointFocus((prev) => ({ id: point.id, nonce: (prev?.nonce ?? 0) + 1 }))
+  }
 
   const selectCity = (city: string) => {
     setCityPickerOpen(false)
@@ -195,7 +243,91 @@ export default function DispensaryMapPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* One row on desktop. On a phone the search takes its own row and the
+            city/status pair shares the next — three stacked rows ate too much
+            of the map. */}
+        <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:flex-nowrap">
+          <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={loading}
+                className="text-muted-foreground h-8 w-full justify-start text-xs font-normal md:w-[220px]"
+              >
+                <Search className="mr-2 h-3.5 w-3.5 shrink-0" />
+                Search dispensaries…
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[340px] p-0" align="end">
+              {/* shouldFilter off: cmdk's own matcher only sees the `value`
+                  prop, and this searches three fields with licence numbers
+                  normalised. matchPoint does the work instead. */}
+              <Command shouldFilter={false}>
+                <CommandInput
+                  placeholder="Name, license name, or OMMA…"
+                  value={query}
+                  onValueChange={setQuery}
+                  className="text-xs"
+                />
+                <CommandList>
+                  {query.trim() && searchResults.total === 0 && (
+                    <CommandEmpty>No dispensary matches “{query.trim()}”.</CommandEmpty>
+                  )}
+                  {!query.trim() && (
+                    <div className="text-muted-foreground p-4 text-center text-xs">
+                      Start typing to search {points.length.toLocaleString()} dispensaries.
+                    </div>
+                  )}
+                  {searchResults.hits.length > 0 && (
+                    <CommandGroup>
+                      {searchResults.hits.map(({ point, matchedOn }) => (
+                        <CommandItem
+                          key={point.id}
+                          value={point.id}
+                          onSelect={() => selectResult(point)}
+                          className="items-start gap-2 text-xs"
+                        >
+                          <span
+                            className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: BUCKET_COLOR[point.bucket] }}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">{point.name}</span>
+                            <span className="text-muted-foreground block truncate">
+                              {point.city ? titleCase(point.city) : 'Unknown city'}
+                              {/* Show the field that matched when it is not the
+                                  name, so a hit on a licence does not look like
+                                  an unexplained result. */}
+                              {matchedOn === 'license_name' && point.license_name && (
+                                <> · {point.license_name}</>
+                              )}
+                              {matchedOn === 'omma_license' && point.omma_license && (
+                                <> · {point.omma_license}</>
+                              )}
+                            </span>
+                          </span>
+                          {!point.is_active && (
+                            <Badge variant="secondary" className="h-4 shrink-0 px-1 text-[10px]">
+                              Inactive
+                            </Badge>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+                  {searchResults.total > searchResults.hits.length && (
+                    <div className="text-muted-foreground border-t px-3 py-2 text-[11px]">
+                      Showing {searchResults.hits.length} of{' '}
+                      {searchResults.total.toLocaleString()} matches — keep typing to
+                      narrow.
+                    </div>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
+          <div className="flex w-full items-center gap-2 md:w-auto">
           <Popover open={cityPickerOpen} onOpenChange={setCityPickerOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -203,7 +335,7 @@ export default function DispensaryMapPage() {
                 role="combobox"
                 aria-expanded={cityPickerOpen}
                 disabled={loading || cities.length === 0}
-                className="h-8 w-[190px] justify-between text-xs font-normal"
+                className="h-8 min-w-0 flex-1 justify-between text-xs font-normal md:w-[190px] md:flex-none"
               >
                 <span className="truncate">
                   {/* Keyed off the city, not the object: clearing keeps a
@@ -259,7 +391,7 @@ export default function DispensaryMapPage() {
           )}
 
           <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
-            <SelectTrigger className="h-8 w-[130px] text-xs">
+            <SelectTrigger className="h-8 w-[120px] shrink-0 text-xs md:w-[130px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -268,6 +400,7 @@ export default function DispensaryMapPage() {
               <SelectItem value="all">All statuses</SelectItem>
             </SelectContent>
           </Select>
+          </div>
         </div>
       </div>
 
@@ -317,6 +450,7 @@ export default function DispensaryMapPage() {
             status={status}
             onVisibleCountChange={setVisibleCount}
             cityFocus={cityFocus}
+            pointFocus={pointFocus}
           />
         )}
       </div>

@@ -94,6 +94,12 @@ export type StatusFilter = 'all' | 'active' | 'inactive'
  */
 export type CityFocus = { city: string; nonce: number }
 
+/**
+ * A request to fly to one dispensary and open its popup. Same nonce trick as
+ * CityFocus, so picking the same search result twice still re-frames it.
+ */
+export type PointFocus = { id: string; nonce: number }
+
 type Props = {
   points: DispensaryMapPoint[]
   buckets: BucketFilter
@@ -102,6 +108,8 @@ type Props = {
   onVisibleCountChange?: (count: number) => void
   /** Set by the city picker; moves the camera without changing what is plotted. */
   cityFocus?: CityFocus | null
+  /** Set by search; flies to one dispensary and opens its popup. */
+  pointFocus?: PointFocus | null
 }
 
 export function DispensaryMap({
@@ -110,6 +118,7 @@ export function DispensaryMap({
   status,
   onVisibleCountChange,
   cityFocus,
+  pointFocus,
 }: Props) {
   const mapRef = useRef<MapRef>(null)
   const { resolvedTheme } = useTheme()
@@ -263,6 +272,29 @@ export function DispensaryMap({
       { padding: 64, maxZoom: 14, duration: 900 }
     )
   }, [cityFocus, points, fitBounds])
+
+  /**
+   * Fly to a single dispensary and open it — the payoff of a search result.
+   *
+   * Zooms past the cluster threshold deliberately. Landing at a zoom where the
+   * pin is still swallowed by a cluster of 200 would technically be "there"
+   * while showing the user nothing they searched for.
+   */
+  useEffect(() => {
+    if (!pointFocus) return
+    const map = mapRef.current?.getMap()
+    if (!map) return
+
+    const target = points.find((p) => p.id === pointFocus.id)
+    if (!target) return
+
+    map.easeTo({
+      center: [target.longitude, target.latitude],
+      zoom: Math.max(map.getZoom(), 14),
+      duration: 900,
+    })
+    setSelectedId(target.id)
+  }, [pointFocus, points])
 
   const onMapClick = useCallback((event: MapMouseEvent) => {
     const feature = event.features?.[0]
