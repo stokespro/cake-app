@@ -159,6 +159,7 @@ const allNavigation: NavigationItem[] = [
     icon: Wallet,
     roles: ['admin', 'management'],
     subItems: [
+      { name: 'Cash Board', href: '/dashboard/finance/v2' },
       { name: 'Overview', href: '/dashboard/finance' },
       { name: 'Bills', href: '/dashboard/finance/bills' },
       { name: 'Templates', href: '/dashboard/finance/templates' },
