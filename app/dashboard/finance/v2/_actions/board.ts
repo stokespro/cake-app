@@ -23,9 +23,13 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { requireFinance } from '@/lib/auth/session'
 import type {
   CashBoardData,
-  CashStatus,
   AgingBucket,
-  HeadlineBill,
+  AvailabilityTier,
+  Verdict,
+  MoneyInLine,
+  WeekLedger,
+  BillTriage,
+  Lever,
   DecisionBill,
   DecisionGroup,
   ReceivableItem,
@@ -120,7 +124,7 @@ function normalizeDescription(desc: string): string {
 function recurringPatternKey(desc: string): string {
   const transferMatch = desc.match(/\bTO\s+X(\d+)/i)
   if (transferMatch) {
-    return `TRANSFER \u2192 X${transferMatch[1]}`
+    return `TRANSFER → X${transferMatch[1]}`
   }
   return normalizeDescription(desc)
 }
@@ -217,9 +221,8 @@ export async function getCashBoard(): Promise<{
     const supabase = await createServiceClient()
 
     const today = getCentralToday()
-    const horizon7 = addDays(today, 7) // committedThisWeek: rolling 7-day window (NOT calendar week — see note below)
+    const windowEnd = addDays(today, 7) // ledger window: today -> today+7, inclusive
     const horizon14 = addDays(today, 14) // decisionGroups window
-    const horizon21 = addDays(today, 21) // status CAUTION check
     const since30 = addDays(today, -30) // avgDailyOutflow window
     const since90 = addDays(today, -90) // paid_no_bank_trail window
 
@@ -247,6 +250,7 @@ export async function getCashBoard(): Promise<{
       receivablesRes,
       deliveredRes,
       pipelineRes,
+      pipelineDatesRes,
     ] = await Promise.all([
       supabase
         .from('finance_cash_snapshots')
@@ -260,9 +264,9 @@ export async function getCashBoard(): Promise<{
       // Non-fatal — avgDailyOutflow just falls back to 0 (daysOfCashLeft -> null) on failure.
       safeQuery<RawBankTxn[]>(supabase.rpc('get_bank_transactions', { since_date: since30 })),
 
-      // ALL unpaid/partial bills, no due_date bound — every hero/decision/
-      // exception computation below that needs bills works off this one
-      // fetch and filters client-side, rather than re-querying per concern.
+      // ALL unpaid/partial bills, no due_date bound — every ledger/triage/
+      // decision/exception computation below that needs bills works off this
+      // one fetch and filters client-side, rather than re-querying per concern.
       supabase
         .from('finance_bills')
         .select('id, name, amount, amount_paid, due_date, status, vendor:finance_vendors(name)')
@@ -284,6 +288,9 @@ export async function getCashBoard(): Promise<{
       // Non-fatal — money_out_no_bill / recurring_unplanned just come back empty on failure.
       safeQuery<RawBankTxn[]>(supabase.rpc('get_untracked_bank_transactions')),
 
+      // Terms orders, unpaid, delivered — feeds both the ledger's terms_due /
+      // ar_overdue moneyIn lines (split on terms_payment_date vs today) and
+      // the receivables panel below. Left exactly as it was verified.
       supabase
         .from('orders')
         .select('id, order_number, total_price, delivered_at, terms_payment_date, customers(business_name)')
@@ -303,6 +310,16 @@ export async function getCashBoard(): Promise<{
       supabase
         .from('orders')
         .select('id, total_price')
+        .in('status', ['pending', 'confirmed', 'packed'])
+        .range(0, 4999),
+
+      // Separate from pipelineRes above (kept byte-for-byte identical since
+      // inflowForecast.pipelineNow is verified) — this fetch adds status and
+      // requested_delivery_date so the ledger's deliveries/pending moneyIn
+      // lines can be windowed by date without touching that query.
+      supabase
+        .from('orders')
+        .select('id, status, total_price, requested_delivery_date')
         .in('status', ['pending', 'confirmed', 'packed'])
         .range(0, 4999),
     ])
@@ -330,6 +347,10 @@ export async function getCashBoard(): Promise<{
     if (pipelineRes.error) {
       console.error('getCashBoard: error fetching pipeline orders:', pipelineRes.error)
       return { success: false, error: pipelineRes.error.message }
+    }
+    if (pipelineDatesRes.error) {
+      console.error('getCashBoard: error fetching pipeline order dates:', pipelineDatesRes.error)
+      return { success: false, error: pipelineDatesRes.error.message }
     }
 
     // ---- Hero: cash on hand -------------------------------------------
@@ -363,53 +384,261 @@ export async function getCashBoard(): Promise<{
     const avgDailyOutflow = totalDebits30 / 30
     const daysOfCashLeft = avgDailyOutflow > 0 ? round1(cashOnHand / avgDailyOutflow) : null
 
-    // ---- Bills: shared base for hero commitments, decision groups, and
+    // ---- Bills: shared base for the ledger, triage, decision groups, and
     //      the past_due_unpaid / stalled_partial exception groups ---------
     const allActiveBills: ActiveBill[] = ((activeBillsRes.data ?? []) as BillRow[]).map((b) => ({
       ...b,
       remaining: Number(b.amount) - Number(b.amount_paid),
     }))
 
-    const committedThisWeek = allActiveBills
-      .filter((b) => b.due_date <= horizon7)
-      .reduce((sum, b) => sum + b.remaining, 0)
+    // ---- Receivables source rows — hoisted here so the ledger's terms_due /
+    //      ar_overdue moneyIn lines and the receivables panel (Panel 2, below)
+    //      read the exact same fetch/parse rather than duplicating it.
+    interface ReceivableOrderRow {
+      id: string
+      order_number: string | null
+      total_price: number | null
+      delivered_at: string | null
+      terms_payment_date: string | null
+      customers: { business_name: string } | { business_name: string }[] | null
+    }
+    const receivableOrders = (receivablesRes.data ?? []) as unknown as ReceivableOrderRow[]
 
-    const committed21 = allActiveBills
-      .filter((b) => b.due_date <= horizon21)
-      .reduce((sum, b) => sum + b.remaining, 0)
+    // ============================================================
+    // ledger: WeekLedger — what's owed vs. what money is coming, by tier
+    // ============================================================
 
-    const cashFloor = 0
-    const safeToPay = cashOnHand - committedThisWeek - cashFloor
-    const safeToPay21 = cashOnHand - committed21 - cashFloor
+    const termsUnpaidOrders = receivableOrders.filter((o) => o.terms_payment_date !== null)
+    const termsDueOrders = termsUnpaidOrders.filter(
+      (o) => (o.terms_payment_date as string) >= today && (o.terms_payment_date as string) <= windowEnd
+    )
+    const arOverdueOrders = termsUnpaidOrders.filter((o) => (o.terms_payment_date as string) < today)
 
-    let status: CashStatus
-    if (safeToPay < 0) status = 'NO_GO'
-    else if (safeToPay21 < 0) status = 'CAUTION'
-    else status = 'GO'
+    const termsDueAmount = termsDueOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0)
+    const arOverdueAmount = arOverdueOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0)
+    const arOverdueCount = arOverdueOrders.length
+    const arOverdueOldestDays = arOverdueOrders.reduce(
+      (max, o) => Math.max(max, daysBetween(o.terms_payment_date as string, today)),
+      0
+    )
 
-    // headline: the biggest financial threat in the imminent (7-day) window —
-    // among unpaid/partial bills with due_date <= today+7 and remaining > 0,
-    // sort remaining DESC (biggest bill wins), due_date ASC as tiebreak.
-    // (Originally spec'd as due_date ASC / remaining DESC — that picked the
-    // *earliest*-due bill regardless of size, e.g. a $1,957 bill one day
-    // before a $23,401.81 one. Corrected per coordinator: the intent is "the
-    // one thing that will actually break you," not "the next thing due.")
-    const headlineCandidates = allActiveBills
-      .filter((b) => b.due_date <= horizon7 && b.remaining > 0)
-      .sort((a, b) => {
-        if (a.remaining !== b.remaining) return b.remaining - a.remaining
-        return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0
-      })
-    const headlineBill = headlineCandidates[0] ?? null
-    const headline: HeadlineBill | null = headlineBill
-      ? {
-          billId: headlineBill.id,
-          name: headlineBill.name,
-          vendorName: vendorNameOf(headlineBill.vendor),
-          amount: headlineBill.remaining,
-          dueDate: headlineBill.due_date,
-        }
-      : null
+    interface PipelineDateOrderRow {
+      id: string
+      status: string
+      total_price: number | null
+      requested_delivery_date: string | null
+    }
+    const pipelineDateOrders = (pipelineDatesRes.data ?? []) as PipelineDateOrderRow[]
+
+    const deliveriesOrders = pipelineDateOrders.filter(
+      (o) =>
+        (o.status === 'confirmed' || o.status === 'packed') &&
+        o.requested_delivery_date !== null &&
+        o.requested_delivery_date <= windowEnd
+    )
+    const pendingOrdersInWindow = pipelineDateOrders.filter(
+      (o) => o.status === 'pending' && o.requested_delivery_date !== null && o.requested_delivery_date <= windowEnd
+    )
+    const deliveriesAmount = deliveriesOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0)
+    const pendingAmount = pendingOrdersInWindow.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0)
+    const pendingCount = pendingOrdersInWindow.length
+
+    const moneyIn: MoneyInLine[] = [
+      {
+        key: 'cash',
+        label: 'Cash in bank',
+        amount: cashOnHand,
+        confidence: 'certain',
+        tier: 'conservative',
+        note: null,
+      },
+      {
+        key: 'deliveries',
+        label: 'Deliveries — confirmed + packed',
+        amount: deliveriesAmount,
+        confidence: 'high',
+        tier: 'likely',
+        note: null,
+      },
+      {
+        key: 'terms_due',
+        label: 'Terms payments due this week',
+        amount: termsDueAmount,
+        confidence: 'medium',
+        tier: 'likely',
+        note: null,
+      },
+      {
+        key: 'ar_overdue',
+        label: 'Receivables already overdue',
+        amount: arOverdueAmount,
+        confidence: 'low',
+        tier: 'optimistic',
+        note: 'already past due — needs chasing',
+      },
+      {
+        key: 'pending',
+        label: 'Pending orders, not yet confirmed',
+        amount: pendingAmount,
+        confidence: 'low',
+        tier: 'optimistic',
+        note: 'not yet confirmed',
+      },
+    ]
+
+    // Unpaid+partial bills due within the window (today -> windowEnd,
+    // inclusive), including anything already past due.
+    const billsInWindow = allActiveBills.filter((b) => b.due_date <= windowEnd && b.remaining > 0)
+    const billsDueCount = billsInWindow.length
+    const billsDueTotal = billsInWindow.reduce((sum, b) => sum + b.remaining, 0)
+
+    const conservativeAvailable = cashOnHand
+    const likelyAvailable = conservativeAvailable + deliveriesAmount + termsDueAmount
+    const optimisticAvailable = likelyAvailable + arOverdueAmount + pendingAmount
+
+    const availableByTier: Record<AvailabilityTier, number> = {
+      conservative: conservativeAvailable,
+      likely: likelyAvailable,
+      optimistic: optimisticAvailable,
+    }
+
+    function verdictOf(net: number): Verdict {
+      if (net < -0.005) return 'short'
+      if (net > 0.005) return 'surplus'
+      return 'break_even'
+    }
+
+    const netByTier: Record<AvailabilityTier, number> = {
+      conservative: conservativeAvailable - billsDueTotal,
+      likely: likelyAvailable - billsDueTotal,
+      optimistic: optimisticAvailable - billsDueTotal,
+    }
+
+    const verdictByTier: Record<AvailabilityTier, Verdict> = {
+      conservative: verdictOf(netByTier.conservative),
+      likely: verdictOf(netByTier.likely),
+      optimistic: verdictOf(netByTier.optimistic),
+    }
+
+    const defaultTier: AvailabilityTier = 'likely'
+
+    const ledger: WeekLedger = {
+      windowStart: today,
+      windowEnd,
+      moneyIn,
+      billsDueCount,
+      billsDueTotal,
+      availableByTier,
+      netByTier,
+      verdictByTier,
+      defaultTier,
+    }
+
+    // ============================================================
+    // triage: BillTriage — walk the in-window bills due_date ASC, remaining
+    // ASC (the way a stack of bills actually gets worked), covering each
+    // until the money runs out. Keeps walking past the first miss, since a
+    // later, smaller bill may still fit.
+    // ============================================================
+
+    function toDecisionBill(b: ActiveBill): DecisionBill {
+      return {
+        id: b.id,
+        name: b.name,
+        vendorName: vendorNameOf(b.vendor),
+        amount: Number(b.amount),
+        amountPaid: Number(b.amount_paid),
+        remaining: b.remaining,
+        dueDate: b.due_date,
+        isPastDue: b.due_date < today,
+      }
+    }
+
+    const sortedForTriage = [...billsInWindow].sort((a, b) => {
+      if (a.due_date !== b.due_date) return a.due_date < b.due_date ? -1 : 1
+      return a.remaining - b.remaining
+    })
+
+    const triageAvailable = availableByTier[defaultTier]
+    const covered: DecisionBill[] = []
+    const notCovered: DecisionBill[] = []
+    let runningCovered = 0
+    for (const bill of sortedForTriage) {
+      if (runningCovered + bill.remaining <= triageAvailable + 0.005) {
+        covered.push(toDecisionBill(bill))
+        runningCovered += bill.remaining
+      } else {
+        notCovered.push(toDecisionBill(bill))
+      }
+    }
+    const coveredTotal = covered.reduce((sum, b) => sum + b.remaining, 0)
+    const notCoveredTotal = notCovered.reduce((sum, b) => sum + b.remaining, 0)
+    const leftover = triageAvailable - coveredTotal
+    const shortfallOnNext = notCovered.length > 0 ? notCovered[0].remaining - leftover : null
+
+    const triage: BillTriage = {
+      tier: defaultTier,
+      available: triageAvailable,
+      covered,
+      notCovered,
+      coveredTotal,
+      notCoveredTotal,
+      leftover,
+      shortfallOnNext,
+    }
+
+    // ============================================================
+    // levers: Lever[] — only surfaced when the default tier is short.
+    // ============================================================
+
+    const defaultNet = netByTier[defaultTier]
+    const levers: Lever[] = []
+    if (defaultNet < 0) {
+      const topBillCandidate = billsInWindow.reduce<ActiveBill | null>(
+        (max, b) => (max === null || b.remaining > max.remaining ? b : max),
+        null
+      )
+
+      const candidateLevers: Lever[] = []
+
+      if (arOverdueAmount > 0) {
+        const resultingNet = defaultNet + arOverdueAmount
+        candidateLevers.push({
+          key: 'collect_ar',
+          label: 'Collect overdue receivables',
+          detail: `${arOverdueCount} overdue invoice${arOverdueCount === 1 ? '' : 's'}, oldest ${arOverdueOldestDays} day${arOverdueOldestDays === 1 ? '' : 's'} overdue`,
+          amount: arOverdueAmount,
+          resultingNet,
+          closesGap: resultingNet >= 0,
+        })
+      }
+
+      if (topBillCandidate && topBillCandidate.remaining > 0) {
+        const resultingNet = defaultNet + topBillCandidate.remaining
+        candidateLevers.push({
+          key: 'defer_top_bill',
+          label: `Defer or payment-plan ${topBillCandidate.name}`,
+          detail: `Due ${topBillCandidate.due_date}`,
+          amount: topBillCandidate.remaining,
+          resultingNet,
+          closesGap: resultingNet >= 0,
+        })
+      }
+
+      if (pendingAmount > 0) {
+        const resultingNet = defaultNet + pendingAmount
+        candidateLevers.push({
+          key: 'confirm_pending',
+          label: 'Confirm the pending orders',
+          detail: `${pendingCount} pending order${pendingCount === 1 ? '' : 's'}`,
+          amount: pendingAmount,
+          resultingNet,
+          closesGap: resultingNet >= 0,
+        })
+      }
+
+      levers.push(...candidateLevers.sort((a, b) => b.amount - a.amount))
+    }
 
     // ---- decisionGroups (Panel 1) ---------------------------------------
     const decisionBillsWindow = allActiveBills.filter((b) => b.due_date <= horizon14)
@@ -643,16 +872,6 @@ export async function getCashBoard(): Promise<{
     ]
 
     // ---- receivables (Panel 2) --------------------------------------------
-    interface ReceivableOrderRow {
-      id: string
-      order_number: string | null
-      total_price: number | null
-      delivered_at: string | null
-      terms_payment_date: string | null
-      customers: { business_name: string } | { business_name: string }[] | null
-    }
-    const receivableOrders = (receivablesRes.data ?? []) as unknown as ReceivableOrderRow[]
-
     const receivableItems: ReceivableItem[] = receivableOrders.map((o) => {
       const customerData = Array.isArray(o.customers) ? o.customers[0] : o.customers
       const daysOverdue = o.terms_payment_date ? daysBetween(o.terms_payment_date, today) : -1
@@ -738,11 +957,10 @@ export async function getCashBoard(): Promise<{
       cashSource,
       avgDailyOutflow,
       daysOfCashLeft,
-      committedThisWeek,
-      cashFloor,
-      safeToPay,
-      status,
-      headline,
+
+      ledger,
+      triage,
+      levers,
 
       decisionGroups,
       receivables,
