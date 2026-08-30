@@ -129,6 +129,21 @@ function recurringPatternKey(desc: string): string {
   return normalizeDescription(desc)
 }
 
+/**
+ * "2026-09-01" -> "Mon, Sep 1". Parsed as UTC-noon so a YYYY-MM-DD never
+ * slips a day in a negative-offset timezone (America/Chicago).
+ */
+function formatDueDate(iso: string): string {
+  const d = new Date(`${iso}T12:00:00Z`)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
 function round1(n: number): number {
   return Math.round(n * 10) / 10
 }
@@ -559,51 +574,58 @@ export async function getCashBoard(): Promise<{
       return a.remaining - b.remaining
     })
 
-    const triageAvailable = availableByTier[defaultTier]
-    const covered: DecisionBill[] = []
-    const notCovered: DecisionBill[] = []
-    let runningCovered = 0
-    for (const bill of sortedForTriage) {
-      if (runningCovered + bill.remaining <= triageAvailable + 0.005) {
-        covered.push(toDecisionBill(bill))
-        runningCovered += bill.remaining
-      } else {
-        notCovered.push(toDecisionBill(bill))
+    const ALL_TIERS: AvailabilityTier[] = ['conservative', 'likely', 'optimistic']
+
+    function buildTriage(tier: AvailabilityTier): BillTriage {
+      const available = availableByTier[tier]
+      const covered: DecisionBill[] = []
+      const notCovered: DecisionBill[] = []
+      let runningCovered = 0
+      for (const bill of sortedForTriage) {
+        if (runningCovered + bill.remaining <= available + 0.005) {
+          covered.push(toDecisionBill(bill))
+          runningCovered += bill.remaining
+        } else {
+          notCovered.push(toDecisionBill(bill))
+        }
+      }
+      const coveredTotal = covered.reduce((sum, b) => sum + b.remaining, 0)
+      const notCoveredTotal = notCovered.reduce((sum, b) => sum + b.remaining, 0)
+      const leftover = available - coveredTotal
+      return {
+        tier,
+        available,
+        covered,
+        notCovered,
+        coveredTotal,
+        notCoveredTotal,
+        leftover,
+        shortfallOnNext: notCovered.length > 0 ? notCovered[0].remaining - leftover : null,
       }
     }
-    const coveredTotal = covered.reduce((sum, b) => sum + b.remaining, 0)
-    const notCoveredTotal = notCovered.reduce((sum, b) => sum + b.remaining, 0)
-    const leftover = triageAvailable - coveredTotal
-    const shortfallOnNext = notCovered.length > 0 ? notCovered[0].remaining - leftover : null
-
-    const triage: BillTriage = {
-      tier: defaultTier,
-      available: triageAvailable,
-      covered,
-      notCovered,
-      coveredTotal,
-      notCoveredTotal,
-      leftover,
-      shortfallOnNext,
-    }
 
     // ============================================================
-    // levers: Lever[] — only surfaced when the default tier is short.
+    // levers — computed per tier; empty for any tier that is not short.
     // ============================================================
 
-    const defaultNet = netByTier[defaultTier]
-    const levers: Lever[] = []
-    if (defaultNet < 0) {
-      const topBillCandidate = billsInWindow.reduce<ActiveBill | null>(
-        (max, b) => (max === null || b.remaining > max.remaining ? b : max),
-        null
-      )
+    const topBillCandidate = billsInWindow.reduce<ActiveBill | null>(
+      (max, b) => (max === null || b.remaining > max.remaining ? b : max),
+      null
+    )
 
-      const candidateLevers: Lever[] = []
+    function buildLevers(tier: AvailabilityTier): Lever[] {
+      const net = netByTier[tier]
+      if (net >= 0) return []
+      const candidates: Lever[] = []
 
-      if (arOverdueAmount > 0) {
-        const resultingNet = defaultNet + arOverdueAmount
-        candidateLevers.push({
+      // Only offer money the selected tier is not already counting, or the
+      // lever would double-count what the verdict has already banked.
+      const countsAr = tier === 'optimistic'
+      const countsPending = tier === 'optimistic'
+
+      if (arOverdueAmount > 0 && !countsAr) {
+        const resultingNet = net + arOverdueAmount
+        candidates.push({
           key: 'collect_ar',
           label: 'Collect overdue receivables',
           detail: `${arOverdueCount} overdue invoice${arOverdueCount === 1 ? '' : 's'}, oldest ${arOverdueOldestDays} day${arOverdueOldestDays === 1 ? '' : 's'} overdue`,
@@ -614,20 +636,20 @@ export async function getCashBoard(): Promise<{
       }
 
       if (topBillCandidate && topBillCandidate.remaining > 0) {
-        const resultingNet = defaultNet + topBillCandidate.remaining
-        candidateLevers.push({
+        const resultingNet = net + topBillCandidate.remaining
+        candidates.push({
           key: 'defer_top_bill',
           label: `Defer or payment-plan ${topBillCandidate.name}`,
-          detail: `Due ${topBillCandidate.due_date}`,
+          detail: `Due ${formatDueDate(topBillCandidate.due_date)}`,
           amount: topBillCandidate.remaining,
           resultingNet,
           closesGap: resultingNet >= 0,
         })
       }
 
-      if (pendingAmount > 0) {
-        const resultingNet = defaultNet + pendingAmount
-        candidateLevers.push({
+      if (pendingAmount > 0 && !countsPending) {
+        const resultingNet = net + pendingAmount
+        candidates.push({
           key: 'confirm_pending',
           label: 'Confirm the pending orders',
           detail: `${pendingCount} pending order${pendingCount === 1 ? '' : 's'}`,
@@ -637,8 +659,16 @@ export async function getCashBoard(): Promise<{
         })
       }
 
-      levers.push(...candidateLevers.sort((a, b) => b.amount - a.amount))
+      return candidates.sort((a, b) => b.amount - a.amount)
     }
+
+    const triage = Object.fromEntries(
+      ALL_TIERS.map((t) => [t, buildTriage(t)])
+    ) as Record<AvailabilityTier, BillTriage>
+
+    const levers = Object.fromEntries(
+      ALL_TIERS.map((t) => [t, buildLevers(t)])
+    ) as Record<AvailabilityTier, Lever[]>
 
     // ---- decisionGroups (Panel 1) ---------------------------------------
     const decisionBillsWindow = allActiveBills.filter((b) => b.due_date <= horizon14)

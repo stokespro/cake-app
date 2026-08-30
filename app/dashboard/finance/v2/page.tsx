@@ -37,33 +37,39 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ErrorState } from '@/components/ui/error-state'
 import {
   AlertTriangle,
   ArrowDownCircle,
   CalendarDays,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
   HelpCircle,
+  Minus,
   RefreshCw,
+  TrendingDown,
   TrendingUp,
-  XCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { getCashBoard } from './_actions/board'
 import type {
   AgingBucket,
+  AvailabilityTier,
+  BillTriage,
   CashBoardData,
-  CashStatus,
+  Confidence,
   DecisionBill,
   DecisionGroup,
   ExceptionGroup,
   ExceptionItem,
   ExceptionKind,
   InflowForecast,
+  Lever,
+  MoneyInLine,
   ReceivableItem,
+  Verdict,
 } from './types'
 
 // -----------------------------------------------------------------------
@@ -92,37 +98,13 @@ function formatDateShort(d: string): string {
   return format(parseISO(d), 'MMM d')
 }
 
-// -----------------------------------------------------------------------
-// Status config — the one place GO/CAUTION/NO-GO colors are defined, so
-// the badge, the hero border, and the days-of-cash number can never drift
-// out of sync with each other.
-// -----------------------------------------------------------------------
-
-const STATUS_CONFIG: Record<
-  CashStatus,
-  { label: string; Icon: LucideIcon; badgeClass: string; borderClass: string; numberClass: string }
-> = {
-  GO: {
-    label: 'GO',
-    Icon: CheckCircle2,
-    badgeClass: 'bg-green-600 text-white',
-    borderClass: 'border-l-green-600',
-    numberClass: 'text-green-700 dark:text-green-500',
-  },
-  CAUTION: {
-    label: 'CAUTION',
-    Icon: AlertTriangle,
-    badgeClass: 'bg-amber-500 text-white',
-    borderClass: 'border-l-amber-500',
-    numberClass: 'text-amber-600 dark:text-amber-500',
-  },
-  NO_GO: {
-    label: 'NO-GO',
-    Icon: XCircle,
-    badgeClass: 'bg-red-600 text-white',
-    borderClass: 'border-l-red-600',
-    numberClass: 'text-red-600 dark:text-red-500',
-  },
+// Weekday-qualified — reserved for the one or two bills the reader is being
+// asked to act on right now (the bill that doesn't fit, the bill a lever
+// defers). Everywhere else uses formatDateShort(); this is intentionally
+// louder, matching how "the one thing that matters" was dated in the
+// previous hero.
+function formatDateWeekday(d: string): string {
+  return format(parseISO(d), 'EEE, MMM d')
 }
 
 // -----------------------------------------------------------------------
@@ -161,115 +143,395 @@ function InertPayHoldActions() {
 }
 
 // -----------------------------------------------------------------------
-// Hero
+// Hero config — tiers, confidence, and verdict. One place each so the
+// toggle, the ledger filter, and the headline color can never drift out
+// of sync with each other.
+// -----------------------------------------------------------------------
+
+const TIER_ORDER: AvailabilityTier[] = ['conservative', 'likely', 'optimistic']
+
+const TIER_LABEL: Record<AvailabilityTier, string> = {
+  conservative: 'Conservative',
+  likely: 'Likely',
+  optimistic: 'Optimistic',
+}
+
+// One short line each — shown under the toggle so a tier is never a guess.
+const TIER_DESCRIPTION: Record<AvailabilityTier, string> = {
+  conservative: 'Cash only.',
+  likely: 'Cash + confirmed deliveries + terms due this week.',
+  optimistic: '+ overdue receivables and unconfirmed orders.',
+}
+
+// Deliberately grayscale — a fade in the same muted color rather than a
+// second color-coded system competing with the verdict for attention.
+const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  certain: 'Certain',
+  high: 'High confidence',
+  medium: 'Medium confidence',
+  low: 'Low confidence',
+}
+
+const CONFIDENCE_DOT_CLASS: Record<Confidence, string> = {
+  certain: 'bg-foreground/70',
+  high: 'bg-foreground/50',
+  medium: 'bg-foreground/30',
+  low: 'bg-foreground/15',
+}
+
+const VERDICT_CONFIG: Record<Verdict, { textClass: string; borderClass: string; Icon: LucideIcon }> = {
+  short: {
+    textClass: 'text-red-600 dark:text-red-500',
+    borderClass: 'border-l-red-600',
+    Icon: TrendingDown,
+  },
+  break_even: {
+    textClass: 'text-amber-600 dark:text-amber-500',
+    borderClass: 'border-l-amber-500',
+    Icon: Minus,
+  },
+  surplus: {
+    textClass: 'text-green-700 dark:text-green-500',
+    borderClass: 'border-l-green-600',
+    Icon: TrendingUp,
+  },
+}
+
+// The only place "short"/"surplus" get a dollar amount attached — break-even
+// stays a bare word since the number behind it is ~$0 and printing it would
+// just be noise next to the two operands in the line below.
+function verdictHeadline(verdict: Verdict, net: number): string {
+  if (verdict === 'short') return `SHORT ${formatMoney(Math.abs(net))}`
+  if (verdict === 'surplus') return `SURPLUS ${formatMoney(net)}`
+  return 'BREAK EVEN'
+}
+
+// -----------------------------------------------------------------------
+// Hero — his four questions, in order: what I owe + what I have (the
+// ledger), am I short/even/surplus (the verdict), which bills get paid
+// (triage), and how to close the gap (levers). Nothing here is computed
+// client-side beyond filtering moneyIn lines to the selected tier and
+// picking which of the three already-computed tier totals to show —
+// availableByTier/netByTier/verdictByTier come straight from the server.
 // -----------------------------------------------------------------------
 
 function Hero({ data }: { data: CashBoardData }) {
-  const status = STATUS_CONFIG[data.status]
-  const StatusIcon = status.Icon
+  const { ledger } = data
+  const [tier, setTier] = useState<AvailabilityTier>(ledger.defaultTier)
+  // Triage and levers are computed per tier, so flipping the toggle moves the
+  // bill-by-bill answer too — today 22 / 28 / 29 bills fit at conservative /
+  // likely / optimistic. A static triage under a moving verdict would make the
+  // screen contradict itself.
+  const triage = data.triage[tier]
+  const levers = data.levers[tier]
 
-  const daysLeftDisplay =
-    data.daysOfCashLeft === null ? '—' : Math.max(0, data.daysOfCashLeft).toFixed(1)
-
-  const isHeadlineOverdue = data.headline ? data.headline.dueDate < data.asOfDate : false
+  const verdict = ledger.verdictByTier[tier]
+  const net = ledger.netByTier[tier]
+  const available = ledger.availableByTier[tier]
+  const verdictCfg = VERDICT_CONFIG[verdict]
+  const VerdictIcon = verdictCfg.Icon
+  const tierRank = TIER_ORDER.indexOf(tier)
+  const visibleMoneyIn = ledger.moneyIn.filter((line) => TIER_ORDER.indexOf(line.tier) <= tierRank)
 
   return (
-    <Card className={`overflow-hidden border-l-4 ${status.borderClass}`}>
-      <CardContent className="p-4 space-y-4 sm:p-6">
-        {/* Status + data provenance */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold tracking-wide ${status.badgeClass}`}
-          >
-            <StatusIcon className="h-4 w-4" />
-            {status.label}
-          </span>
+    <Card className={`overflow-hidden border-l-4 ${verdictCfg.borderClass}`}>
+      <CardContent className="space-y-4 p-4 sm:space-y-5 sm:p-6">
+        {/* Tier toggle + data provenance */}
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <Tabs value={tier} onValueChange={(v) => setTier(v as AvailabilityTier)}>
+              <TabsList className="h-8 p-0.5">
+                {TIER_ORDER.map((t) => (
+                  <TabsTrigger key={t} value={t} className="px-2.5 py-1 text-xs">
+                    {TIER_LABEL[t]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            <p className="mt-1.5 text-xs text-muted-foreground">{TIER_DESCRIPTION[tier]}</p>
+          </div>
           {data.cashSource === 'manual' && (
             <span className="text-xs text-muted-foreground">Manual cash entry</span>
           )}
         </div>
 
-        {/* Days of cash left — the single largest number on this screen */}
+        {/* 3. The verdict — the largest thing in the hero */}
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Days of cash left
-          </div>
           <div
-            className={`text-5xl font-extrabold leading-none tabular-nums sm:text-6xl ${status.numberClass}`}
+            className={`flex items-center gap-2 text-4xl font-extrabold leading-none tabular-nums sm:text-5xl ${verdictCfg.textClass}`}
           >
-            {daysLeftDisplay}
-            {data.daysOfCashLeft !== null && (
-              <span className="ml-1.5 text-lg font-medium text-muted-foreground sm:text-xl">
-                days
-              </span>
-            )}
+            <VerdictIcon className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" aria-hidden="true" />
+            <span>{verdictHeadline(verdict, net)}</span>
           </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            {data.daysOfCashLeft === null
-              ? 'Not burning cash right now — trailing 30-day outflow is at or below zero.'
-              : `At the current burn rate — ${formatMoney(data.avgDailyOutflow)}/day, trailing 30 days.`}
+          <p className="mt-2 text-sm text-muted-foreground">
+            {formatMoney(available)} available − {formatMoney(ledger.billsDueTotal)} owed this week.
           </p>
         </div>
 
         <Separator />
 
-        {/* Safe to pay — the window is a rolling 7 days, not a calendar
-            week, and it can swing tens of thousands of dollars on a single
-            day's boundary shift. The window label sits right on the
-            eyebrow, not buried in a sentence, so it's never in doubt. */}
+        {/* 1 + 2. What I owe, and what I have */}
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Safe to pay <span className="normal-case font-normal text-muted-foreground/80">· next 7 days</span>
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            The week · {formatDateShort(ledger.windowStart)} – {formatDateShort(ledger.windowEnd)}
           </div>
-          <div
-            className={`text-3xl font-bold tabular-nums sm:text-4xl ${
-              data.safeToPay < 0 ? 'text-red-600 dark:text-red-500' : 'text-foreground'
-            }`}
-          >
-            {formatMoney(data.safeToPay)}
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {formatMoney(data.cashOnHand)} cash − {formatMoney(data.committedThisWeek)} due in the
-            next 7 days
-            {data.cashFloor > 0 && ` − ${formatMoney(data.cashFloor)} floor`}
-          </p>
-        </div>
-
-        <Separator />
-
-        {/* The one thing that matters */}
-        <div className="rounded-md border bg-muted/40 px-3 py-3">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            The one thing that matters
-          </div>
-          {data.headline ? (
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold sm:text-base">
-                  {data.headline.name}
-                  {data.headline.vendorName && (
-                    <span className="font-normal text-muted-foreground"> — {data.headline.vendorName}</span>
-                  )}
-                </div>
-                <div
-                  className={`mt-0.5 text-xs ${
-                    isHeadlineOverdue ? 'font-semibold text-red-600 dark:text-red-500' : 'text-muted-foreground'
-                  }`}
-                >
-                  {isHeadlineOverdue ? 'Overdue — was due ' : 'Due '}
-                  {format(parseISO(data.headline.dueDate), 'EEE, MMM d')}
-                </div>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Money in
               </div>
-              <div className="shrink-0 font-mono text-lg font-bold sm:text-xl">
-                {formatMoney(data.headline.amount)}
+              <div className="mt-2 space-y-2.5">
+                {visibleMoneyIn.map((line) => (
+                  <MoneyInLineRow key={line.key} line={line} />
+                ))}
+              </div>
+              <div className="mt-2.5 flex items-baseline justify-between border-t pt-2">
+                <span className="text-xs font-semibold uppercase tracking-wide">Available</span>
+                <span className="font-mono text-base font-bold tabular-nums">{formatMoney(available)}</span>
               </div>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No single bill stands out right now.</p>
-          )}
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Money out
+              </div>
+              <div className="mt-2 flex items-baseline justify-between gap-3">
+                <span className="text-sm">
+                  {ledger.billsDueCount} bill{ledger.billsDueCount !== 1 ? 's' : ''} due
+                </span>
+                <span className="shrink-0 font-mono text-sm font-medium tabular-nums">
+                  {formatMoney(ledger.billsDueTotal)}
+                </span>
+              </div>
+              <div className="mt-2.5 flex items-baseline justify-between border-t pt-2">
+                <span className="text-xs font-semibold uppercase tracking-wide">Owed</span>
+                <span className="font-mono text-base font-bold tabular-nums">
+                  {formatMoney(ledger.billsDueTotal)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Days of cash — demoted from headline to a small context line;
+              it assumes a smooth burn, which his rarely is. */}
+          <p className="mt-3 text-xs text-muted-foreground">
+            {data.daysOfCashLeft === null
+              ? 'Not burning cash right now — trailing 30-day outflow is at or below zero.'
+              : `Cash on hand alone, no incoming money, would last ${data.daysOfCashLeft.toFixed(1)} days at the trailing burn rate (${formatMoney(data.avgDailyOutflow)}/day).`}
+          </p>
         </div>
+
+        <Separator />
+
+        {/* 4a. Which bills get paid */}
+        <TriageSection triage={triage} />
+
+        {/* 4b. How to close the gap — empty (and hidden) unless short */}
+        {levers.length > 0 && (
+          <>
+            <Separator />
+            <LeversSection levers={levers} />
+          </>
+        )}
       </CardContent>
     </Card>
+  )
+}
+
+function MoneyInLineRow({ line }: { line: MoneyInLine }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${CONFIDENCE_DOT_CLASS[line.confidence]}`}
+                aria-label={CONFIDENCE_LABEL[line.confidence]}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="top">{CONFIDENCE_LABEL[line.confidence]}</TooltipContent>
+          </Tooltip>
+          <span className="truncate text-sm">{line.label}</span>
+        </div>
+        {line.note && <p className="mt-0.5 pl-3 text-xs text-muted-foreground">{line.note}</p>}
+      </div>
+      <span className="shrink-0 font-mono text-sm font-medium tabular-nums">{formatMoney(line.amount)}</span>
+    </div>
+  )
+}
+
+function TriageSection({ triage }: { triage: BillTriage }) {
+  const [showCovered, setShowCovered] = useState(false)
+  const totalBills = triage.covered.length + triage.notCovered.length
+
+  return (
+    <div>
+      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Which bills get paid
+      </div>
+      <p className="text-sm">
+        <span className="font-semibold">
+          You can cover {triage.covered.length} of {totalBills} bill{totalBills !== 1 ? 's' : ''}.
+        </span>{' '}
+        Paying them costs {formatMoney(triage.coveredTotal)} and leaves {formatMoney(triage.leftover)}.
+      </p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">
+        Oldest bills first, at the {TIER_LABEL[triage.tier].toLowerCase()} estimate (
+        {formatMoney(triage.available)} available).
+      </p>
+
+      {triage.covered.length > 0 && (
+        <Collapsible open={showCovered} onOpenChange={setShowCovered} className="mt-2.5">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+              aria-expanded={showCovered}
+            >
+              {showCovered ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              {showCovered ? 'Hide' : 'Show'} the {triage.covered.length} covered bill
+              {triage.covered.length !== 1 ? 's' : ''}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-2 divide-y rounded-md border">
+              {triage.covered.map((bill) => (
+                <TriageBillRow key={bill.id} bill={bill} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {triage.notCovered.length === 0 ? (
+        <p className="mt-3 rounded-md border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/20 dark:text-green-400">
+          Every bill due this week fits. Nothing left uncovered.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Doesn&apos;t fit
+          </div>
+          {triage.notCovered.map((bill, i) => (
+            <NotCoveredBillRow
+              key={bill.id}
+              bill={bill}
+              shortfall={i === 0 ? triage.shortfallOnNext : null}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TriageBillRow({ bill }: { bill: DecisionBill }) {
+  return (
+    <div className="px-3 py-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm">{bill.name}</span>
+            {bill.isPastDue && (
+              <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">
+                Past due
+              </Badge>
+            )}
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {bill.vendorName && <span>{bill.vendorName} · </span>}
+            Due {formatDateShort(bill.dueDate)}
+          </div>
+        </div>
+        <div className="shrink-0 font-mono text-sm font-medium">{formatMoney(bill.remaining)}</div>
+      </div>
+      <div className="mt-2 flex justify-end">
+        <InertPayHoldActions />
+      </div>
+    </div>
+  )
+}
+
+function NotCoveredBillRow({ bill, shortfall }: { bill: DecisionBill; shortfall: number | null }) {
+  return (
+    <div className="rounded-md border border-red-200 bg-red-50/60 px-3 py-2.5 dark:border-red-900 dark:bg-red-950/15">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold">{bill.name}</span>
+            {bill.vendorName && (
+              <span className="text-xs font-normal text-muted-foreground">— {bill.vendorName}</span>
+            )}
+            {bill.isPastDue && (
+              <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">
+                Past due
+              </Badge>
+            )}
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">Due {formatDateWeekday(bill.dueDate)}</div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="font-mono text-sm font-bold text-red-700 dark:text-red-500">
+            {formatMoney(bill.remaining)}
+          </div>
+          {shortfall !== null && (
+            <div className="text-[11px] font-semibold text-red-600 dark:text-red-500">
+              short {formatMoney(shortfall)}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="mt-2 flex justify-end">
+        <InertPayHoldActions />
+      </div>
+    </div>
+  )
+}
+
+function LeversSection({ levers }: { levers: Lever[] }) {
+  return (
+    <div>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        How to close the gap
+      </div>
+      <div className="divide-y rounded-md border">
+        {levers.map((lever) => (
+          <LeverRow key={lever.key} lever={lever} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function LeverRow({ lever }: { lever: Lever }) {
+  return (
+    <div
+      className={`flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between ${
+        lever.closesGap ? 'bg-green-50/60 dark:bg-green-950/10' : ''
+      }`}
+    >
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-sm font-medium">{lever.label}</span>
+          {lever.closesGap && (
+            <Badge
+              variant="outline"
+              className="border-green-300 px-1.5 py-0 text-[10px] text-green-700 dark:border-green-800 dark:text-green-500"
+            >
+              Any one of these fixes it
+            </Badge>
+          )}
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">{lever.detail}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="font-mono text-sm font-semibold tabular-nums">+{formatMoney(lever.amount)}</div>
+        <div className="font-mono text-[11px] text-muted-foreground tabular-nums">
+          → {formatMoney(lever.resultingNet)} net
+        </div>
+      </div>
+    </div>
   )
 }
 

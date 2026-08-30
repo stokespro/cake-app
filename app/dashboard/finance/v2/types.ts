@@ -5,13 +5,18 @@
  * migrations. It renders live production data so the layout can be judged
  * before any money-path code is touched.
  *
+ * The screen answers a bill-payer's four questions, in order:
+ *   1. What do I owe?                        -> WeekLedger.billsDue*
+ *   2. What money do I have?                 -> WeekLedger.moneyIn (cash AND pipeline)
+ *   3. Am I negative, break-even, or surplus? -> WeekLedger.verdictByTier
+ *   4. So which bills get paid, and if I'm
+ *      short, how do I make up the difference? -> BillTriage + Lever[]
+ *
  * This file is the contract between `_actions/board.ts` (data) and
  * `page.tsx` (UI). It is a plain module, not `'use server'`, so it may
  * export types freely — `actions/finance.ts` cannot (see
  * scripts/check-server-exports.mjs).
  */
-
-export type CashStatus = 'GO' | 'CAUTION' | 'NO_GO'
 
 export type AgingBucket = '0-15' | '16-30' | '31+'
 
@@ -22,17 +27,49 @@ export type ExceptionKind =
   | 'money_out_no_bill'
   | 'recurring_unplanned'
 
-// ── Hero ────────────────────────────────────────────────────────────────
+/**
+ * How much incoming money to count as "available."
+ *   conservative — bank cash only.
+ *   likely       — cash + confirmed/packed deliveries + terms payments due in
+ *                  the window. Money with a name and a date on it. DEFAULT.
+ *   optimistic   — also counts already-overdue receivables and unconfirmed
+ *                  pending orders. Never the default: it must be a deliberate
+ *                  choice, not the number that lulls you.
+ */
+export type AvailabilityTier = 'conservative' | 'likely' | 'optimistic'
 
-export interface HeadlineBill {
-  billId: string
-  name: string
-  vendorName: string | null
+export type Verdict = 'short' | 'break_even' | 'surplus'
+
+export type Confidence = 'certain' | 'high' | 'medium' | 'low'
+
+// ── Step 1 + 2: the ledger ──────────────────────────────────────────────
+
+export interface MoneyInLine {
+  key: string
+  label: string
   amount: number
-  dueDate: string // YYYY-MM-DD
+  confidence: Confidence
+  /** Lowest tier that counts this line. */
+  tier: AvailabilityTier
+  /** Short plain-English caveat, e.g. "already past due — needs chasing". */
+  note: string | null
 }
 
-// ── Panel 1: This Week's Decisions ──────────────────────────────────────
+export interface WeekLedger {
+  windowStart: string // YYYY-MM-DD
+  windowEnd: string // YYYY-MM-DD
+  moneyIn: MoneyInLine[]
+  billsDueCount: number
+  billsDueTotal: number
+  /** Cumulative available money at each tier. */
+  availableByTier: Record<AvailabilityTier, number>
+  /** available − owed, per tier. Negative = short. */
+  netByTier: Record<AvailabilityTier, number>
+  verdictByTier: Record<AvailabilityTier, Verdict>
+  defaultTier: AvailabilityTier
+}
+
+// ── Step 4a: which bills get paid ───────────────────────────────────────
 
 export interface DecisionBill {
   id: string
@@ -46,24 +83,54 @@ export interface DecisionBill {
 }
 
 /**
- * Bills collapsed for display only. Grouping is a UI concern — the
- * underlying per-person bills are correct and must never be merged in the
- * database (they mirror physical checks one-for-one and feed the check
- * auto-matcher, which runs at 95%).
+ * Walks bills in due-date order (oldest first, smaller first on ties) —
+ * the way a stack of bills actually gets worked — marking each covered
+ * until the money runs out.
+ *
+ * Computed for EVERY tier, because the answer genuinely differs: today it is
+ * 22 / 28 / 29 bills covered at conservative / likely / optimistic. Rendering
+ * one tier's triage under another tier's verdict would make the screen
+ * contradict itself — the exact failure this redesign exists to remove.
  */
+export interface BillTriage {
+  tier: AvailabilityTier
+  available: number
+  covered: DecisionBill[]
+  notCovered: DecisionBill[]
+  coveredTotal: number
+  notCoveredTotal: number
+  /** available − coveredTotal. What's left after paying everything that fits. */
+  leftover: number
+  /** How much short on the first bill that doesn't fit. null when all fit. */
+  shortfallOnNext: number | null
+}
+
+// ── Step 4b: how to make up the difference ──────────────────────────────
+
+export interface Lever {
+  key: string
+  label: string
+  detail: string
+  amount: number
+  /** Net at the default tier after applying this lever alone. */
+  resultingNet: number
+  /** True when this single lever takes net >= 0. */
+  closesGap: boolean
+}
+
+// ── Supporting panels ───────────────────────────────────────────────────
+
 export interface DecisionGroup {
   key: string
   label: string
   vendorName: string | null
-  isGroup: boolean // true when billCount > 1
+  isGroup: boolean
   billCount: number
-  total: number // sum of `remaining`
+  total: number
   earliestDueDate: string
   isPastDue: boolean
-  bills: DecisionBill[] // always populated; length 1 when !isGroup
+  bills: DecisionBill[]
 }
-
-// ── Panel 2: Money Coming In ────────────────────────────────────────────
 
 export interface ReceivableItem {
   orderId: string
@@ -72,7 +139,7 @@ export interface ReceivableItem {
   amount: number
   deliveredAt: string | null
   expectedDate: string | null
-  daysOverdue: number // negative = not yet due
+  daysOverdue: number
   bucket: AgingBucket | 'not_due'
 }
 
@@ -84,22 +151,18 @@ export interface ReceivablesPanel {
 }
 
 export interface InflowForecast {
-  /** 25th-percentile weekly delivered revenue — the planning number. */
   conservativeWeekly: number
   medianWeekly: number
-  /** Confirmed + packed + pending orders right now (~4 days of visibility). */
   pipelineNow: number
   weeksSampled: number
 }
-
-// ── Panel 3: Exceptions ─────────────────────────────────────────────────
 
 export interface ExceptionItem {
   id: string
   label: string
   sublabel: string | null
   amount: number
-  date: string // YYYY-MM-DD — due date, paid date, or bank date
+  date: string
   ageDays: number | null
 }
 
@@ -115,20 +178,21 @@ export interface ExceptionGroup {
 // ── Root ────────────────────────────────────────────────────────────────
 
 export interface CashBoardData {
-  generatedAt: string // ISO
-  asOfDate: string // bank as_of_date, else snapshot date
-  isStale: boolean // bank data older than today in America/Chicago
+  generatedAt: string
+  asOfDate: string
+  isStale: boolean
 
-  // Hero
   cashOnHand: number
   cashSource: 'bank' | 'manual'
-  avgDailyOutflow: number // trailing 30d
-  daysOfCashLeft: number | null // null when avgDailyOutflow <= 0
-  committedThisWeek: number // remaining on unpaid/partial bills due <= end of week
-  cashFloor: number // 0 in Phase 0a
-  safeToPay: number // cashOnHand - committedThisWeek - cashFloor
-  status: CashStatus
-  headline: HeadlineBill | null
+  avgDailyOutflow: number
+  /** Context only — a small line, never the headline. Burn is lumpy. */
+  daysOfCashLeft: number | null
+
+  ledger: WeekLedger
+  /** Keyed by tier — see BillTriage. Index with the tier the user has selected. */
+  triage: Record<AvailabilityTier, BillTriage>
+  /** Keyed by tier. Empty array for any tier that is not short. */
+  levers: Record<AvailabilityTier, Lever[]>
 
   decisionGroups: DecisionGroup[]
   receivables: ReceivablesPanel
