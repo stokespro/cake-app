@@ -90,9 +90,9 @@ interface UseOrderAlertsOptions {
 const ORDER_ALERT_DEBOUNCE_MS = 2000
 
 // ---------------------------------------------------------------------------
-// Audio: cat meow via HTML5 Audio
+// Audio: cha-ching alert via HTML5 Audio
 //
-// /public/meow-new.mp3 — used for both new orders and edited orders.
+// /public/cha-ching.mp3 — used for both new orders and edited orders.
 //
 // Single Audio singleton created lazily on first arm() call and reused so
 // repeated alerts replay instantly. We call load() inside the user-gesture
@@ -101,7 +101,7 @@ const ORDER_ALERT_DEBOUNCE_MS = 2000
 // ---------------------------------------------------------------------------
 
 // Module-level singleton — created lazily on first arm() call.
-let audioMeow: HTMLAudioElement | null = null
+let alertAudio: HTMLAudioElement | null = null
 
 /**
  * Call once when the user clicks the sound toggle for the first time.
@@ -110,19 +110,19 @@ let audioMeow: HTMLAudioElement | null = null
  */
 export function armAudio() {
   if (typeof window === 'undefined') return
-  if (!audioMeow) {
-    audioMeow = new Audio('/meow-new.mp3')
-    audioMeow.preload = 'auto'
-    audioMeow.load()
+  if (!alertAudio) {
+    alertAudio = new Audio('/cha-ching.mp3')
+    alertAudio.preload = 'auto'
+    alertAudio.load()
   }
 }
 
-function playMeow(soundEnabled: boolean) {
+function playAlertSound(soundEnabled: boolean) {
   if (!soundEnabled) return
-  if (!audioMeow) return
+  if (!alertAudio) return
   // Rewind in case the previous play hasn't finished
-  audioMeow.currentTime = 0
-  audioMeow.play().catch(() => {
+  alertAudio.currentTime = 0
+  alertAudio.play().catch(() => {
     // Browser blocked autoplay — silently ignore
   })
 }
@@ -164,9 +164,9 @@ export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrder
   useEffect(() => { soundEnabledRef.current = soundEnabled }, [soundEnabled])
   useEffect(() => { onDataChangeRef.current = onDataChange }, [onDataChange])
 
-  // Stable meow player — reads latest soundEnabled from ref
-  const meow = useCallback(() => {
-    playMeow(soundEnabledRef.current)
+  // Stable alert-sound player — reads latest soundEnabled from ref
+  const playAlert = useCallback(() => {
+    playAlertSound(soundEnabledRef.current)
   }, [])
 
   // High-water mark: only orders whose created_at/last_edited_at is AFTER
@@ -210,7 +210,7 @@ export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrder
         items: alert.items,
       }
 
-      meow()
+      playAlert()
       onAlertRef.current(event)
       onDataChangeRef.current?.()
 
@@ -230,7 +230,7 @@ export function useOrderAlerts({ onAlert, soundEnabled, onDataChange }: UseOrder
       sinceIso
     )
     highWaterMarkRef.current = maxEventAt
-  }, [meow])
+  }, [playAlert])
 
   const scheduleCheck = useDebouncedCallback(runCheck, ORDER_ALERT_DEBOUNCE_MS)
   const scheduleCheckRef = useRef(scheduleCheck)
