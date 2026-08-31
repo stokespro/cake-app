@@ -200,7 +200,7 @@ interface OrderAlertBarProps {
 /**
  * Self-contained alert bar for the packaging page.
  *
- * - Sound toggle (cat meow synth) — arms AudioContext on first click
+ * - Sound toggle (cha-ching alert) — arms the Audio element on first click
  * - Red badge count with pulsing animation
  * - Sheet panel listing each unreviewed alert, expandable per order
  * - "Clear all" dismisses everything; individual X dismisses one
