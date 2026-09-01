@@ -2335,6 +2335,21 @@
       "date": "2026-09"
     },
     {
+      "id": "watch-cr-hemp-delay-converted-delta8-scope-ambiguity",
+      "headline": "'Senate CR hemp delay covers all delta-8, even CBD-converted' vs. 'converted delta-8 is not naturally produced and gets no delay' — two competing legal readings circulating in hemp compliance channels",
+      "claim": "As hemp operators and compliance consultants analyze the Senate CR text (H.R. 6500, passed August 8, 90–6), two conflicting readings of the delay's scope have emerged and are circulating in WhatsApp groups, newsletters, and compliance webinars: (Reading A, industry-favorable, ATACH's position) — Because delta-8 THC is 'capable of being naturally produced' by the Cannabis sativa L. plant (it exists in trace amounts in the plant), ALL delta-8 products qualify for the November 12 → December 11 delay, regardless of whether this specific batch was made by isomerizing CBD. (Reading B, stricter, reflected in CADCA and some regulatory counsel analysis) — Commercially manufactured delta-8 THC produced via chemical conversion from CBD (the dominant commercial method) was not 'naturally produced' by the cannabis plant in this product and therefore falls outside the delay — such products face Section 781 recriminalization on November 12 with no extension. Both readings are circulating simultaneously and are being used by different vendors to justify very different compliance postures.",
+      "caution": "The Senate CR text (if enacted) delays Section 781 restrictions for cannabinoids 'capable of being naturally produced by Cannabis sativa L.' The question of whether commercially-converted delta-8 (CBD isomerized to delta-8 via chemical synthesis) qualifies under this language is a genuine unresolved legal question — not a settled interpretation. The hemp industry trade group ATACH endorses Reading A (the molecule exists in nature, therefore qualifies). CADCA and some regulatory counsel endorse Reading B (this specific product was not naturally produced, therefore does not qualify). DEA has issued no guidance on this interpretive question. The CR has not yet been signed into law (House vote outcome on August 31 unconfirmed as of September 1). Oklahoma operators: CAKE's OMMA-licensed cannabis products are NOT hemp and are entirely unaffected by this provision. For wholesale customers carrying commercially-converted delta-8 products: do not plan around December 11 for that category without confirmed counsel review of which reading DEA will enforce — and in any event, the CR must still be signed by the President before any delay takes effect.",
+      "source": {
+        "name": "Cannabis Business Times — Senate Votes to Delay Intoxicating Hemp THC Product Ban; ATACH interpretation (August 2026)",
+        "url": "https://www.cannabisbusinesstimes.com/hemp/news/15832009/senate-votes-to-delay-intoxicating-hemp-thc-product-ban-keep-delta8-thc-on-shelves-longer"
+      },
+      "secondarySource": {
+        "name": "CADCA — Senate Votes to Delay Hemp Restrictions (August 2026)",
+        "url": "https://www.cadca.org/advocacy/senate-votes-to-delay-hemp-restrictions-vote-moves-back-to-the-house/"
+      },
+      "date": "2026-09"
+    },
+    {
       "id": "watch-medicare-hemp-cms-dismissal-misread-coverage-authorized",
       "headline": "'A Federal Court Approved Medicare Cannabis Coverage' — District Court Standing Dismissal Misread as Authorization",
       "claim": "Following media coverage of U.S. District Judge McFadden's May 2026 dismissal of the SAM/MMJ challenge to the CMS hemp pilot (Smart Approaches to Marijuana v. Kennedy), and the D.C. Circuit's August 26 briefing schedule setting the appeal for 2027, operators and social media accounts are circulating claims that 'a federal court approved Medicare cannabis coverage,' 'the judge ruled Medicare can cover cannabis,' or that Oklahoma dispensaries can now bill Medicare for cannabis products.",
