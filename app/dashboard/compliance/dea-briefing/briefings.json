@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-03",
+  "lastUpdated": "2026-09-04",
   "deaRegistrationStatus": {
     "lastVerified": "2026-09-03",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -117,7 +117,12 @@
       "date": "2026-09-03",
       "summary": "President Trump signed the Continuing Appropriations and Extensions Act, 2027 into law on September 3, 2026. The CR delays the federal hemp THC product ban for naturally-derived cannabinoids from November 12, 2026 to December 11, 2026. The enacted law explicitly carves out synthetic cannabinoids 'not capable of being naturally produced by a Cannabis sativa L. plant' — HHC, HHC-O, THC-O acetate, THC-B, THCJD — which remain subject to recriminalization on November 12, 2026. The delay covers naturally-derived THCA flower, naturally-sourced delta-8, delta-10, and plant-derived hemp beverages. The law funds the federal government through December 11 and provides a 29-day extension only — it does not amend or repeal Section 781 of P.L. 119-37.",
       "whyItMatters": "For CAKE's wholesale dispensary customers who carry hemp-derived products: December 11, 2026 is confirmed LAW for naturally-derived hemp THC products. Critical caveats: (1) Synthetic cannabinoids (HHC, THC-O acetate, THC-B) face November 12 recriminalization as enacted law, not just proposed — this is in the statutory text; (2) Commercially-converted delta-8 produced via CBD isomerization scope remains an unresolved legal question — whether that pathway qualifies as 'naturally produced' is not settled; (3) Extension is 29 days only with no permanent fix; (4) Square's payment processing enforcement (October 15 catalog removal, November 5 account closures) are private decisions not reversed by this federal law. CAKE's own OMMA-licensed medical marijuana products are entirely unaffected — the hemp redefinition does not apply to state-licensed cannabis. Oklahoma dispensaries must audit inventory by cannabinoid origin before assuming December 11 applies universally.",
-      "tags": ["federal", "hemp", "dispensary", "deadline"],
+      "tags": [
+        "federal",
+        "hemp",
+        "dispensary",
+        "deadline"
+      ],
       "source": {
         "name": "Marijuana Moment — Trump Signs Bill To Delay Hemp THC Product Ban (September 3, 2026)",
         "url": "https://www.marijuanamoment.net/trump-signs-bill-to-delay-hemp-thc-product-ban-giving-lawmakers-more-time-to-craft-regulations-instead-of-prohibition"
@@ -134,7 +139,12 @@
       "date": "2026-09-01",
       "summary": "The U.S. House of Representatives voted 370-48 on September 1, 2026 to pass the Continuing Appropriations and Extensions Act, 2027 — the same Senate CR (passed 90-6 on August 8, 2026) that includes a one-month delay of the federal hemp THC product ban from November 12 to December 11, 2026. The legislation funds the federal government through December 11 and now heads to President Trump's desk; Trump is expected to sign it quickly. CRITICAL CARVE-OUT: The CR explicitly excludes synthetic cannabinoids 'that are not capable of being naturally produced by a Cannabis sativa L. plant' — HHC, HHC-O, THC-O acetate, THC-B, THCJD, and similar fully synthetic analogs — which remain subject to November 12 recriminalization even if Trump signs. Republican opposition from Rep. Andy Harris (R-MD) and Rep. Mary Miller (R-IL) was not sufficient to defeat the suspension vote. This confirms the four-week extension for most naturally derived hemp THC products, pending presidential signature.",
       "whyItMatters": "For CAKE's wholesale dispensary customers who carry hemp-derived products: if Trump signs (expected imminently), THCA flower, delta-8, delta-10, and other naturally derived hemp THC products get a 29-day extension to December 11. Synthetic cannabinoids (HHC, THC-O acetate, THC-B) remain subject to November 12 regardless — the CR carve-out is unambiguous in the statutory text. CAKE's own OMMA-licensed medical marijuana products are unaffected — the hemp redefinition does not apply to state-licensed cannabis. Oklahoma dispensaries carrying any third-party hemp inventory must distinguish products by cannabinoid origin before assuming December 11 applies universally. Confirmation: check federalregister.gov and whitehouse.gov for presidential signature.",
-      "tags": ["federal", "hemp", "dispensary", "deadline"],
+      "tags": [
+        "federal",
+        "hemp",
+        "dispensary",
+        "deadline"
+      ],
       "source": {
         "name": "The Hill — Hemp ban set to be delayed a month after House passes funding bill (September 1, 2026)",
         "url": "https://thehill.com/policy/healthcare/6064552-hemp-ban-delayed-house-funding-bill/"
@@ -151,7 +161,11 @@
       "date": "2026-08-31",
       "summary": "SEPTEMBER 1 UPDATE: The OBNDD timely renewal fee deadline has now passed. Operators who did not submit their annual renewal fee prior to September 1, 2026 (per OBNDD's official Facebook notice) have shifted to a late-renewal track. This does NOT immediately revoke registration — the hard deadline is October 31, 2026, after which Metrc seed-to-sale tracking access is lost and operations must cease. Operators on the late-renewal track should submit fees immediately at obndd.ok.gov/registration-pmp/registration to avoid missing the October 31 hard deadline. This deadline is entirely separate from the OBNDD enforcement grace period for DEA Schedule III registration (January 1, 2027).",
       "whyItMatters": "SEPTEMBER 1 UPDATE: For CAKE as an Oklahoma cultivator and processor — if the OBNDD annual renewal fee was not submitted by September 1, CAKE is now on a late-renewal track. Verify with Lindsey Stokes (Director of Compliance) that the renewal fee was submitted at obndd.ok.gov/registration-pmp/registration. If not yet submitted, file the late renewal immediately — the hard expiration on October 31, 2026 results in loss of Metrc seed-to-sale access and required cessation of operations. This is operationally independent of the DEA Schedule III registration requirement and the OBNDD enforcement grace period (January 1, 2027).",
-      "tags": ["oklahoma", "obndd", "operational"],
+      "tags": [
+        "oklahoma",
+        "obndd",
+        "operational"
+      ],
       "pinned": false,
       "source": {
         "name": "OBNDD — Facebook: Timely renewals due prior to September 1",
@@ -164,7 +178,11 @@
       "date": "2026-08-31",
       "summary": "The House of Representatives returned from recess on August 31, 2026, with the Senate-passed Continuing Resolution — which delays most federal hemp restrictions from November 12 to December 11, 2026 — at the top of the floor agenda. The CR is being considered under suspension of the rules, requiring a two-thirds supermajority (roughly 290 votes). Rep. Andy Harris (R-MD, Chair of the House Agriculture Subcommittee on Horticulture) and Rep. Mary Miller (R-IL) publicly opposed the hemp delay provision. Vote outcome had not been confirmed as of the filing date of this update. If the House passes the CR as the Senate sent it, hemp restrictions delay to December 11; if the House fails, passes a clean CR, or the bill stalls, November 12 remains operative. Synthetic cannabinoids not naturally produced by Cannabis sativa L. (HHC, THC-O acetate, etc.) remain subject to November 12 with NO delay under the Senate CR as written.",
       "whyItMatters": "For CAKE's wholesale dispensary customers who carry hemp-derived products (Delta-8, THCA flower, etc.): this vote determines whether they have 29 additional days past November 12. CAKE's own OMMA-licensed cannabis products are not hemp and are unaffected by the hemp redefinition regardless of vote outcome. Monitor clerk.house.gov/Votes for the confirmed tally; do not rely on social media claims about the outcome. Until the President signs a reconciled bill, plan for November 12 compliance.",
-      "tags": ["federal", "hemp", "pending"],
+      "tags": [
+        "federal",
+        "hemp",
+        "pending"
+      ],
       "pinned": false,
       "source": {
         "name": "Roll Call — Stopgap funding bill's hemp troubles aren't over (August 24, 2026)",
@@ -177,7 +195,11 @@
       "date": "2026-08-28",
       "summary": "OMMA emergency rules implementing HB 3143 took effect August 28, 2026, adding immediate regulatory force to the moratorium-extension law signed by Governor Stitt on May 7, 2026. The most operationally significant restriction in the emergency rules: any OMMA-licensed business currently under investigation for violations that could result in license revocation is prohibited from selling or transferring its license. The license moratorium itself (no new cultivation, processing, dispensary, or transport licenses issued until August 2028) has been operative since August 1, 2026; the emergency rules codify implementing procedures and the investigation-based transfer prohibition.",
       "whyItMatters": "For CAKE as an existing Oklahoma cultivator and processor: CAKE is unaffected by the new-license moratorium since it holds existing licenses. However, the prohibition on license sale or transfer while under active investigation directly affects M&A activity and license acquisition across the Oklahoma cannabis market. Any dispensary customer or counterparty considering a license sale or purchase must verify OMMA compliance status — a license under investigation for potentially revocable violations cannot legally transfer under the emergency rules. Operators with pending license transactions should consult counsel to confirm the license is not subject to this restriction before proceeding.",
-      "tags": ["oklahoma", "omma", "operational"],
+      "tags": [
+        "oklahoma",
+        "omma",
+        "operational"
+      ],
       "pinned": false,
       "source": {
         "name": "OMMA — Rules and Legislation (Emergency Rules, August 28, 2026)",
@@ -190,7 +212,12 @@
       "date": "2026-08-27",
       "summary": "The Centers for Disease Control and Prevention published a Federal Register notice in late August 2026 seeking public comments on a proposed 2028 redesign of the National Health Interview Survey (NHIS) that would add a question asking adults how often they use marijuana and whether for medical or recreational purposes. The proposed question — 'Do you currently use marijuana every day, most days, some days, or not at all?' — specifies that respondents should not count CBD-only products. Unlike prior NHIS editions (which asked only about marijuana or CBD for sleep), the 2028 design would capture medical vs. recreational use patterns across the U.S. adult population. Public comments are accepted through October 19, 2026.",
       "whyItMatters": "For CAKE and its Oklahoma wholesale dispensary customers, the CDC NHIS proposal signals that federal health data infrastructure is adapting to the post-Schedule III environment — building the population-level data needed to inform future federal medical cannabis policy and regulatory determinations. This is consistent with the FDA social media monitoring solicitation (see: fda-social-media-cannabis-monitoring-solicitation-aug21) as part of the broader federal regulatory infrastructure-building underway since the April 28 order. Immediate compliance implication is modest — a 2028 survey is not an enforcement action and does not affect Oklahoma OMMA requirements today. However, operators and their advocacy organizations have until October 19 to file public comments shaping how CDC frames medical vs. recreational marijuana use; that framing will inform HHS policy and potentially future FDA and DEA guidance on how medical cannabis products are classified and regulated under Schedule III.",
-      "tags": ["federal", "cultivation", "dispensary", "pending"],
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary",
+        "pending"
+      ],
       "source": {
         "name": "The Marijuana Herald — CDC Proposes Marijuana Use Questions for 2028 National Health Interview Survey (August 2026)",
         "url": "https://themarijuanaherald.com/2026/08/cdc-proposes-marijuana-use-questions-for-2028-national-health-interview-survey/"
@@ -203,7 +230,11 @@
       "date": "2026-08-26",
       "summary": "The U.S. Court of Appeals for the D.C. Circuit entered a briefing schedule on August 26, 2026 in Smart Approaches to Marijuana v. Kennedy (No. 26-5205), the appeal challenging the Centers for Medicare & Medicaid Services' Substance Access Beneficiary Engagement Incentive (BEI) pilot — which allows participating Medicare organizations to discuss eligible hemp-derived products with beneficiaries and provide up to $500 annually for symptom management. U.S. District Judge Trevor N. McFadden had dismissed the case in May 2026 for lack of standing, ruling that plaintiffs — including Smart Approaches to Marijuana (SAM), MMJ International Holdings, and others — failed to demonstrate sufficient injury. On appeal: Appellants' Brief due October 5, 2026; Appellees' Brief due November 4, 2026; briefing closes December 16, 2026. The court noted the case 'may be set for oral argument.'",
       "whyItMatters": "For CAKE and its Oklahoma wholesale dispensary customers, the D.C. Circuit briefing schedule confirms that a final ruling on the Medicare hemp pilot's legal status will not arrive until well into 2027 at the earliest — and only after the court resolves the threshold standing question the district court already rejected. No Medicare reimbursement or billing pathway for Oklahoma dispensary cannabis or hemp products exists as a result of this case. The CMS pilot program (BEI) covers only hemp-derived products meeting specific CMS criteria; it does NOT cover OMMA-licensed medical marijuana or standard dispensary cannabis products. Note that MMJ International Holdings — which is also an active petitioner in the DEA rescheduling D.C. Circuit cases (26-1106/1130/1136) — is a plaintiff in this Medicare case as well. This Medicare case is entirely separate from the April 28 Schedule III rescheduling proceeding, the DEA D.C. Circuit stay motion, and the bipartisan House letter's question about a hypothetical future CMS rulemaking for Schedule III medical marijuana (see: bipartisan-house-letter-trump-schedule-iii-guidance-aug18). Oklahoma operators should not modify billing, patient communications, or product sourcing based on this appeal.",
-      "tags": ["federal", "dispensary", "pending"],
+      "tags": [
+        "federal",
+        "dispensary",
+        "pending"
+      ],
       "source": {
         "name": "Marijuana Moment — Federal Appeals Court Sets Schedule For Lawsuit Challenging Medicare Hemp Coverage Program (August 28, 2026)",
         "url": "https://www.marijuanamoment.net/federal-appeals-court-sets-schedule-for-lawsuit-challenging-medicare-hemp-coverage-program"
@@ -237,7 +268,13 @@
       "date": "2026-08-24",
       "summary": "Roll Call reported on August 24, 2026 that the hemp delay provision in the Senate-passed Continuing Appropriations and Extensions Act, 2027 faces significant obstacles in the House when it returns from recess on approximately August 31, 2026. Senators Ted Budd (R-NC) and Mike Ricketts (R-NE) — who attempted to strip the hemp delay from the Senate CR — have publicly committed to pressing House leadership to reject or strip the provision in conference. The House passed its own CR in July 2026 with no hemp language; the two chambers must reconcile before any delay can be enacted. No House floor vote on the hemp provision has been scheduled. November 12, 2026 remains the operative federal hemp compliance deadline unless and until the House passes the Senate's version and the President signs it.",
       "whyItMatters": "For CAKE and its Oklahoma wholesale dispensary customers, the Roll Call August 24 report confirms that exactly one week before the House returns, the CR hemp delay is unresolved — and the senators most committed to stripping the delay have stated they will carry that fight into House negotiations. Oklahoma dispensaries carrying hemp-derived THCA-flower, delta-8, delta-10, or hemp beverages should not reduce November 12 compliance preparations based on the Senate's 90-6 CR passage. Even if the House ultimately adopts the Senate language, the enacted delay would cover only naturally-occurring cannabinoids and extends the deadline only 29 days (to December 11) — synthetic cannabinoids not naturally produced by Cannabis sativa L. (HHC, THC-O acetate) face November 12 recriminalization under the Senate CR's own carve-out language regardless of House action. Square's October 15 merchant deadline and November 5 account-closure date for hemp-heavy businesses are unaffected by any legislative outcome. Plan for November 12 as the operative date.",
-      "tags": ["federal", "deadline", "pending", "dispensary", "cultivation"],
+      "tags": [
+        "federal",
+        "deadline",
+        "pending",
+        "dispensary",
+        "cultivation"
+      ],
       "source": {
         "name": "Roll Call — Stopgap funding bill's hemp troubles aren't over (August 24, 2026)",
         "url": "https://rollcall.com/2026/08/24/stopgap-funding-bills-hemp-troubles-arent-over/"
@@ -1407,22 +1444,6 @@
       "pinned": true
     },
     {
-      "id": "omma-monitors-rescheduling-280e-relief-applies",
-      "headline": "OMMA Monitors Rescheduling & Confirms 280E Relief Applies Regardless of DEA Registration Status",
-      "date": "2026-05-06",
-      "summary": "OMMA's official notice confirms it is monitoring DEA rescheduling, that approximately 4,000 OMMA licensees are affected, and that 280E removal applies to Oklahoma medical operators regardless of whether a licensee pursues DEA registration. OMMA cautioned that all information \"remains subject to change pending petition outcomes\" — a reference to the consolidated D.C. Circuit litigation.",
-      "whyItMatters": "Oklahoma operators get federal tax relief now, but the pending lawsuits are the key wildcard that could reverse it.",
-      "tags": [
-        "oklahoma",
-        "dispensary"
-      ],
-      "source": {
-        "name": "OMMA Official Notice",
-        "url": "https://oklahoma.gov/omma/about/news/2026/update-omma-monitors-dea-rescheduling-status-shares-recently-filed-lawsuit.html"
-      },
-      "pinned": false
-    },
-    {
       "id": "ok-grower-license-compliance-stack-metrc-obndd",
       "headline": "Oklahoma Grower License: Current Compliance Stack — Metrc, OBNDD Registration, 75% Residency, $50K Bond",
       "date": "2026-06-06",
@@ -2343,6 +2364,17 @@
   ],
   "discourse": [
     {
+      "id": "watch-cr-cbd-isomerization-naturally-produced-claim",
+      "headline": "Post-CR: CBD-Converted Delta-8 Marketed as 'Naturally Produced' — Covers December 11",
+      "claim": "Following the September 3 CR signing, hemp industry vendors and retailers are marketing CBD-to-delta-8 isomerization products as 'naturally produced by Cannabis sativa L.' and therefore covered by the December 11 delay rather than the November 12 synthetic cannabinoid deadline. Some are telling retailers: 'CBD-converted delta-8 is natural — you have until December 11.'",
+      "caution": "Whether commercially converted delta-8 (produced via CBD acid isomerization with chemical catalysts) qualifies as 'naturally produced by Cannabis sativa L.' under the enacted CR language is an open, unresolved legal question. DEA has not issued guidance. Delta-8 occurs in trace amounts in cannabis plants, but commercial production relies entirely on chemical conversion — legal commentators are split on whether that process meets the statutory 'naturally produced' standard. The November 12 deadline for cannabinoids 'not capable of being naturally produced' applies unless and until DEA or a court rules otherwise. Oklahoma OMMA-licensed cannabis operators are unaffected (not hemp), but any hemp-adjacent inventory must be analyzed product-by-product before relying on December 11.",
+      "source": {
+        "name": "cannabisregulations.ai — Congress Moved the Hemp Cliff: What December 11 Changes",
+        "url": "https://www.cannabisregulations.ai/cannabis-and-hemp-regulations-compliance-ai-blog/federal-hemp-ban-delay-december-11-2026"
+      },
+      "date": "2026-09"
+    },
+    {
       "id": "watch-cr-both-chambers-december11-now-law-synthetics-still-nov12",
       "headline": "'Congress passed the CR — December 11 is now the law for all hemp' — FALSE until Trump signs; synthetics (HHC, THC-O) still face November 12 regardless",
       "claim": "Following the House's 370-48 passage of the Senate CR on September 1, 2026, hemp operators, industry newsletters, and compliance channels are circulating claims that December 11, 2026 is now 'the law' and that the November 12 hemp ban is definitively 'cancelled,' 'delayed,' or 'off the table.' Some posts specifically drop the synthetic cannabinoid carve-out from their summaries, advising operators across all hemp product types to plan for December 11. Trade association announcements celebrating the 'major victory' are being shared as confirmation that the November 12 compliance deadline no longer applies.",
@@ -2635,17 +2667,6 @@
       "pinned": false
     },
     {
-      "id": "watch-white-house-hemp-backing-qualified",
-      "headline": "'White House backs Barr/Craig hemp bill' — July 23 coverage overstated administration support; July 24 reports show WH objects to inhalable provisions",
-      "claim": "Coverage on July 22-23 headlining 'White House backs bill to keep hemp THC products legal' circulated widely in hemp and dispensary operator channels, with many operators interpreting it as near-certain White House endorsement of the Barr/Craig Lawful Hemp Protection Act and treating it as further evidence the November 12 ban will not take effect. Some posts frame it as: 'White House is on board — this is basically settled.'",
-      "caution": "Marijuana Moment reported July 24 that 'an administration official declined to back the specific legislation' and sources indicate the White House has specific objections to provisions covering inhalable hemp products. Rep. Barr's claim of White House support reflects a general administration desire to reverse the hemp ban — not formal endorsement of this bill's specific text, particularly the inhalables provisions. No Senate companion bill exists; no committee hearing is scheduled. Until Congress passes and the President signs legislation, the November 12, 2026 effective date stands. Oklahoma operators should not slow or stop compliance preparations based on July 23 White House 'backing' coverage.",
-      "source": {
-        "name": "Marijuana Moment — Does White House Actually Support New Hemp Bill? (Newsletter: July 24, 2026)",
-        "url": "https://www.marijuanamoment.net/does-white-house-actually-support-new-hemp-bill-newsletter-july-24-2026/"
-      },
-      "date": "2026-07"
-    },
-    {
       "id": "watch-irs-280e-guidance-delay-dc-circuit-speculation",
       "headline": "'IRS is withholding 280E guidance until D.C. Circuit rules' — attorney speculation about intentional IRS delay circulating as confirmed policy",
       "claim": "Cannabis tax attorneys and commentators (including Marc Hauser's Cannabis Musings newsletter, July 23, 2026) are circulating the view that the IRS may be intentionally delaying formal 280E guidance pending the D.C. Circuit stay motion outcome — reasoning that issuing guidance before a potential stay ruling could require reversals. The speculation is circulating in cannabis CPA and legal communities as the explanatory framework for the 90-day-plus gap since Treasury's April 23 announcement.",
@@ -2653,17 +2674,6 @@
       "source": {
         "name": "Cannabis Musings (Marc Hauser) — July 23, 2026",
         "url": "https://cannabismusings.substack.com/p/cannabis-musings-july-23-2026"
-      },
-      "date": "2026-07"
-    },
-    {
-      "id": "watch-lawful-hemp-act-ban-effectively-dead",
-      "headline": "'White House backed the hemp bill — the November ban is effectively cancelled' — premature conclusion operators should not act on",
-      "claim": "Social media and hemp industry advocacy groups are circulating the claim that White House backing of the Lawful Hemp Protection Act (Barr/Craig, introduced July 22) means the November 12, 2026 federal hemp product ban is 'effectively cancelled' or 'already delayed.' Some posts advise operators to stop reformulating products or halt compliance preparations.",
-      "caution": "The Lawful Hemp Protection Act has been INTRODUCED in the House — it has not passed the Senate or been signed by the President. The November 12, 2026 deadline remains the law until Congress acts. White House support does not substitute for enacted legislation. The Senate Agriculture Committee faces an 11-11 split with McConnell hospitalized, making a markup and floor vote uncertain. Oklahoma operators who hold hemp-derived inventory or who are sourcing genetics from out-of-state seed banks should NOT rely on this bill passing before November 12 — compliance preparations must continue in parallel with monitoring legislative progress.",
-      "source": {
-        "name": "Marijuana Moment — White House backs bill to keep hemp THC products legal, GOP sponsor says (July 23, 2026)",
-        "url": "https://www.marijuanamoment.net/white-house-backs-bill-to-keep-hemp-thc-products-legal-gop-sponsor-says-newsletter-july-23-2026"
       },
       "date": "2026-07"
     },
@@ -2697,17 +2707,6 @@
       "source": {
         "name": "OBNDD Director Bulletin (May 8, 2026) — DEA Registration for Oklahoma OMMA Operators",
         "url": "https://www.obndd.ok.gov/home/showpublisheddocument/887"
-      },
-      "date": "2026-07"
-    },
-    {
-      "id": "watch-nyse-listings-guarantee-rescheduling-safe",
-      "headline": "'Trulieve/Glass House NYSE listings prove the rescheduling order is legally safe' — investor framing conflating exchange listing with judicial protection",
-      "claim": "Cannabis investment community posts on LinkedIn and forums (July 2–5, 2026) use the Trulieve (June 10) and Glass House (June 30) NYSE uplistings as proof that rescheduling is '100% locked in' and legal challenges are 'not a real threat.' Some posts argue operators should stop worrying about DEA registration because major exchanges would not have listed cannabis companies if the April 28 order were genuinely at legal risk.",
-      "caution": "NYSE listing decisions are made by exchanges under their own risk assessments — not by federal courts. Exchange listing does not provide legal protection against a D.C. Circuit stay or vacatur of the April 28 order. A granted stay would revert state medical marijuana to Schedule I regardless of NYSE listings. Institutional investors accept and price in legal risk; an exchange listing signals market confidence, not legal certainty. The D.C. Circuit stay motion is fully briefed and a ruling could come at any time. Oklahoma operators should not use investor sentiment or equity market behavior as a substitute for independent legal counsel on DEA registration and OBNDD compliance obligations.",
-      "source": {
-        "name": "Glass House Brands — NYSE Uplist Announcement (June 25, 2026)",
-        "url": "https://www.globenewswire.com/news-release/2026/06/25/3317437/0/en/Glass-House-Brands-Announces-Uplist-to-NYSE.html"
       },
       "date": "2026-07"
     },
@@ -2756,39 +2755,6 @@
       "date": "2026-07"
     },
     {
-      "id": "watch-omma-monitoring-update-anti-rescheduling-signal",
-      "headline": "'OMMA just warned Oklahoma operators the order will be struck down' — OMMA's informational litigation update being misread as a regulatory prediction",
-      "claim": "OMMA's published update 'UPDATE: OMMA Monitors DEA Rescheduling Status, Shares Recently Filed Lawsuit' is being shared on Oklahoma operator Facebook groups with the interpretation that OMMA is signaling the rescheduling order will likely be voided, based on OMMA language noting that 'many legal experts are in consensus that the courts have a significant likelihood of striking down portions of the order.' Operators are using this to justify pausing DEA Form 225 filing.",
-      "caution": "OMMA's update was explicitly informational — OMMA stated it will 'continue to relay information as released by the DEA and federal government' and encouraged licensees to 'seek professional counsel.' The 'many legal experts' language describes legal arguments being raised in litigation, not OMMA's own regulatory prediction or guidance. OMMA has no authority to reverse OBNDD's January 1, 2027 enforcement deadline. The OMMA update does not change OBNDD Director Anderson's May 8, 2026 mandatory directive. Oklahoma operators delaying Form 225 based on this informational update remain exposed to OBNDD administrative sanctions after January 1, 2027 — and forgo safe-harbor operating authority during the DEA review period that only pre-June-29 filers retained.",
-      "source": {
-        "name": "OMMA Facebook — 'UPDATE: OMMA Monitors DEA Rescheduling Status, Shares Recently Filed Lawsuit' (circulating July 2026)",
-        "url": "https://www.facebook.com/OMMAOK/posts/%EF%B8%8F-update-omma-monitors-dea-rescheduling-status-shares-recently-filed-lawsuit/984195907452493/"
-      },
-      "date": "2026-07"
-    },
-    {
-      "id": "watch-mmj-intl-newswire-as-neutral-hearing-journalism",
-      "headline": "MMJ International's 'Update DEA Hearing [Date]:' press releases are being shared as neutral journalism of the proceedings",
-      "claim": "MMJ International Holdings has issued a series of Newswire/AccessWire press releases framed as factual hearing dispatches: 'Update DEA Hearing July 6: Harvard Expert Testifies State Dispensary Cannabis Does Not Meet Pharmaceutical Standards.' These are syndicated to Yahoo Finance, Globe and Mail, Tennessee Daily, New Jersey Telegraph, and hundreds of regional outlets where they appear indistinguishable from news reporting. Cannabis operators and compliance professionals are sharing these links as hearing summaries without disclosing their source.",
-      "caution": "MMJ International Holdings is a named petitioner in the D.C. Circuit cases seeking to vacate the April 28 order. MMJ BioPharma Cultivation has had its own DEA bulk manufacturing registration pending since 2018, which cannot proceed while state-licensed cannabis holds the same Schedule III pathway. MMJ has a direct financial and competitive interest in framing hearing testimony to support its D.C. Circuit case. Their Newswire releases are legal advocacy paid for by an adverse party, not independent editorial journalism. The Newswire distribution model syndicates press releases to appear alongside genuine news in aggregators and regional papers — this is by design. Operators and compliance staff treating these releases as hearing journalism are reading interested-party filings. Verify all hearing content against the DEA.gov official transcript, released only after July 15.",
-      "source": {
-        "name": "Newswire — MMJ International Holdings Advances D.C. Circuit Challenge (series of releases)",
-        "url": "https://www.newswire.com/news/mmj-international-holdings-advances-d-c-circuit-challenge-to-dea-marijuana"
-      },
-      "date": "2026-07"
-    },
-    {
-      "id": "watch-hemp-ban-delay-wait-and-see",
-      "headline": "'The White House asked for a delay — we can hold off reformulating' — hemp operators pausing November 2026 THC compliance based on OMB letter",
-      "claim": "Following the White House OMB Director Vought's June 24 letter requesting Congress delay or revise the November 12, 2026 hemp THC ban, hemp operator forums and industry social media are circulating a 'wait and see' posture — operators report pausing reformulation and inventory transition planning because 'the White House is on our side' and 'Congress will fix this before November.'",
-      "caution": "The OMB letter is a legislative communication — not a regulatory action, enforcement moratorium, or suspension of Section 781 of P.L. 119-37. The House Farm Bill passed April 30 WITHOUT including any delay. The Hemp Planting Predictability Act (S.3686/H.R.7024) has bipartisan sponsors but has received no committee hearing as of July 2026. Until Congress passes legislation that delays the effective date, or a federal court enjoins Section 781, the November 12, 2026 effective date stands. Oklahoma hemp operators who pause compliance planning based on the OMB letter are accepting the risk that legislative delay does not materialize in time. Plan for November 12 compliance; treat any legislative delay as a windfall, not a guarantee.",
-      "source": {
-        "name": "Cannabis Business Times — White House Asks Congress to Revise Hemp Definition, Delay THC Product Ban",
-        "url": "https://www.cannabisbusinesstimes.com/hemp/news/15828617/white-house-asks-congress-to-revise-hemp-definition-delay-thc-product-ban"
-      },
-      "date": "2026-07"
-    },
-    {
       "id": "watch-post-hearing-dc-circuit-ruling-imminent-july15",
       "headline": "'Hearing concluded — D.C. Circuit ruling now imminent' — false conflation of ALJ hearing end date with D.C. Circuit stay motion timeline",
       "claim": "Across cannabis investor forums, compliance social media, and industry newsletters, July 15 is being framed as a trigger date for an imminent D.C. Circuit ruling in Cases 26-1106/1130/1136: 'Now that the hearing is over, the court will rule quickly' or 'the court was waiting for the hearing to end before ruling on the stay.' Some posts specifically claim the court will rule 'within days' or 'before end of July' now that the ALJ hearing has concluded.",
@@ -2800,28 +2766,6 @@
       "date": "2026-07"
     },
     {
-      "id": "watch-mmj-intl-july15-norml1977-stay-piece",
-      "headline": "MMJ International July 15 'Should D.C. Circuit Halt DEA Schedule III Order?' piece circulating as report of a new distinct formal stay motion",
-      "claim": "MMJ International Holdings published a piece on July 15, 2026 titled 'MMJ Will Stay Marijuana Rescheduling? Why the D.C. Circuit Should Halt DEA's Schedule III Order,' circulated via HealthTechnologyNet, Newswire/AccessWire, and similar aggregators. The piece invokes NORML v. DEA (1977) precedent and argues for a D.C. Circuit stay of the April 28 order. It is circulating alongside genuine hearing-conclusion news on July 15, with some readers treating it as a report of a new, distinct formal stay motion in Cases 26-1106/1130/1136 beyond the existing June 9 NDASA/MMJ stay motion.",
-      "caution": "MMJ International Holdings is a named petitioner in D.C. Circuit Cases 26-1106/1130/1136. Their July 15 piece appears to be another in their Newswire/AccessWire advocacy press release series (see existing discourse: watch-mmj-intl-newswire-as-neutral-hearing-journalism) — an argument for a court stay, not necessarily a new formal court motion independent of the June 9 stay motion already on file in Case 26-1136. Whether the July 15 publication represents a supplemental formal filing in the D.C. Circuit docket (distinct from the June 9 filing) is not confirmed from primary court records as of July 17. The NORML v. DEA (1977) precedent cited involves a different statutory framework and agency context; its applicability to the 2026 April 28 treaty-authority order is an argument petitioners are advancing, not a settled holding. Oklahoma OMMA operators: no new court ruling has been issued; D.C. Circuit stay motion remains pending; no compliance posture change warranted.",
-      "source": {
-        "name": "HealthTechnologyNet — MMJ Will Stay Marijuana Rescheduling? Why the D.C. Circuit Should Halt DEA's Schedule III Order (July 15, 2026)",
-        "url": "https://healthtechnologynet.com/2026/07/15/mmj-will-stay-marijuana-rescheduling-why-the-d-c-circuit-should-halt-deas-schedule-iii-order/"
-      },
-      "date": "2026-07"
-    },
-    {
-      "id": "watch-linkedin-post-hearing-proponents-won-framing",
-      "headline": "'DEA effectively sided with proponents at the hearing' — LinkedIn overclaiming documented by Harris Sliwoski post-July 16 analysis",
-      "claim": "Following the ALJ hearing's conclusion on July 15, 2026, industry participants are circulating posts on LinkedIn (specifically documented by Harris Sliwoski LLP's 'The Quietest Fight of DEA's Life: Reflections on the Marijuana Rescheduling Hearing,' July 16) claiming that 'DEA has stepped into the proponents' shoes and done everything the industry would have done had it participated.' The framing presents the government's limited cross-examination and minimal objections during the hearing as a de facto endorsement of rescheduling and characterizes the hearing outcome as a clear win for proponents.",
-      "caution": "Harris Sliwoski directly contrasts the LinkedIn narrative with the assessments of reporters Natalie Fertig (Cultivated Media) and Emily Dufton — reporters physically present in the hearing room — both of whom questioned DEA's handling of the proceedings and did not characterize it as a clear industry win. DEA's limited cross-examination may reflect litigation strategy, resource constraints, or confidence in its existing record rather than a change in agency position. More critically: the ALJ recommended decision is non-binding; the DEA Administrator has full discretion to accept, modify, or reject any recommended decision with no deadline. A favorable hearing tone does not change the fact that the D.C. Circuit stay motion is now fully briefed and a ruling granting a stay could freeze the entire April 28 Schedule III order at any time. Oklahoma operators should not make capital expenditure, hiring, or registration-compliance decisions based on post-hearing optimism narratives about the hearing's tone.",
-      "source": {
-        "name": "Harris Sliwoski Canna Law Blog — The Quietest Fight of DEA's Life: Reflections on the Marijuana Rescheduling Hearing (July 16, 2026)",
-        "url": "https://harris-sliwoski.com/cannalawblog/the-quietest-fight-of-deas-life-reflections-on-the-marijuana-rescheduling-hearing/"
-      },
-      "date": "2026-07"
-    },
-    {
       "id": "watch-280e-retroactive-refund-claims-irs-warning",
       "headline": "'Rescheduling entitles you to 280E refunds for prior years' — retroactive refund claims circulating; IRS actively clawing back refunds already paid",
       "claim": "Cannabis accountants, consultants, and operators are circulating the claim that Schedule III rescheduling entitles cannabis businesses to file amended returns and claim 280E deductions for prior tax years (2023, 2024, 2025), recovering previously disallowed business deductions. The claim appears in operator forums, accounting newsletters, and consultant marketing materials.",
@@ -2829,17 +2773,6 @@
       "source": {
         "name": "CRB Monitor — IRS Pushes Back on Cannabis Tax Refunds (July 2026)",
         "url": "https://news.crbmonitor.com/2026/07/irs-pushes-back-on-cannabis-tax-refunds-as-rescheduling-reshapes-280e-fight/"
-      },
-      "date": "2026-07"
-    },
-    {
-      "id": "watch-mmj-intl-july19-bet-goes-wrong",
-      "headline": "MMJ International July 19 'Rescheduling Marijuana: The Bet That May Be About To Go Very Wrong' piece circulating as neutral compliance analysis",
-      "claim": "MMJ International Holdings published a piece on July 19, 2026 via HealthTechnologyNet titled 'Rescheduling Marijuana: The Bet That May Be About To Go Very Wrong,' arguing that cannabis operators who registered under the DEA expedited window made a costly mistake and that rescheduling will fail. The piece is circulating on cannabis compliance social media and operator forums as an objective compliance warning.",
-      "caution": "MMJ International Holdings is an active petitioner in D.C. Circuit Cases 26-1106/1130/1136 and has a direct financial and litigation interest in the April 28 rescheduling order being vacated. Their publications through HealthTechnologyNet, Newswire, and AccessWire are interested-party advocacy (see existing discourse: watch-mmj-intl-newswire-as-neutral-hearing-journalism and watch-mmj-intl-july15-norml1977-stay-piece). The 'bet going wrong' framing is adversarial advocacy, not a neutral compliance assessment. No new court ruling, no D.C. Circuit stay granted, no new DEA guidance has issued as of July 20, 2026. Do not adjust compliance posture — DEA registration safe-harbor, OBNDD enforcement grace period, and OMMA licensing requirements are all unchanged.",
-      "source": {
-        "name": "HealthTechnologyNet — Rescheduling Marijuana: The Bet That May Be About To Go Very Wrong (July 19, 2026)",
-        "url": "https://healthtechnologynet.com/2026/07/19/rescheduling-marijuana-the-bet-that-may-be-about-to-go-very-wrong/"
       },
       "date": "2026-07"
     },
@@ -2862,17 +2795,6 @@
       "source": {
         "name": "MMJ International Holdings — 'DEA Scientist Testifies Against DEA's Own Rescheduling Posture In Court' (July 21, 2026)",
         "url": "https://www.newswire.com/news/dea-scientist-testifies-against-deas-own-rescheduling-posture-in-court"
-      },
-      "date": "2026-07"
-    },
-    {
-      "id": "watch-stitt-shutdown-vs-omma-tightening-enforcement",
-      "headline": "'Governor Stitt is about to shut down Oklahoma medical marijuana' / 'OMMA is backing off enforcement' — both claims contradict the active 2026 regulatory record",
-      "claim": "Two contradictory but both-false narratives are circulating in Oklahoma operator networks: (1) Gov. Stitt's February 2026 public call to 'shut this broken system down' continues to circulate as a present-tense threat that regulatory shutdown is imminent, prompting some operators to reduce compliance investment; (2) simultaneously, some operators claim OMMA is 'pulling back' enforcement ahead of an anticipated political shutdown — particularly after high-profile enforcement actions like the multiagency emergency suspension of TWGDH LLC for Metrc discrepancies.",
-      "caution": "Both narratives are false. Gov. Stitt cannot unilaterally shut down Oklahoma's medical marijuana program — it was approved by voters via SQ 788 in 2018. Abolishing it requires the Oklahoma Legislature to refer a state question to voters (a two-chamber vote followed by a statewide election). No bill referring a shutdown to voters has passed both chambers of the Legislature. On enforcement: OMMA's permanently adopted rules went into effect July 11, 2026 — agencies that are about to be abolished do not finalize permanent rules. OMMA has maintained 300+ enforcement cases in 2026, executed multiagency emergency suspensions for Metrc discrepancies, and conducted 6,000+ inspections annually. The enforcement environment is tightening as DEA registration requirements layer on top of existing OMMA/OBNDD compliance. Operators who reduce Metrc accuracy discipline based on shutdown rumors are increasing their exposure to emergency suspension precisely when enforcement is intensifying.",
-      "source": {
-        "name": "KGOU/NPR — Gov. Stitt Calls for State Question to Shut Down Oklahoma Medical Marijuana (February 2026)",
-        "url": "https://www.kgou.org/politics-and-government/2026-02-04/gov-stitt-calls-for-state-question-to-shut-down-oklahoma-medical-marijuana"
       },
       "date": "2026-07"
     },
