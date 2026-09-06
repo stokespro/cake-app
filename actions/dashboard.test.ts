@@ -1,7 +1,7 @@
 // SPRO-73 coverage for the dashboard summary server action.
 //
 // Locked-in properties:
-//   1. Open work is BOTH todo and in_progress — the pending-task count and
+//   1. Open work is BOTH todo and in_progress — the open-task count and
 //      the upcoming-task list must include each of them and must exclude
 //      done, cancelled, and archived rows (archived via `archived_at IS NULL`).
 //   2. Every task query stays scoped to the caller's own agent_id.
@@ -84,7 +84,7 @@ function setupDb(responder: Responder = defaultResponder) {
   return fake;
 }
 
-/** The two sales_tasks queries: [0] = pending count, [1] = upcoming list. */
+/** The two sales_tasks queries: [0] = open count, [1] = upcoming list. */
 function taskQueries(calls: RecordedCall[]) {
   return calls.filter(c => c.table === 'sales_tasks');
 }
@@ -121,11 +121,11 @@ describe('open-work task queries', () => {
     const result = await getDashboardSummary();
 
     expect(result.error).toBeUndefined();
-    const [pendingCount] = taskQueries(calls);
-    expect(pendingCount).toBeDefined();
-    expect(opFor(pendingCount, 'in')?.args).toEqual(['status', ['todo', 'in_progress']]);
-    expect(opFor(pendingCount, 'is')?.args).toEqual(['archived_at', null]);
-    expect(opFor(pendingCount, 'eq')?.args).toEqual(['agent_id', USER_ID]);
+    const [openCount] = taskQueries(calls);
+    expect(openCount).toBeDefined();
+    expect(opFor(openCount, 'in')?.args).toEqual(['status', ['todo', 'in_progress']]);
+    expect(opFor(openCount, 'is')?.args).toEqual(['archived_at', null]);
+    expect(opFor(openCount, 'eq')?.args).toEqual(['agent_id', USER_ID]);
   });
 
   it('lists upcoming todo AND in_progress tasks, excluding done/cancelled and archived rows', async () => {
@@ -155,6 +155,6 @@ describe('open-work task queries', () => {
     const result = await getDashboardSummary();
 
     expect(result.error).toBeUndefined();
-    expect(result.data?.stats.pendingTasks).toBe(7);
+    expect(result.data?.stats.openTasks).toBe(7);
   });
 });

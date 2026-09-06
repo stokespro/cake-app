@@ -91,11 +91,11 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Tasks</CardTitle>
+            <CardTitle className="text-sm font-medium">Open Tasks</CardTitle>
             <CheckSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingTasks}</div>
+            <div className="text-2xl font-bold">{stats.openTasks}</div>
             <p className="text-xs text-muted-foreground">Needs attention</p>
           </CardContent>
         </Card>
@@ -131,7 +131,7 @@ export default async function DashboardPage() {
           <CardContent>
             <div className="space-y-3">
               {recentTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No pending tasks</p>
+                <p className="text-sm text-muted-foreground">No open tasks</p>
               ) : (
                 recentTasks.map((task: Task) => (
                   <div key={task.id} className="flex items-start justify-between space-x-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors">

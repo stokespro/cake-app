@@ -16,7 +16,7 @@ const OPEN_TASK_STATUSES = ['todo', 'in_progress']
 export interface DashboardSummary {
   stats: {
     totalOrders: number
-    pendingTasks: number
+    openTasks: number
     todayCommunications: number
     monthlyRevenue: number
   }
@@ -61,7 +61,7 @@ export async function getDashboardSummary(): Promise<
 
   // Run all queries in parallel
   const [
-    pendingTasksResult,
+    openTasksResult,
     todayCommsResult,
     monthlyOrdersResult,
     recentTasksResult,
@@ -110,8 +110,8 @@ export async function getDashboardSummary(): Promise<
       .limit(5),
   ])
 
-  if (pendingTasksResult.error) {
-    console.error('[dashboard] pendingTasks error:', pendingTasksResult.error)
+  if (openTasksResult.error) {
+    console.error('[dashboard] openTasks error:', openTasksResult.error)
     return { error: 'Failed to load dashboard data' }
   }
   if (todayCommsResult.error) {
@@ -141,7 +141,7 @@ export async function getDashboardSummary(): Promise<
     data: {
       stats: {
         totalOrders: monthlyOrders.length,
-        pendingTasks: pendingTasksResult.count ?? 0,
+        openTasks: openTasksResult.count ?? 0,
         todayCommunications: todayCommsResult.count ?? 0,
         monthlyRevenue,
       },
