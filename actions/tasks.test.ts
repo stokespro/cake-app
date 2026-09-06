@@ -10,7 +10,9 @@
 //   4. Archive is a soft delete: an UPDATE writing archived_at/archived_by,
 //      never a DELETE. Restore clears both columns.
 //   5. Active reads filter `archived_at IS NULL`; archived reads filter the
-//      inverse. Both stay scoped to the caller's own agent_id.
+//      inverse. Non-admin reads stay scoped to the caller's own agent_id;
+//      admin reads are unscoped so admins can discover and manage every
+//      assignee's tasks through the UI.
 //
 // '@/lib/supabase/server' and '@/lib/auth/session' are mocked wholesale so
 // this stays hermetic — same style as actions/packaging.test.ts.
@@ -179,7 +181,7 @@ describe('auth gate', () => {
 // ---------------------------------------------------------------------------
 
 describe('getTasks / getArchivedTasks', () => {
-  it('getTasks reads only the caller’s non-archived tasks', async () => {
+  it('getTasks reads only the caller’s non-archived tasks for non-admins', async () => {
     const { calls } = setupDb(respondWith());
 
     const result = await getTasks();
@@ -190,7 +192,7 @@ describe('getTasks / getArchivedTasks', () => {
     expect(opFor(read, 'is')?.args).toEqual(['archived_at', null]);
   });
 
-  it('getArchivedTasks reads only the caller’s archived tasks', async () => {
+  it('getArchivedTasks reads only the caller’s archived tasks for non-admins', async () => {
     const { calls } = setupDb(respondWith());
 
     const result = await getArchivedTasks();
@@ -199,6 +201,53 @@ describe('getTasks / getArchivedTasks', () => {
     const read = calls.find(c => c.table === 'sales_tasks')!;
     expect(opFor(read, 'eq')?.args).toEqual(['agent_id', AGENT_ID]);
     expect(opFor(read, 'not')?.args).toEqual(['archived_at', 'is', null]);
+  });
+
+  it('getTasks is NOT scoped to agent_id for admins (cross-assignee discovery)', async () => {
+    mockRequireRole.mockResolvedValue({ authorized: true, session: adminSession });
+    const { calls } = setupDb(respondWith());
+
+    const result = await getTasks();
+
+    expect(result.error).toBeUndefined();
+    const read = calls.find(c => c.table === 'sales_tasks')!;
+    expect(opFor(read, 'eq')).toBeUndefined();
+    expect(opFor(read, 'is')?.args).toEqual(['archived_at', null]);
+  });
+
+  it('getArchivedTasks is NOT scoped to agent_id for admins (cross-assignee restore)', async () => {
+    mockRequireRole.mockResolvedValue({ authorized: true, session: adminSession });
+    const { calls } = setupDb(respondWith());
+
+    const result = await getArchivedTasks();
+
+    expect(result.error).toBeUndefined();
+    const read = calls.find(c => c.table === 'sales_tasks')!;
+    expect(opFor(read, 'eq')).toBeUndefined();
+    expect(opFor(read, 'not')?.args).toEqual(['archived_at', 'is', null]);
+  });
+
+  it('management stays self-scoped like any non-admin', async () => {
+    mockRequireRole.mockResolvedValue({ authorized: true, session: managementSession });
+    const { calls } = setupDb(respondWith());
+
+    const result = await getTasks();
+
+    expect(result.error).toBeUndefined();
+    const read = calls.find(c => c.table === 'sales_tasks')!;
+    expect(opFor(read, 'eq')?.args).toEqual(['agent_id', managementSession.userId]);
+  });
+
+  it('both reads embed the assignee so the UI can show whose task it is', async () => {
+    const { calls } = setupDb(respondWith());
+
+    await getTasks();
+    await getArchivedTasks();
+
+    for (const read of calls.filter(c => c.table === 'sales_tasks')) {
+      const select = opFor(read, 'select')!.args[0] as string;
+      expect(select).toContain('assignee:users!sales_tasks_agent_id_fkey(id, name)');
+    }
   });
 });
 

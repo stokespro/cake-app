@@ -38,6 +38,11 @@ export interface TaskWithCustomer {
     omma_license: string | null
     city: string | null
   } | null
+  /** Current assignee (embedded via the agent_id FK) — lets admins see whose task it is. */
+  assignee: {
+    id: string
+    name: string
+  } | null
 }
 
 export interface CreateTaskInput {
@@ -104,8 +109,9 @@ async function authorizeTaskMutation(
 // ---------------------------------------------------------------------------
 
 /**
- * Fetch active (non-archived) tasks for the current user (always scoped to
- * own agent_id).
+ * Fetch active (non-archived) tasks. Non-admins are always scoped to their
+ * own agent_id; admins see every assignee's tasks so they can manage them
+ * through the UI (mirrors the admin-or-assignee mutation rule).
  */
 export async function getTasks(): Promise<
   { data: TaskWithCustomer[]; error?: never } | { data?: never; error: string }
@@ -115,15 +121,20 @@ export async function getTasks(): Promise<
 
   const db = await createServiceClient()
 
-  const { data, error } = await db
+  let query = db
     .from('sales_tasks')
     .select(`
       *,
-      customer:customers(business_name, license_name, omma_license, city)
+      customer:customers(business_name, license_name, omma_license, city),
+      assignee:users!sales_tasks_agent_id_fkey(id, name)
     `)
-    .eq('agent_id', auth.session.userId)
     .is('archived_at', null)
-    .order('due_date', { ascending: true })
+
+  if (auth.session.role !== 'admin') {
+    query = query.eq('agent_id', auth.session.userId)
+  }
+
+  const { data, error } = await query.order('due_date', { ascending: true })
 
   if (error) {
     console.error('[tasks] getTasks error:', error)
@@ -134,7 +145,8 @@ export async function getTasks(): Promise<
 }
 
 /**
- * Fetch archived tasks for the current user (always scoped to own agent_id).
+ * Fetch archived tasks. Non-admins are always scoped to their own agent_id;
+ * admins see every assignee's archived tasks so they can restore them.
  * Archived tasks are recoverable via restoreTask().
  */
 export async function getArchivedTasks(): Promise<
@@ -145,15 +157,20 @@ export async function getArchivedTasks(): Promise<
 
   const db = await createServiceClient()
 
-  const { data, error } = await db
+  let query = db
     .from('sales_tasks')
     .select(`
       *,
-      customer:customers(business_name, license_name, omma_license, city)
+      customer:customers(business_name, license_name, omma_license, city),
+      assignee:users!sales_tasks_agent_id_fkey(id, name)
     `)
-    .eq('agent_id', auth.session.userId)
     .not('archived_at', 'is', null)
-    .order('due_date', { ascending: true })
+
+  if (auth.session.role !== 'admin') {
+    query = query.eq('agent_id', auth.session.userId)
+  }
+
+  const { data, error } = await query.order('due_date', { ascending: true })
 
   if (error) {
     console.error('[tasks] getArchivedTasks error:', error)

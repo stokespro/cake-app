@@ -128,7 +128,7 @@ Two auth mechanisms coexist:
 | `order_items` | Line items per order | `id`, `order_id` (FK, CASCADE), `sku_id` (FK), `quantity`, `unit_price`, `line_total` (GENERATED) |
 | `contacts` | Per-dispensary contacts | `id`, `dispensary_id` (FK), `name`, `email`, `phone`, `role` (owner/manager/inventory_manager/buyer/other), `is_primary` |
 | `communications` | Interaction logs | `id`, `agent_id` (FK), `customer_id` (FK), `interaction_date`, `notes`, `contact_method` (phone/email/in-person/text), `follow_up_required` |
-| `sales_tasks` | General CRM tasks | `id`, `agent_id` (FK), `customer_id` (FK), `title`, `description`, `due_date`, `status` (pending/complete), `priority` (1-3) |
+| `sales_tasks` | General CRM tasks | `id`, `agent_id` (FK), `customer_id` (FK), `title`, `description`, `due_date`, `status` (todo/in_progress/done/cancelled), `priority` (1-3), `completed_at`, `archived_at`/`archived_by` (soft delete) |
 
 #### Commission System
 

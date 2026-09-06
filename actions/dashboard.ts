@@ -4,6 +4,11 @@ import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { Task, Order } from '@/types/database'
 
+// Statuses that count as open work (SPRO-73): the normal workflow is
+// todo -> in_progress -> done, so both pre-done states are "open".
+// done / cancelled tasks (and archived ones, filtered separately) are not.
+const OPEN_TASK_STATUSES = ['todo', 'in_progress']
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -62,12 +67,13 @@ export async function getDashboardSummary(): Promise<
     recentTasksResult,
     recentOrdersResult,
   ] = await Promise.all([
-    // Count open (todo, non-archived) tasks owned by this user
+    // Count open (todo or in_progress, non-archived) tasks owned by this
+    // user. Done/cancelled/archived tasks are not open work.
     db
       .from('sales_tasks')
       .select('*', { count: 'exact', head: true })
       .eq('agent_id', userId)
-      .eq('status', 'todo')
+      .in('status', OPEN_TASK_STATUSES)
       .is('archived_at', null),
 
     // Count today's communications logged by this user
@@ -84,12 +90,13 @@ export async function getDashboardSummary(): Promise<
       .eq('agent_id', userId)
       .gte('order_date', firstDayOfMonth),
 
-    // Up to 5 upcoming open (todo, non-archived) tasks for this user
+    // Up to 5 upcoming open (todo or in_progress, non-archived) tasks for
+    // this user
     db
       .from('sales_tasks')
       .select('*, customer:customers(business_name)')
       .eq('agent_id', userId)
-      .eq('status', 'todo')
+      .in('status', OPEN_TASK_STATUSES)
       .is('archived_at', null)
       .order('due_date', { ascending: true })
       .limit(5),

@@ -61,6 +61,7 @@ import {
   Loader2,
   XCircle,
   Circle,
+  User as UserIcon,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
@@ -159,7 +160,8 @@ export default function TasksPage() {
         task.customer?.business_name?.toLowerCase().includes(term) ||
         task.customer?.license_name?.toLowerCase().includes(term) ||
         task.customer?.omma_license?.toLowerCase().includes(term) ||
-        task.customer?.city?.toLowerCase().includes(term)
+        task.customer?.city?.toLowerCase().includes(term) ||
+        task.assignee?.name?.toLowerCase().includes(term)
       )
     }
 
@@ -338,7 +340,11 @@ export default function TasksPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Tasks</h1>
-          <p className="text-muted-foreground mt-1">Manage your follow-ups and to-dos</p>
+          <p className="text-muted-foreground mt-1">
+            {user?.role === 'admin'
+              ? 'Manage follow-ups and to-dos across all assignees'
+              : 'Manage your follow-ups and to-dos'}
+          </p>
         </div>
         <Button asChild>
           <Link href="/dashboard/tasks/new">
@@ -455,6 +461,12 @@ export default function TasksPage() {
                           Due {format(parseLocalDate(task.due_date), 'MMM d, yyyy')}
                         </span>
                       </div>
+                      {user && task.agent_id !== user.id && task.assignee && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <UserIcon className="h-4 w-4" />
+                          {task.assignee.name}
+                        </span>
+                      )}
                       {getStatusBadge(task.status)}
                       {OPEN_STATUSES.includes(task.status) && (
                         <Badge variant="outline">
