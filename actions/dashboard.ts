@@ -62,12 +62,13 @@ export async function getDashboardSummary(): Promise<
     recentTasksResult,
     recentOrdersResult,
   ] = await Promise.all([
-    // Count pending tasks owned by this user
+    // Count open (todo, non-archived) tasks owned by this user
     db
       .from('sales_tasks')
       .select('*', { count: 'exact', head: true })
       .eq('agent_id', userId)
-      .eq('status', 'pending'),
+      .eq('status', 'todo')
+      .is('archived_at', null),
 
     // Count today's communications logged by this user
     db
@@ -83,12 +84,13 @@ export async function getDashboardSummary(): Promise<
       .eq('agent_id', userId)
       .gte('order_date', firstDayOfMonth),
 
-    // Up to 5 upcoming pending tasks for this user
+    // Up to 5 upcoming open (todo, non-archived) tasks for this user
     db
       .from('sales_tasks')
       .select('*, customer:customers(business_name)')
       .eq('agent_id', userId)
-      .eq('status', 'pending')
+      .eq('status', 'todo')
+      .is('archived_at', null)
       .order('due_date', { ascending: true })
       .limit(5),
 

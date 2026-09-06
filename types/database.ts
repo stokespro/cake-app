@@ -2217,6 +2217,8 @@ export type Database = {
       sales_tasks: {
         Row: {
           agent_id: string | null
+          archived_at: string | null
+          archived_by: string | null
           completed_at: string | null
           created_at: string | null
           customer_id: string | null
@@ -2230,6 +2232,8 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           completed_at?: string | null
           created_at?: string | null
           customer_id?: string | null
@@ -2243,6 +2247,8 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           completed_at?: string | null
           created_at?: string | null
           customer_id?: string | null
@@ -2255,6 +2261,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "sales_tasks_archived_by_fkey"
+            columns: ["archived_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sales_tasks_agent_id_fkey"
             columns: ["agent_id"]
@@ -3300,7 +3313,7 @@ export const Constants = {
 } as const
 
 export type UserRole = 'agent' | 'management' | 'admin' | 'packaging' | 'vault' | 'grow'
-export type TaskStatus = 'pending' | 'complete'
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled'
 export type OrderStatus = 'pending' | 'confirmed' | 'packed' | 'delivered' | 'cancelled'
 export type ContactMethod = 'phone' | 'email' | 'in-person' | 'text'
 export type ContactRole = 'owner' | 'manager' | 'inventory_manager' | 'buyer' | 'other'
@@ -3508,6 +3521,8 @@ export interface Task {
   created_at: string
   updated_at: string
   completed_at?: string
+  archived_at?: string
+  archived_by?: string
   customer?: Customer
   agent?: Profile
   // Legacy alias
