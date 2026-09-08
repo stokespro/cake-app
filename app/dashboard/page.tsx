@@ -200,7 +200,6 @@ export default async function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common tasks you might want to do</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
