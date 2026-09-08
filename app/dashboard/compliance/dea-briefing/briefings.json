@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-09-07",
+  "lastUpdated": "2026-09-08",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-09-07",
+    "lastVerified": "2026-09-08",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -111,6 +111,23 @@
     }
   ],
   "items": [
+    {
+      "id": "scotus-cannabis-licensing-crs-report-sept2026",
+      "headline": "CRS Report: Federal Court Circuit Split 'Likely Increases Odds' Supreme Court Will Take Up Cannabis Licensing Residency Laws — Schedule III May Shift the DCC Analysis",
+      "date": "2026-09-08",
+      "summary": "A Congressional Research Service (CRS) Legal Sidebar published in early September 2026 analyzed the growing Dormant Commerce Clause (DCC) circuit split on whether state cannabis licensing residency requirements are constitutional. The First Circuit (Maine) and Second Circuit (New York) have found that state cannabis licensing preferences for in-state residents likely violate the DCC. The Ninth Circuit, in Peridot Tree WA, Inc. v. Washington State Liquor & Cannabis Control Board (January 2026), held the DCC does not apply to cannabis markets because Congress made cannabis federally illegal under the CSA. CRS concluded this split 'likely increases the odds' the Supreme Court will eventually take up and resolve the issue. The Supreme Court declined to grant certiorari in February 2026. CRS noted that April 28 Schedule III rescheduling may shift the constitutional analysis: the Ninth Circuit's reasoning rested on cannabis's federal illegality, and Schedule III status removes cannabis from the fully prohibited Schedule I category — potentially undercutting the DCC-inapplicability rationale. Marijuana Moment's September 8, 2026 newsletter featured the CRS report as its lead story.",
+      "whyItMatters": "For CAKE and Oklahoma OMMA operators, this is a structural long-horizon legal risk to Oklahoma's cannabis licensing framework. Oklahoma's OMMA has historically imposed residency requirements on license applicants. If the Supreme Court takes up the DCC question and rules that state cannabis licensing residency preferences violate the Commerce Clause — applying 1st/2nd Circuit logic — it could open Oklahoma's cannabis market to out-of-state capital and operators under a federal constitutional mandate, fundamentally altering the competitive landscape. The Schedule III rescheduling dimension is the immediate compliance-adjacent risk: the same legal argument used to open out-of-state competition in cannabis licensing is now potentially strengthened by the April 28 order that Oklahoma operators depend on for DEA registration and 280E relief. No stay, no cert granted, no Oklahoma-specific case is pending — there is no immediate compliance obligation change. Monitor SCOTUS certiorari petitions during the Court's October 2026 term, especially any cases from the 2nd or 1st Circuit raising residency-requirement DCC challenges. CAKE's OMMA licenses, DEA registration status, and OBNDD obligations are unaffected by this legal development today.",
+      "tags": ["federal", "oklahoma", "cultivation", "dispensary"],
+      "source": {
+        "name": "Marijuana Moment — Supreme Court Could Resolve Marijuana Business Licensing Disputes, Congressional Report Says (September 8, 2026)",
+        "url": "https://www.marijuanamoment.net/supreme-court-could-resolve-marijuana-business-licensing-disputes-congressional-report-says"
+      },
+      "secondarySource": {
+        "name": "The Marijuana Herald — Congressional Research Service Says Federal Court Split Raises Odds U.S. Supreme Court Will Take Up Marijuana Residency Laws (September 2026)",
+        "url": "https://themarijuanaherald.com/2026/09/congressional-research-service-says-federal-court-split-raises-odds-u-s-supreme-court-will-take-up-marijuana-residency-laws/"
+      },
+      "pinned": false
+    },
     {
       "id": "atf-rescinds-2011-medical-marijuana-open-letter-sept4",
       "headline": "ATF Rescinds 2011 Open Letter to FFLs — OMMA Medical Card No Longer Categorical Basis to Deny Firearm Transfer; Form 4473 Revision Pending",
@@ -1623,26 +1640,6 @@
       "pinned": false
     },
     {
-      "id": "ok-edibles-restrictions-hb4454-nov2026",
-      "headline": "Oklahoma HB 4454 Signed — Edibles Restricted to 10mg/Serving, 100mg/Package; Cartoon Shapes and Minor-Targeted Marketing Banned; Effective November 1, 2026",
-      "date": "2026-05-07",
-      "summary": "Governor Kevin Stitt signed HB 4454 into law on May 7, 2026, effective November 1, 2026. The law limits THC in medical marijuana edibles to 10mg per serving and 100mg per package (20mg per drink container); bans packaging in shapes resembling humans, animals, cartoons, or commercially available candy; and prohibits marketing that appeals to minors. The bill was signed the same day as HB 3143 (license moratorium extension to August 2028).",
-      "whyItMatters": "Oklahoma dispensaries must audit their entire edibles inventory for compliance before November 1, 2026 — approximately 4.5 months away. Processors and manufacturers producing edibles for the Oklahoma market must reformulate products exceeding 10mg/serving and redesign any non-compliant packaging before that date. Products in licensed inventory after November 1 that exceed the per-serving or per-package THC caps, or feature banned shapes, are out of compliance. Given OMMA's active enforcement posture (6,000+ inspections, 704 products recalled), this is an enforcement-ready standard. Dispensary buyers should flag non-compliant edible SKUs for reformulation or discontinuation now.",
-      "tags": [
-        "oklahoma",
-        "dispensary"
-      ],
-      "source": {
-        "name": "BillTrack50 — HB 4454 Oklahoma 2026",
-        "url": "https://www.billtrack50.com/billdetail/1938805"
-      },
-      "secondarySource": {
-        "name": "Legilist — HB 4454 Oklahoma 2026 Regular Session",
-        "url": "https://legilist.com/states/oklahoma/bill/2026%20Regular%20Session/hb-4454/"
-      },
-      "pinned": false
-    },
-    {
       "id": "dea-alj-testimony-schedule-june24",
       "headline": "ALJ Issues Detailed Testimony Schedule for June 29–July 15 Hearing — All 7 Anti-Rescheduling Parties Scheduled; States Testify July 14",
       "date": "2026-06-24",
@@ -2436,6 +2433,17 @@
     }
   ],
   "discourse": [
+    {
+      "id": "watch-hemp-december11-congressional-fix-complacency",
+      "headline": "'Congress has until December 11 to pass a permanent hemp fix — no need to prepare for the ban now' — post-CR-signing complacency narrative",
+      "claim": "Following President Trump's September 3, 2026 signing of the Continuing Appropriations and Extensions Act, 2027, extending the hemp THC ban deadline from November 12 to December 11 for naturally-derived cannabinoids, hemp operators, retailers, trade associations, and compliance advisors are circulating claims that Congress will deliver a permanent regulatory solution before December 11: 'The extension signals Congress is focused on this — they'll pass a permanent fix,' 'Multiple regulation bills are moving — we'll have a real framework before December 11,' and 'The 29-day extension is just a bridge — don't invest in reformulation yet.' Post-CR Marijuana Moment and Cannabis Business Times coverage reported that bipartisan lawmakers are 'turning focus' to permanent hemp THC regulation, with multiple competing proposals in play.",
+      "caution": "December 11, 2026 is ENACTED law — the operative compliance deadline for naturally-derived hemp THC products under the signed statute. No pending hemp legislation has a realistic path to enactment before December 11. The competing permanent regulation proposals — Hemp Planting Predictability Act (H.R. 7024, three-year delay), TTB alcohol-model bill, FDA-centered system, Cannabinoid Safety and Regulation Act — have not passed any single committee as of September 8, 2026. Congress passed the 29-day CR extension in a rush, and the compressed legislative calendar between September 8 and December 11 (including October recess and November midterm elections) leaves virtually no viable path for a permanent hemp regulatory bill to pass both chambers and be signed before December 11. The U.S. Hemp Roundtable estimates approximately 95% of existing hemp-derived cannabinoid products will be rendered federally unlawful under the current December 11 framework for natural cannabinoids and November 12 for synthetics. Oklahoma dispensaries carrying THCA flower, hemp-derived delta-8, delta-10, or hemp beverages must prepare NOW for December 11 compliance — and for November 12 compliance on synthetic cannabinoids (HHC, THC-O acetate) as enacted law. CAKE's OMMA-licensed medical marijuana products are unaffected by the hemp redefinition.",
+      "source": {
+        "name": "Marijuana Moment Newsletter — Lawmakers turn focus to hemp THC product regulation (September 3, 2026)",
+        "url": "https://www.marijuanamoment.net/lawmakers-turn-focus-to-hemp-thc-product-regulation-newsletter-september-3-2026"
+      },
+      "date": "2026-09"
+    },
     {
       "id": "watch-cr-cbd-isomerization-naturally-produced-claim",
       "headline": "Post-CR: CBD-Converted Delta-8 Marketed as 'Naturally Produced' — Covers December 11",
