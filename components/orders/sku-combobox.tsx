@@ -34,6 +34,10 @@ interface SkuComboboxProps<T extends SkuLike> {
   className?: string
   showUnitsPerCase?: boolean
   showOutOfStock?: boolean
+  /** When set, renders a selectable first item with this label that clears the selection */
+  emptyOptionLabel?: string
+  /** Trigger label shown when no SKU is selected (defaults to "Select SKU...") */
+  emptyValueLabel?: string
 }
 
 export function SkuCombobox<T extends SkuLike>({
@@ -44,6 +48,8 @@ export function SkuCombobox<T extends SkuLike>({
   className,
   showUnitsPerCase = false,
   showOutOfStock = false,
+  emptyOptionLabel,
+  emptyValueLabel = 'Select SKU...',
 }: SkuComboboxProps<T>) {
   const [open, setOpen] = useState(false)
 
@@ -68,7 +74,7 @@ export function SkuCombobox<T extends SkuLike>({
           className={cn('w-full min-w-0 justify-between overflow-hidden font-normal', className)}
         >
           <span className="truncate text-left">
-            {selectedSku ? getLabel(selectedSku) : 'Select SKU...'}
+            {selectedSku ? getLabel(selectedSku) : emptyValueLabel}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -85,6 +91,20 @@ export function SkuCombobox<T extends SkuLike>({
           <CommandList>
             <CommandEmpty>No SKU found.</CommandEmpty>
             <CommandGroup>
+              {emptyOptionLabel && (
+                <CommandItem
+                  value={emptyOptionLabel}
+                  onSelect={() => {
+                    onChange('')
+                    setOpen(false)
+                  }}
+                >
+                  <Check
+                    className={cn('mr-2 h-4 w-4', value === '' ? 'opacity-100' : 'opacity-0')}
+                  />
+                  {emptyOptionLabel}
+                </CommandItem>
+              )}
               {skus.map((sku) => {
                 const outOfStock = showOutOfStock && !sku.in_stock
                 return (
