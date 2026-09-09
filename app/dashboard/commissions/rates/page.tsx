@@ -46,6 +46,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { SkuCombobox } from '@/components/orders/sku-combobox'
 import { toast } from 'sonner'
 import { Plus, Edit2, Trash2, CalendarIcon, Percent } from 'lucide-react'
 import { format } from 'date-fns'
@@ -476,25 +477,12 @@ export default function CommissionRatesPage() {
             {/* SKU */}
             <div className="space-y-2">
               <Label>SKU</Label>
-              <Select
-                value={formData.sku_id || 'all'}
-                onValueChange={(value) => setFormData(prev => ({
-                  ...prev,
-                  sku_id: value === 'all' ? '' : value
-                }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select SKU" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All SKUs</SelectItem>
-                  {filteredSkus.map((sku) => (
-                    <SelectItem key={sku.id} value={sku.id}>
-                      {sku.code} - {sku.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SkuCombobox
+                skus={filteredSkus}
+                value={formData.sku_id}
+                onChange={(skuId) => setFormData(prev => ({ ...prev, sku_id: skuId }))}
+                allowAll
+              />
               <p className="text-xs text-muted-foreground">
                 SKU-specific rates take highest priority
               </p>
