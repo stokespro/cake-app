@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState, useCallback, useMemo, useTransition } from 'react'
+import { Suspense, useEffect, useState, useCallback, useMemo, useRef, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Calendar } from '@/components/ui/calendar'
 import {
   Popover,
   PopoverContent,
@@ -69,10 +68,8 @@ import {
   ChevronsRight,
   Filter,
   X,
-  CalendarIcon,
   Check,
 } from 'lucide-react'
-import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import {
   getCustomers,
@@ -81,6 +78,13 @@ import {
   type CustomerRecord,
   type ProfileRecord,
 } from '@/actions/customers'
+import { DatePresetFilter } from '@/components/filters/date-preset-filter'
+import {
+  DISPENSARY_DATE_PRESETS,
+  parseDatePresetKey,
+  resolveDatePresetRange,
+  type DatePresetKey,
+} from '@/lib/date-filters'
 import { ErrorState } from '@/components/ui/error-state'
 
 const PAGE_SIZE = 50
@@ -90,20 +94,36 @@ interface FilterState {
   city: string
   salesPersonId: string
   hasOrders: boolean
-  startDate: string
-  endDate: string
+  /** Order-history date filter: a preset from lib/date-filters. */
+  datePreset: DatePresetKey
+  /** Custom range edges; only meaningful when datePreset === 'custom'. */
+  customFrom: string
+  customTo: string
   status: string
   page: number
 }
 
 function parseSearchParams(searchParams: URLSearchParams): FilterState {
+  // Bookmarked pre-SPRO-146 links carried bare `startDate`/`endDate` params;
+  // read them as an initial Custom range so those links keep working.
+  // buildSearchParams only ever emits the new `datePreset`/`dateFrom`/`dateTo`
+  // state, so the legacy params drop out on the next filter change.
+  const legacyFrom = searchParams.get('startDate') || ''
+  const legacyTo = searchParams.get('endDate') || ''
+  const hasLegacyRange = Boolean(legacyFrom || legacyTo)
+
   return {
     search: searchParams.get('search') || '',
     city: searchParams.get('city') || '',
     salesPersonId: searchParams.get('sales') || '',
     hasOrders: searchParams.get('hasOrders') === 'true',
-    startDate: searchParams.get('startDate') || '',
-    endDate: searchParams.get('endDate') || '',
+    datePreset: parseDatePresetKey(
+      searchParams.get('datePreset'),
+      DISPENSARY_DATE_PRESETS,
+      hasLegacyRange ? 'custom' : 'all'
+    ),
+    customFrom: searchParams.get('dateFrom') || legacyFrom,
+    customTo: searchParams.get('dateTo') || legacyTo,
     status: searchParams.get('status') || 'active',
     page: parseInt(searchParams.get('page') || '1', 10),
   }
@@ -115,8 +135,11 @@ function buildSearchParams(filters: FilterState): URLSearchParams {
   if (filters.city) params.set('city', filters.city)
   if (filters.salesPersonId) params.set('sales', filters.salesPersonId)
   if (filters.hasOrders) params.set('hasOrders', 'true')
-  if (filters.startDate) params.set('startDate', filters.startDate)
-  if (filters.endDate) params.set('endDate', filters.endDate)
+  if (filters.datePreset !== 'all') params.set('datePreset', filters.datePreset)
+  if (filters.datePreset === 'custom') {
+    if (filters.customFrom) params.set('dateFrom', filters.customFrom)
+    if (filters.customTo) params.set('dateTo', filters.customTo)
+  }
   if (filters.status && filters.status !== 'active') params.set('status', filters.status)
   if (filters.page > 1) params.set('page', filters.page.toString())
   return params
@@ -128,7 +151,7 @@ function countActiveFilters(filters: FilterState): number {
   if (filters.city) count++
   if (filters.salesPersonId) count++
   if (filters.hasOrders) count++
-  if (filters.startDate || filters.endDate) count++
+  if (filters.datePreset !== 'all') count++
   if (filters.status && filters.status !== 'active') count++
   return count
 }
@@ -181,6 +204,27 @@ function DispensariesPageContent() {
     })
   }, [filters, pathname, router])
 
+  // <DatePresetFilter> can fire the preset change and the two custom-date
+  // changes in the same tick (entering Custom seeds both dates, leaving it
+  // clears them). updateFilters reads `filters` from the URL, which does not
+  // update until the push lands, so those calls would each overwrite the
+  // previous one's date state. Merge them through a ref instead, so every push
+  // carries the whole date selection.
+  const pendingDateFilters = useRef(filters)
+  useEffect(() => {
+    pendingDateFilters.current = filters
+  }, [filters])
+
+  const updateDateFilters = useCallback((patch: Partial<FilterState>) => {
+    const merged = { ...pendingDateFilters.current, ...patch }
+    pendingDateFilters.current = merged
+    updateFilters({
+      datePreset: merged.datePreset,
+      customFrom: merged.customFrom,
+      customTo: merged.customTo,
+    })
+  }, [updateFilters])
+
   // Debounced search update
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -218,13 +262,20 @@ function DispensariesPageContent() {
   const fetchDispensaries = useCallback(async () => {
     setLoading(true)
     setError(null)
+    // Resolve the preset to inclusive `yyyy-MM-dd` edges. getCustomers keeps its
+    // order-history overlap semantics unchanged (last_order_date >= lower bound,
+    // first_order_date <= upper bound).
+    const dateRange = resolveDatePresetRange(filters.datePreset, {
+      from: filters.customFrom,
+      to: filters.customTo,
+    })
     const result = await getCustomers({
       search: filters.search,
       city: filters.city,
       salesPersonId: filters.salesPersonId,
       hasOrders: filters.hasOrders,
-      startDate: filters.startDate,
-      endDate: filters.endDate,
+      startDate: dateRange.dateFrom ?? '',
+      endDate: dateRange.dateTo ?? '',
       status: filters.status,
       page: filters.page,
       pageSize: PAGE_SIZE,
@@ -344,7 +395,7 @@ function DispensariesPageContent() {
               </div>
 
               {/* Filter Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Status Filter */}
                 <div className="space-y-2">
                   <Label>Status</Label>
@@ -444,58 +495,25 @@ function DispensariesPageContent() {
                   </Select>
                 </div>
 
-                {/* Date Range - Start */}
-                <div className="space-y-2">
-                  <Label>Orders from</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !filters.startDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {filters.startDate ? format(new Date(filters.startDate), "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={filters.startDate ? new Date(filters.startDate) : undefined}
-                        onSelect={(date) => updateFilters({ startDate: date ? format(date, 'yyyy-MM-dd') : '' })}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
+              </div>
 
-                {/* Date Range - End */}
-                <div className="space-y-2">
-                  <Label>Orders to</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !filters.endDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {filters.endDate ? format(new Date(filters.endDate), "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={filters.endDate ? new Date(filters.endDate) : undefined}
-                        onSelect={(date) => updateFilters({ endDate: date ? format(date, 'yyyy-MM-dd') : '' })}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+              {/* Order History Date Filter */}
+              <div className="space-y-2">
+                <Label>Order history</Label>
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <DatePresetFilter
+                    value={filters.datePreset}
+                    onValueChange={(datePreset) => updateDateFilters({ datePreset })}
+                    presets={DISPENSARY_DATE_PRESETS}
+                    customFrom={filters.customFrom}
+                    customTo={filters.customTo}
+                    onCustomFromChange={(customFrom) => updateDateFilters({ customFrom })}
+                    onCustomToChange={(customTo) => updateDateFilters({ customTo })}
+                    placeholder="All Dates"
+                    idPrefix="dispensary-order-date"
+                    className="w-full sm:w-[200px]"
+                    customRangeClassName="sm:max-w-[320px]"
+                  />
                 </div>
               </div>
 
