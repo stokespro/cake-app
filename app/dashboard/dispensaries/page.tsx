@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState, useCallback, useMemo, useTransition } from 'react'
+import { Suspense, useEffect, useRef, useState, useCallback, useMemo, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Calendar } from '@/components/ui/calendar'
 import {
   Popover,
   PopoverContent,
@@ -69,10 +68,8 @@ import {
   ChevronsRight,
   Filter,
   X,
-  CalendarIcon,
   Check,
 } from 'lucide-react'
-import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import {
   getCustomers,
@@ -81,6 +78,14 @@ import {
   type CustomerRecord,
   type ProfileRecord,
 } from '@/actions/customers'
+import { DatePresetFilter } from '@/components/filters/date-preset-filter'
+import {
+  ORDER_DATE_PRESETS,
+  parseDatePresetKey,
+  resolveDatePresetRange,
+  type DateFilterRange,
+  type DatePresetKey,
+} from '@/lib/date-filters'
 import { ErrorState } from '@/components/ui/error-state'
 
 const PAGE_SIZE = 50
@@ -90,20 +95,44 @@ interface FilterState {
   city: string
   salesPersonId: string
   hasOrders: boolean
-  startDate: string
-  endDate: string
+  /** Order-history date filter: a preset from lib/date-filters. */
+  datePreset: DatePresetKey
+  /** Custom range edges, only meaningful when datePreset === 'custom'. */
+  customFrom: string
+  customTo: string
   status: string
   page: number
 }
 
+/** Resolves the filter state's date selection to an inclusive `yyyy-MM-dd` range. */
+function resolveFilterDateRange(filters: FilterState): DateFilterRange {
+  return resolveDatePresetRange(filters.datePreset, {
+    from: filters.customFrom,
+    to: filters.customTo,
+  })
+}
+
 function parseSearchParams(searchParams: URLSearchParams): FilterState {
+  // Bookmarked pre-SPRO-146 URLs used bare `startDate`/`endDate` params; read
+  // them as an initial Custom range so old links keep working. New state is
+  // always emitted as `datePreset` (+ `dateFrom`/`dateTo`) by
+  // buildSearchParams, so the legacy params disappear on the next interaction.
+  const legacyFrom = searchParams.get('startDate') || ''
+  const legacyTo = searchParams.get('endDate') || ''
+  const hasLegacyRange = Boolean(legacyFrom || legacyTo)
+
   return {
     search: searchParams.get('search') || '',
     city: searchParams.get('city') || '',
     salesPersonId: searchParams.get('sales') || '',
     hasOrders: searchParams.get('hasOrders') === 'true',
-    startDate: searchParams.get('startDate') || '',
-    endDate: searchParams.get('endDate') || '',
+    datePreset: parseDatePresetKey(
+      searchParams.get('datePreset'),
+      ORDER_DATE_PRESETS,
+      hasLegacyRange ? 'custom' : 'all'
+    ),
+    customFrom: searchParams.get('dateFrom') || legacyFrom,
+    customTo: searchParams.get('dateTo') || legacyTo,
     status: searchParams.get('status') || 'active',
     page: parseInt(searchParams.get('page') || '1', 10),
   }
@@ -115,20 +144,26 @@ function buildSearchParams(filters: FilterState): URLSearchParams {
   if (filters.city) params.set('city', filters.city)
   if (filters.salesPersonId) params.set('sales', filters.salesPersonId)
   if (filters.hasOrders) params.set('hasOrders', 'true')
-  if (filters.startDate) params.set('startDate', filters.startDate)
-  if (filters.endDate) params.set('endDate', filters.endDate)
+  if (filters.datePreset !== 'all') params.set('datePreset', filters.datePreset)
+  if (filters.datePreset === 'custom') {
+    if (filters.customFrom) params.set('dateFrom', filters.customFrom)
+    if (filters.customTo) params.set('dateTo', filters.customTo)
+  }
   if (filters.status && filters.status !== 'active') params.set('status', filters.status)
   if (filters.page > 1) params.set('page', filters.page.toString())
   return params
 }
 
 function countActiveFilters(filters: FilterState): number {
+  const dateRange = resolveFilterDateRange(filters)
   let count = 0
   if (filters.search) count++
   if (filters.city) count++
   if (filters.salesPersonId) count++
   if (filters.hasOrders) count++
-  if (filters.startDate || filters.endDate) count++
+  // Only counts once the selection actually narrows the range — "Custom" with
+  // both edges cleared leaves it unbounded.
+  if (dateRange.dateFrom || dateRange.dateTo) count++
   if (filters.status && filters.status !== 'active') count++
   return count
 }
@@ -167,19 +202,32 @@ function DispensariesPageContent() {
   const canManageDispensaries = ['management', 'admin'].includes(userRole)
   const canAddDispensary = ['sales', 'agent', 'management', 'admin'].includes(userRole)
 
+  /**
+   * Latest filter state, including updates pushed earlier in the same tick.
+   * `filters` only catches up once the new URL lands, but DatePresetFilter fires
+   * onValueChange + both custom-date callbacks back to back when you pick
+   * Custom — merging each one onto `filters` would let the last push overwrite
+   * the preset the first one just set.
+   */
+  const pendingFiltersRef = useRef(filters)
+  useEffect(() => {
+    pendingFiltersRef.current = filters
+  }, [filters])
+
   // Update URL with new filters
   const updateFilters = useCallback((newFilters: Partial<FilterState>) => {
-    const updated = { ...filters, ...newFilters }
+    const updated = { ...pendingFiltersRef.current, ...newFilters }
     // Reset to page 1 when filters change (except for page changes)
     if (!('page' in newFilters)) {
       updated.page = 1
     }
+    pendingFiltersRef.current = updated
     const params = buildSearchParams(updated)
     const query = params.toString()
     startTransition(() => {
       router.push(query ? `${pathname}?${query}` : pathname)
     })
-  }, [filters, pathname, router])
+  }, [pathname, router])
 
   // Debounced search update
   useEffect(() => {
@@ -218,13 +266,17 @@ function DispensariesPageContent() {
   const fetchDispensaries = useCallback(async () => {
     setLoading(true)
     setError(null)
+    // Resolve the preset to inclusive yyyy-MM-dd edges; getCustomers keeps its
+    // order-history overlap semantics (last_order_date >= from,
+    // first_order_date <= to) unchanged.
+    const dateRange = resolveFilterDateRange(filters)
     const result = await getCustomers({
       search: filters.search,
       city: filters.city,
       salesPersonId: filters.salesPersonId,
       hasOrders: filters.hasOrders,
-      startDate: filters.startDate,
-      endDate: filters.endDate,
+      dateFrom: dateRange.dateFrom ?? '',
+      dateTo: dateRange.dateTo ?? '',
       status: filters.status,
       page: filters.page,
       pageSize: PAGE_SIZE,
@@ -249,6 +301,9 @@ function DispensariesPageContent() {
 
   const clearAllFilters = () => {
     setSearchInput('')
+    // Back to the bare path: every filter — including the date range, which
+    // parses back as an unbounded 'all' — returns to its default.
+    pendingFiltersRef.current = parseSearchParams(new URLSearchParams())
     startTransition(() => {
       router.push(pathname)
     })
@@ -344,7 +399,7 @@ function DispensariesPageContent() {
               </div>
 
               {/* Filter Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Status Filter */}
                 <div className="space-y-2">
                   <Label>Status</Label>
@@ -443,59 +498,25 @@ function DispensariesPageContent() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
-                {/* Date Range - Start */}
-                <div className="space-y-2">
-                  <Label>Orders from</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !filters.startDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {filters.startDate ? format(new Date(filters.startDate), "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={filters.startDate ? new Date(filters.startDate) : undefined}
-                        onSelect={(date) => updateFilters({ startDate: date ? format(date, 'yyyy-MM-dd') : '' })}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Date Range - End */}
-                <div className="space-y-2">
-                  <Label>Orders to</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !filters.endDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {filters.endDate ? format(new Date(filters.endDate), "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={filters.endDate ? new Date(filters.endDate) : undefined}
-                        onSelect={(date) => updateFilters({ endDate: date ? format(date, 'yyyy-MM-dd') : '' })}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+              {/* Order History Date Filter */}
+              <div className="space-y-2">
+                <Label>Order history</Label>
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <DatePresetFilter
+                    value={filters.datePreset}
+                    onValueChange={(datePreset) => updateFilters({ datePreset })}
+                    presets={ORDER_DATE_PRESETS}
+                    customFrom={filters.customFrom}
+                    customTo={filters.customTo}
+                    onCustomFromChange={(customFrom) => updateFilters({ customFrom })}
+                    onCustomToChange={(customTo) => updateFilters({ customTo })}
+                    placeholder="All Dates"
+                    idPrefix="dispensary-order-date"
+                    className="w-full sm:w-[200px]"
+                    customRangeClassName="sm:max-w-[320px]"
+                  />
                 </div>
               </div>
 

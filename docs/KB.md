@@ -475,8 +475,7 @@ All defined in `lib/auth-context.tsx`:
 | Component | Path | Purpose |
 |-----------|------|---------|
 | `floating-menu` | `components/ui/floating-menu.tsx` | FAB (floating action button) menu used in packaging |
-| `date-input` | `components/date-input.tsx` | Custom date picker wrapper |
-| `date-range-picker` | `components/date-range-picker.tsx` | Date range selection |
+| `date-preset-filter` | `components/filters/date-preset-filter.tsx` | Shared list date filter (presets + custom range) |
 | `theme-provider` | `components/theme-provider.tsx` | next-themes setup |
 | `theme-toggle` | `components/theme-toggle.tsx` | Dark/light mode toggle |
 | `database-test` | `components/debug/database-test.tsx` | Debug utility for DB connection testing |

@@ -96,8 +96,9 @@ export interface CustomerFilters {
   city?: string
   salesPersonId?: string
   hasOrders?: boolean
-  startDate?: string
-  endDate?: string
+  /** Inclusive `yyyy-MM-dd` order-history bounds, as resolved by lib/date-filters. */
+  dateFrom?: string
+  dateTo?: string
   status?: string
   page?: number
   pageSize?: number
@@ -167,11 +168,14 @@ export async function getCustomers(filters: CustomerFilters = {}): Promise<
     query = query.eq('has_orders', true)
   }
 
-  if (filters.startDate) {
-    query = query.gte('last_order_date', filters.startDate)
+  // Overlap test on the materialized order-history columns: a dispensary is in
+  // range when it ordered at least once on or after `dateFrom` and at least once
+  // on or before `dateTo`.
+  if (filters.dateFrom) {
+    query = query.gte('last_order_date', filters.dateFrom)
   }
-  if (filters.endDate) {
-    query = query.lte('first_order_date', filters.endDate)
+  if (filters.dateTo) {
+    query = query.lte('first_order_date', filters.dateTo)
   }
 
   query = query.order('business_name')
