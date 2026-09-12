@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Sheet,
@@ -29,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import {
   DollarSign,
   Clock,
@@ -38,9 +36,16 @@ import {
   Calendar,
   Loader2,
 } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, subMonths, startOfQuarter, startOfYear } from 'date-fns'
+import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
 import type { CommissionStatus } from '@/types/database'
+import { DatePresetFilter } from '@/components/filters/date-preset-filter'
+import {
+  isWithinDateRange,
+  MY_COMMISSION_DATE_PRESETS,
+  resolveDatePresetRange,
+  type DatePresetKey,
+} from '@/lib/date-filters'
 import {
   getMyCommissions,
   getMyOrderDetail,
@@ -49,20 +54,20 @@ import {
   type CommissionBreakdownItem,
 } from '@/actions/commissions'
 
-type PeriodType = 'this-month' | 'last-month' | 'this-quarter' | 'this-year' | 'all-time' | 'custom'
-
 interface FilterState {
-  dateFrom: string
-  dateTo: string
+  /** Order-date filter: a preset from lib/date-filters. */
+  datePreset: DatePresetKey
+  /** Custom range edges; only meaningful when datePreset === 'custom'. */
+  customFrom: string
+  customTo: string
   status: string
-  period: PeriodType
 }
 
 const initialFilters: FilterState = {
-  dateFrom: '',
-  dateTo: '',
+  datePreset: 'all',
+  customFrom: '',
+  customTo: '',
   status: 'all',
-  period: 'all-time',
 }
 
 export default function MyCommissionsPage() {
@@ -131,14 +136,15 @@ export default function MyCommissionsPage() {
   const filterCommissions = useCallback(() => {
     let filtered = [...commissions]
 
-    // Filter by date range
-    if (filters.dateFrom) {
-      const fromDate = parseLocalDate(filters.dateFrom)
-      filtered = filtered.filter(c => parseLocalDate(c.order_date) >= fromDate)
-    }
-    if (filters.dateTo) {
-      const toDate = new Date(filters.dateTo + 'T23:59:59')
-      filtered = filtered.filter(c => parseLocalDate(c.order_date) <= toDate)
+    // Filter by order date, using the selected preset (or the custom from/to
+    // dates when the preset is 'custom'). 'all' resolves to an unbounded range,
+    // which leaves every commission in.
+    const orderDateRange = resolveDatePresetRange(filters.datePreset, {
+      from: filters.customFrom,
+      to: filters.customTo,
+    })
+    if (orderDateRange.dateFrom || orderDateRange.dateTo) {
+      filtered = filtered.filter(c => isWithinDateRange(c.order_date, orderDateRange))
     }
 
     // Filter by status
@@ -148,42 +154,6 @@ export default function MyCommissionsPage() {
 
     setFilteredCommissions(filtered)
   }, [commissions, filters])
-
-  const handlePeriodChange = (period: PeriodType) => {
-    const now = new Date()
-    let dateFrom = ''
-    let dateTo = ''
-
-    switch (period) {
-      case 'this-month':
-        dateFrom = format(startOfMonth(now), 'yyyy-MM-dd')
-        dateTo = format(endOfMonth(now), 'yyyy-MM-dd')
-        break
-      case 'last-month':
-        const lastMonth = subMonths(now, 1)
-        dateFrom = format(startOfMonth(lastMonth), 'yyyy-MM-dd')
-        dateTo = format(endOfMonth(lastMonth), 'yyyy-MM-dd')
-        break
-      case 'this-quarter':
-        dateFrom = format(startOfQuarter(now), 'yyyy-MM-dd')
-        dateTo = format(now, 'yyyy-MM-dd')
-        break
-      case 'this-year':
-        dateFrom = format(startOfYear(now), 'yyyy-MM-dd')
-        dateTo = format(now, 'yyyy-MM-dd')
-        break
-      case 'all-time':
-        dateFrom = ''
-        dateTo = ''
-        break
-      case 'custom':
-        // Keep existing dates for custom
-        return setFilters(prev => ({ ...prev, period }))
-    }
-
-    setFilters(prev => ({ ...prev, period, dateFrom, dateTo }))
-  }
-
 
   // Summary calculations - based on filtered results
   const filteredTotal = filteredCommissions.reduce((sum, c) => sum + c.commission_amount, 0)
@@ -291,81 +261,34 @@ export default function MyCommissionsPage() {
           <CardTitle className="text-base">Filter Period</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={filters.period === 'this-month' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handlePeriodChange('this-month')}
-              >
-                This Month
-              </Button>
-              <Button
-                variant={filters.period === 'last-month' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handlePeriodChange('last-month')}
-              >
-                Last Month
-              </Button>
-              <Button
-                variant={filters.period === 'this-quarter' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handlePeriodChange('this-quarter')}
-              >
-                This Quarter
-              </Button>
-              <Button
-                variant={filters.period === 'this-year' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handlePeriodChange('this-year')}
-              >
-                This Year
-              </Button>
-              <Button
-                variant={filters.period === 'all-time' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handlePeriodChange('all-time')}
-              >
-                All Time
-              </Button>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center w-full">
-              <Input
-                type="date"
-                value={filters.dateFrom}
-                onChange={(e) => setFilters(prev => ({
-                  ...prev,
-                  period: 'custom',
-                  dateFrom: e.target.value,
-                }))}
-                className="h-9 w-full sm:w-[140px]"
-              />
-              <span className="text-sm text-muted-foreground hidden sm:inline">to</span>
-              <Input
-                type="date"
-                value={filters.dateTo}
-                onChange={(e) => setFilters(prev => ({
-                  ...prev,
-                  period: 'custom',
-                  dateTo: e.target.value,
-                }))}
-                className="h-9 w-full sm:w-[140px]"
-              />
-              <Select
-                value={filters.status}
-                onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-              >
-                <SelectTrigger className="w-full sm:w-[140px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+            <DatePresetFilter
+              value={filters.datePreset}
+              onValueChange={(datePreset) => setFilters(prev => ({ ...prev, datePreset }))}
+              presets={MY_COMMISSION_DATE_PRESETS}
+              customFrom={filters.customFrom}
+              customTo={filters.customTo}
+              onCustomFromChange={(customFrom) => setFilters(prev => ({ ...prev, customFrom }))}
+              onCustomToChange={(customTo) => setFilters(prev => ({ ...prev, customTo }))}
+              placeholder="All Dates"
+              idPrefix="my-commission-order-date"
+              className="w-full sm:w-[170px]"
+              customRangeClassName="sm:max-w-[320px]"
+            />
+            <Select
+              value={filters.status}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
+            >
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>

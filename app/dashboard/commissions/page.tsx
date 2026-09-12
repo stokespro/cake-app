@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -75,6 +74,13 @@ import {
 import { format } from 'date-fns'
 import { cn, parseLocalDate } from '@/lib/utils'
 import type { CommissionStatus } from '@/types/database'
+import { DatePresetFilter } from '@/components/filters/date-preset-filter'
+import {
+  COMMISSION_DATE_PRESETS,
+  isWithinDateRange,
+  resolveDatePresetRange,
+  type DatePresetKey,
+} from '@/lib/date-filters'
 import {
   getCommissions,
   getSalespeople,
@@ -91,15 +97,19 @@ import {
 } from '@/actions/commissions'
 
 interface FilterState {
-  dateFrom: string
-  dateTo: string
+  /** Order-date filter: a preset from lib/date-filters. */
+  datePreset: DatePresetKey
+  /** Custom range edges; only meaningful when datePreset === 'custom'. */
+  customFrom: string
+  customTo: string
   salespersonId: string
   status: string
 }
 
 const initialFilters: FilterState = {
-  dateFrom: '',
-  dateTo: '',
+  datePreset: 'all',
+  customFrom: '',
+  customTo: '',
   salespersonId: '',
   status: 'all',
 }
@@ -201,14 +211,15 @@ export default function CommissionsPage() {
   const filterCommissions = useCallback(() => {
     let filtered = [...commissions]
 
-    // Filter by date range
-    if (filters.dateFrom) {
-      const fromDate = new Date(filters.dateFrom + 'T00:00:00')
-      filtered = filtered.filter(c => parseLocalDate(c.order_date) >= fromDate)
-    }
-    if (filters.dateTo) {
-      const toDate = new Date(filters.dateTo + 'T23:59:59')
-      filtered = filtered.filter(c => parseLocalDate(c.order_date) <= toDate)
+    // Filter by order date, using the selected preset (or the custom from/to
+    // dates when the preset is 'custom'). 'all' resolves to an unbounded range,
+    // which leaves every commission in.
+    const orderDateRange = resolveDatePresetRange(filters.datePreset, {
+      from: filters.customFrom,
+      to: filters.customTo,
+    })
+    if (orderDateRange.dateFrom || orderDateRange.dateTo) {
+      filtered = filtered.filter(c => isWithinDateRange(c.order_date, orderDateRange))
     }
 
     // Filter by salesperson
@@ -232,7 +243,7 @@ export default function CommissionsPage() {
     setFilters(initialFilters)
   }
 
-  const hasActiveFilters = filters.dateFrom || filters.dateTo ||
+  const hasActiveFilters = filters.datePreset !== 'all' ||
     (filters.salespersonId && filters.salespersonId !== 'all') ||
     (filters.status && filters.status !== 'all')
 
@@ -529,24 +540,17 @@ export default function CommissionsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <Input
-                type="date"
-                placeholder="From"
-                value={filters.dateFrom}
-                onChange={(e) => updateFilters({ dateFrom: e.target.value })}
-                className="h-10"
-              />
-            </div>
-            <div>
-              <Input
-                type="date"
-                placeholder="To"
-                value={filters.dateTo}
-                onChange={(e) => updateFilters({ dateTo: e.target.value })}
-                className="h-10"
-              />
-            </div>
+            <DatePresetFilter
+              value={filters.datePreset}
+              onValueChange={(datePreset) => updateFilters({ datePreset })}
+              presets={COMMISSION_DATE_PRESETS}
+              customFrom={filters.customFrom}
+              customTo={filters.customTo}
+              onCustomFromChange={(customFrom) => updateFilters({ customFrom })}
+              onCustomToChange={(customTo) => updateFilters({ customTo })}
+              placeholder="Order date"
+              idPrefix="commission-order-date"
+            />
             <Select
               value={filters.salespersonId || 'all'}
               onValueChange={(value) => updateFilters({ salespersonId: value })}

@@ -48,6 +48,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Plus, Search, Edit2, Trash2, Printer, ExternalLink, X } from 'lucide-react'
 import { format } from 'date-fns'
+import { DatePresetFilter } from '@/components/filters/date-preset-filter'
+import {
+  COMPLIANCE_DATE_PRESETS,
+  isWithinDateRange,
+  resolveDatePresetRange,
+  type DatePresetKey,
+} from '@/lib/date-filters'
 
 const REPORT_TYPES = [
   { value: 'plant_movement', label: 'Plant Movement' },
@@ -110,6 +117,7 @@ export default function CompliancePage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
+  const [filterDatePreset, setFilterDatePreset] = useState<DatePresetKey>('all')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -159,17 +167,20 @@ export default function CompliancePage() {
       filtered = filtered.filter(entry => entry.report_type === filterType)
     }
 
-    if (filterDateFrom) {
-      filtered = filtered.filter(entry => entry.event_date >= filterDateFrom)
-    }
-
-    if (filterDateTo) {
-      const toEnd = filterDateTo + 'T23:59:59'
-      filtered = filtered.filter(entry => entry.event_date <= toEnd)
+    // Filter by event date, using the selected preset (or the custom from/to
+    // dates when the preset is 'custom'). event_date is a timestamp, so
+    // membership is decided on its local calendar day — that keeps the whole of
+    // the selected end date in range, including its final second.
+    const eventDateRange = resolveDatePresetRange(filterDatePreset, {
+      from: filterDateFrom,
+      to: filterDateTo,
+    })
+    if (eventDateRange.dateFrom || eventDateRange.dateTo) {
+      filtered = filtered.filter(entry => isWithinDateRange(entry.event_date, eventDateRange))
     }
 
     setFilteredEntries(filtered)
-  }, [entries, searchTerm, filterType, filterDateFrom, filterDateTo])
+  }, [entries, searchTerm, filterType, filterDatePreset, filterDateFrom, filterDateTo])
 
   useEffect(() => {
     applyFilters()
@@ -178,11 +189,12 @@ export default function CompliancePage() {
   const clearFilters = () => {
     setSearchTerm('')
     setFilterType('all')
+    setFilterDatePreset('all')
     setFilterDateFrom('')
     setFilterDateTo('')
   }
 
-  const hasActiveFilters = searchTerm || filterType !== 'all' || filterDateFrom || filterDateTo
+  const hasActiveFilters = searchTerm || filterType !== 'all' || filterDatePreset !== 'all'
 
   // Sheet handlers
   const openCreateSheet = () => {
@@ -382,17 +394,16 @@ export default function CompliancePage() {
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              type="date"
-              placeholder="From date"
-              value={filterDateFrom}
-              onChange={(e) => setFilterDateFrom(e.target.value)}
-            />
-            <Input
-              type="date"
-              placeholder="To date"
-              value={filterDateTo}
-              onChange={(e) => setFilterDateTo(e.target.value)}
+            <DatePresetFilter
+              value={filterDatePreset}
+              onValueChange={setFilterDatePreset}
+              presets={COMPLIANCE_DATE_PRESETS}
+              customFrom={filterDateFrom}
+              customTo={filterDateTo}
+              onCustomFromChange={setFilterDateFrom}
+              onCustomToChange={setFilterDateTo}
+              placeholder="Event date"
+              idPrefix="compliance-event-date"
             />
           </div>
           <div className="flex items-center justify-between mt-4">
