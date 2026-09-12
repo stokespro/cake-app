@@ -75,6 +75,50 @@ describe('resolveDatePresetRange', () => {
     })
   })
 
+  it('ends the to-date presets on the reference day, not the end of the period', () => {
+    expect(resolveDatePresetRange('quarter_to_date', {}, REFERENCE)).toEqual({
+      dateFrom: '2026-01-01',
+      dateTo: '2026-03-18',
+    })
+    expect(resolveDatePresetRange('year_to_date', {}, REFERENCE)).toEqual({
+      dateFrom: '2026-01-01',
+      dateTo: '2026-03-18',
+    })
+
+    // Later in the year, so quarter-to-date and year-to-date start on different
+    // days and neither can accidentally match the other.
+    const august5 = new Date(2026, 7, 5)
+    expect(resolveDatePresetRange('quarter_to_date', {}, august5)).toEqual({
+      dateFrom: '2026-07-01',
+      dateTo: '2026-08-05',
+    })
+    expect(resolveDatePresetRange('year_to_date', {}, august5)).toEqual({
+      dateFrom: '2026-01-01',
+      dateTo: '2026-08-05',
+    })
+  })
+
+  it('keeps the to-date presets on today even on the first and last day of a period', () => {
+    // First day of Q3: the range is that single day, not all of July–September.
+    expect(resolveDatePresetRange('quarter_to_date', {}, new Date(2026, 6, 1))).toEqual({
+      dateFrom: '2026-07-01',
+      dateTo: '2026-07-01',
+    })
+    expect(resolveDatePresetRange('year_to_date', {}, new Date(2026, 0, 1))).toEqual({
+      dateFrom: '2026-01-01',
+      dateTo: '2026-01-01',
+    })
+    // On the final day of the period the to-date range and the full-period range
+    // coincide — that's the only day they may.
+    const dec31 = new Date(2026, 11, 31)
+    expect(resolveDatePresetRange('quarter_to_date', {}, dec31)).toEqual(
+      resolveDatePresetRange('this_quarter', {}, dec31)
+    )
+    expect(resolveDatePresetRange('year_to_date', {}, dec31)).toEqual(
+      resolveDatePresetRange('this_year', {}, dec31)
+    )
+  })
+
   it('runs weeks Monday → Sunday, whichever day of the week it is', () => {
     const monday = new Date(2026, 2, 16)
     const sunday = new Date(2026, 2, 22)
@@ -277,9 +321,18 @@ describe('preset metadata', () => {
       'all',
       'this_month',
       'last_month',
-      'this_quarter',
-      'this_year',
+      'quarter_to_date',
+      'year_to_date',
       'custom',
+    ])
+    // The dropdown still reads exactly like the button row it replaced.
+    expect(MY_COMMISSION_DATE_PRESETS.map((key) => DATE_PRESET_LABELS[key])).toEqual([
+      'All Dates',
+      'This Month',
+      'Last Month',
+      'This Quarter',
+      'This Year',
+      'Custom',
     ])
   })
 
@@ -308,5 +361,59 @@ describe('preset metadata', () => {
       dateTo: '2026-06-30',
     })
     expect(todayDateString(new Date(2026, 0, 1, 23, 59))).toBe('2026-01-01')
+  })
+})
+
+/**
+ * The My Commissions quarter/year periods have always run from the start of the
+ * period to *today*, so a future-dated commission order can never land in them.
+ */
+describe('My Commissions date filtering', () => {
+  /** A commission order dated after the reference day, but inside the same quarter and year. */
+  const FUTURE_ORDER_DATE = '2026-03-25'
+  /** Same, further out: still inside 2026 but in a later quarter. */
+  const FAR_FUTURE_ORDER_DATE = '2026-11-02'
+
+  it('ends this-quarter on today and excludes future-dated orders', () => {
+    const range = resolveDatePresetRange('quarter_to_date', {}, REFERENCE)
+    expect(range).toEqual({ dateFrom: '2026-01-01', dateTo: '2026-03-18' })
+
+    expect(isWithinDateRange('2026-01-01', range)).toBe(true)
+    expect(isWithinDateRange('2026-03-18', range)).toBe(true)
+    expect(isWithinDateRange('2026-03-18T23:30:00', range)).toBe(true)
+    expect(isWithinDateRange(FUTURE_ORDER_DATE, range)).toBe(false)
+    expect(isWithinDateRange('2026-03-19T00:01:00', range)).toBe(false)
+    // Nothing from before the quarter leaks in either.
+    expect(isWithinDateRange('2025-12-31', range)).toBe(false)
+  })
+
+  it('ends this-year on today and excludes future-dated orders', () => {
+    const range = resolveDatePresetRange('year_to_date', {}, REFERENCE)
+    expect(range).toEqual({ dateFrom: '2026-01-01', dateTo: '2026-03-18' })
+
+    expect(isWithinDateRange('2026-01-01T00:00:00', range)).toBe(true)
+    expect(isWithinDateRange('2026-03-18', range)).toBe(true)
+    expect(isWithinDateRange(FUTURE_ORDER_DATE, range)).toBe(false)
+    expect(isWithinDateRange(FAR_FUTURE_ORDER_DATE, range)).toBe(false)
+    expect(isWithinDateRange('2025-12-31', range)).toBe(false)
+  })
+
+  it('never resolves any of its periods past today', () => {
+    const today = todayDateString(REFERENCE)
+    for (const preset of MY_COMMISSION_DATE_PRESETS) {
+      if (preset === 'custom') continue // the user's own dates, not ours to bound
+      const { dateTo } = resolveDatePresetRange(preset, {}, REFERENCE)
+      if (preset === 'this_month') {
+        // This Month has always been the whole calendar month.
+        expect(dateTo).toBe('2026-03-31')
+        continue
+      }
+      expect(dateTo === null || dateTo <= today, preset).toBe(true)
+    }
+  })
+
+  it('does not offer the full-period quarter/year presets', () => {
+    expect(MY_COMMISSION_DATE_PRESETS).not.toContain('this_quarter')
+    expect(MY_COMMISSION_DATE_PRESETS).not.toContain('this_year')
   })
 })

@@ -38,6 +38,11 @@ export type DatePresetKey =
   | 'last_month'
   | 'this_quarter'
   | 'this_year'
+  // `*_to_date` variants stop at today instead of running to the end of the
+  // period. They exist because My Commissions has always shown quarter- and
+  // year-to-date figures, so its ranges must never reach into the future.
+  | 'quarter_to_date'
+  | 'year_to_date'
   | 'custom'
 
 /** Inclusive range. `null` on either edge means unbounded in that direction. */
@@ -64,6 +69,11 @@ export const DATE_PRESET_LABELS: Record<DatePresetKey, string> = {
   last_month: 'Last Month',
   this_quarter: 'This Quarter',
   this_year: 'This Year',
+  // Same user-facing wording as the full-period variants: a page offers one or
+  // the other, never both, and "This Quarter" is what the replaced My
+  // Commissions button said.
+  quarter_to_date: 'This Quarter',
+  year_to_date: 'This Year',
   custom: 'Custom',
 }
 
@@ -123,13 +133,18 @@ export const COMMISSION_DATE_PRESETS: DatePresetKey[] = [
  * My Commissions page dropdown, in display order. Mirrors the period buttons it
  * replaced (this month / last month / this quarter / this year / all time) plus
  * the shared Custom option.
+ *
+ * Quarter and year use the `*_to_date` keys because the buttons they replaced
+ * ran from the start of the quarter/year to *today*, never to the end of the
+ * period — commissions come from orders, whose order_date can be future-dated,
+ * so a full-period end date would pull unearned future orders into the totals.
  */
 export const MY_COMMISSION_DATE_PRESETS: DatePresetKey[] = [
   'all',
   'this_month',
   'last_month',
-  'this_quarter',
-  'this_year',
+  'quarter_to_date',
+  'year_to_date',
   'custom',
 ]
 
@@ -217,6 +232,9 @@ export function resolveDatePresetRange(
         dateTo: toDateString(endOfMonth(lastMonth)),
       }
     }
+    // Whole calendar quarter/year, including days still to come. Only offered on
+    // pages whose rows are backward-looking (dispensary order history,
+    // commission reports), where the trailing edge can't match anything yet.
     case 'this_quarter':
       return {
         dateFrom: toDateString(startOfQuarter(today)),
@@ -227,6 +245,11 @@ export function resolveDatePresetRange(
         dateFrom: toDateString(startOfYear(today)),
         dateTo: toDateString(endOfYear(today)),
       }
+    // Start of the quarter/year through today — future dates stay excluded.
+    case 'quarter_to_date':
+      return { dateFrom: toDateString(startOfQuarter(today)), dateTo: todayStr }
+    case 'year_to_date':
+      return { dateFrom: toDateString(startOfYear(today)), dateTo: todayStr }
     case 'custom':
       return { dateFrom: custom.from || null, dateTo: custom.to || null }
     case 'past_due_today':
