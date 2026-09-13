@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-09-12",
+  "lastUpdated": "2026-09-13",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-09-12",
+    "lastVerified": "2026-09-13",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -125,6 +125,47 @@
     }
   ],
   "items": [
+    {
+      "id": "irs-280e-guidance-absent-tax-season-approaching-sept2026",
+      "headline": "IRS/Treasury 280E Guidance STILL Not Issued — 4+ Months Post-Rescheduling; Tax Season Approaching; Dual-License Operators Risk Scramble",
+      "date": "2026-09-12",
+      "summary": "As of September 2026, the IRS and Treasury Department have not issued the 280E implementation guidance they promised in April 2026 following the Schedule III rescheduling order. Treasury's April 28 announcement stated that guidance 'addressing the federal tax consequences of the Final Order' would be forthcoming — specifically including rules on expense allocation for businesses with both medical and adult-use/recreational operations. Approximately 4.5 months later, no guidance has been published. Industry analysis (Cannabis Business Times, Baker Tilly) confirms this gap, noting that the window for the IRS to release official guidance before the 2026 tax season opens has narrowed to the point that many operators could be left scrambling by January 2027. Businesses holding both OMMA medical licenses and adult-use operations in other states must allocate expenses between Schedule III-covered activities (no 280E) and Schedule I-covered activities (280E applies), but no official IRS methodology exists.",
+      "whyItMatters": "For CAKE as an Oklahoma-licensed cultivator/processor — and for OMMA dispensary customers planning their 2026 tax filings — the continued absence of IRS 280E guidance creates compounding uncertainty. Key issues: (1) CAKE's operations are OMMA medical-only, making the relief clearer — but the lack of official IRS methodology for expense allocation still creates audit risk if CAKE claims 280E relief on 2026 returns without a formal safe harbor. (2) Any OMMA operator who also holds out-of-state adult-use licenses faces the expense-allocation problem directly, with no IRS methodology to rely on. (3) IRS has already demonstrated willingness to claw back 280E refunds via DOJ lawsuit (TerraScend, May 31, 2026) and administrative pushback on refund claims, creating risk even for operators who act in good faith without guidance. (4) September 30, 2026 is the deadline for the Trump Administration's response to the bipartisan House letter demanding Schedule III implementation guidance including 280E clarity — if Treasury fails to respond by that date, additional congressional pressure is likely but does not by itself create guidance. Operators should work with cannabis-specialist CPAs now, before year-end, to document a defensible 280E position for 2026 returns; do not rely on guidance that has not been published.",
+      "tags": [
+        "federal",
+        "oklahoma",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "Cannabis Business Times — Where Are We on Cannabis Rescheduling? It's Been Months Since the US Attorney General's April 2026 Order",
+        "url": "https://www.cannabisbusinesstimes.com/cannabis-rescheduling/news/15834706/where-are-we-on-cannabis-rescheduling-its-been-months-since-the-us-attorney-generals-april-2026-order"
+      },
+      "secondarySource": {
+        "name": "Treasury, IRS Announce Process for Tax Guidance Following DOJ Final Order on Medical Marijuana Rescheduling (April 28, 2026)",
+        "url": "https://home.treasury.gov/news/press-releases/sb0471"
+      },
+      "pinned": false
+    },
+    {
+      "id": "trump-cannabis-clemency-commutations-sept3-2026",
+      "headline": "Trump Commutes Two Federal Marijuana Sentences — Jerry Haymon (10 Years) and Kevin Harden (30 Years) Released to Time Served",
+      "date": "2026-09-03",
+      "summary": "President Trump on September 3, 2026 commuted the federal marijuana sentences of two individuals as his administration continues to engage with cannabis policy alongside the Schedule III rescheduling process. Jerry Haymon IV, prosecuted in the Eastern District of Virginia for conspiracy to distribute marijuana, had his 120-month sentence and supervised release commuted to time served with no further conditions. Kevin Harden, prosecuted in the Eastern District of Texas, had his 360-month sentence for conspiracy to possess with intent to distribute marijuana commuted to time served. Both clemency applications included a letter from former boxer Mike Tyson praising Trump's rescheduling move and noting the irony of Americans still serving federal prison sentences for marijuana offenses. The commutations were announced September 3, 2026 and reported in the Marijuana Moment newsletter on September 7, 2026.",
+      "whyItMatters": "For CAKE as an Oklahoma-licensed cultivator/processor and for all OMMA-licensed dispensary customers, these commutations are not a direct compliance event but are material political context: they demonstrate that the Trump administration is actively using executive clemency for federal marijuana offenses in parallel with the Schedule III rescheduling process. For Oklahoma operators, this signals continued White House engagement with cannabis normalization that informs the trajectory of DEA registration enforcement, the broader rescheduling ALJ proceeding, and potential future federal-state cannabis policy. Operators should not read the commutations as indicating that federal marijuana enforcement generally has ceased — the underlying statutes remain in force, recreational cannabis remains Schedule I, and the OBNDD January 1, 2027 grace period deadline is unchanged. The commutations are individual acts of executive clemency, not a policy amnesty.",
+      "tags": [
+        "federal"
+      ],
+      "source": {
+        "name": "The Marijuana Herald — President Trump Commutes 30-Year and 10-Year Federal Marijuana Sentences (September 2026)",
+        "url": "https://themarijuanaherald.com/2026/09/president-trump-commutes-30-year-and-10-year-federal-marijuana-sentences/"
+      },
+      "secondarySource": {
+        "name": "Marijuana Moment — Trump Releases More Federal Marijuana Prisoners As DEA Considers Rescheduling Cannabis",
+        "url": "https://www.marijuanamoment.net/trump-releases-more-federal-marijuana-prisoners-as-dea-considers-rescheduling-cannabis/"
+      },
+      "pinned": false
+    },
     {
       "id": "dc-circuit-stay-denied-sept9-2026",
       "headline": "D.C. Circuit DENIES Stay of April 28 Schedule III Order — Petitioners Failed Stringent Requirements; Merits Challenge Continues",
@@ -2913,19 +2954,6 @@
       "date": "2026-07-30"
     },
     {
-      "id": "watch-paul-july29-hemp-removal-ends-november-ban",
-      "headline": "WATCH: 'Rand Paul got the hemp ban removed — the November 12 deadline is cancelled/delayed' — FALSE: Section 781 of P.L. 119-37 is enacted law; appropriations rider removal does not repeal a statute",
-      "date": "2026-07-29",
-      "summary": "Following reports that Rand Paul successfully removed McConnell's hemp THC ban language from the FY2026 Agriculture Appropriations bill on July 29, 2026, social media, hemp industry forums, and trade media are expected to circulate claims that the November 12, 2026 hemp ban has been 'removed,' 'blocked,' 'cancelled,' or 'delayed.' These claims are LEGALLY INCORRECT. The November 12, 2026 federal hemp redefinition (0.3% total-THC threshold including THCA; 0.4 mg THC per final-product container; synthetics excluded) is established by Section 781 of P.L. 119-37 — a statute already signed into law as part of the Consolidated Appropriations Act of 2025 in November 2025. An appropriations rider is a provision added to a spending bill; removing that rider from a future spending bill does not and cannot repeal or amend an already-enacted statute. Only a new bill passed by both chambers of Congress and signed by the President can change the law. As of July 29, 2026, no such bill has been introduced, passed, or signed. The November 12, 2026 effective date is unchanged.",
-      "tags": [
-        "federal",
-        "dispensary",
-        "cultivation",
-        "deadline"
-      ],
-      "pinned": false
-    },
-    {
       "id": "watch-irs-280e-guidance-delay-dc-circuit-speculation",
       "headline": "'IRS is withholding 280E guidance until D.C. Circuit rules' — attorney speculation about intentional IRS delay circulating as confirmed policy",
       "claim": "Cannabis tax attorneys and commentators (including Marc Hauser's Cannabis Musings newsletter, July 23, 2026) are circulating the view that the IRS may be intentionally delaying formal 280E guidance pending the D.C. Circuit stay motion outcome — reasoning that issuing guidance before a potential stay ruling could require reversals. The speculation is circulating in cannabis CPA and legal communities as the explanatory framework for the 90-day-plus gap since Treasury's April 23 announcement.",
@@ -2981,17 +3009,6 @@
       "date": "2026-07"
     },
     {
-      "id": "watch-omma-280e-regardless-registration-misread-july",
-      "headline": "'OMMA confirmed 280E relief applies regardless of DEA registration — no point registering now' — July re-circulation of April OMMA language as post-window justification",
-      "claim": "OMMA's April 28 update stated '280E tax burden is removed for state medical marijuana licensed businesses, regardless of whether they pursue a DEA license.' This language is being re-circulated in Oklahoma operator Facebook groups and compliance forums in July 2026 as a post-window justification for not filing DEA Form 225 even now, with the framing: 'Even OMMA said you don't need DEA registration to get 280E relief.'",
-      "caution": "OMMA was describing the DOJ's interpretation of the April 28 order regarding tax treatment — not issuing IRS or Treasury guidance, and not overriding OBNDD's independent state-law mandate. At least three separate problems with this framing: (1) IRS has issued no formal revenue ruling, notice, or proposed regulation on 280E for state-licensed operators — formal guidance is pending; (2) the April 28 order is under active D.C. Circuit challenge and could be stayed or vacated, eliminating the legal basis for 280E relief regardless of whether a business registered; (3) OBNDD independently requires DEA registration under Oklahoma state law and will begin enforcement January 1, 2027 — OMMA's 280E statement does not override OBNDD's enforcement authority. The 'regardless of DEA registration' language describes tax treatment, not state licensing exposure. Oklahoma cultivators and processors who have not registered should file Form 225 at deadiversion.usdoj.gov immediately and consult Oklahoma-licensed counsel.",
-      "source": {
-        "name": "OMMA — DEA Application Instructions for Medical Marijuana Dispensaries (April 28, 2026)",
-        "url": "https://oklahoma.gov/omma/about/news/2026/update-dea-provides-application-instructions-to-medical-marijuana-dispensaries.html"
-      },
-      "date": "2026-07"
-    },
-    {
       "id": "watch-280e-retroactive-refund-claims-irs-warning",
       "headline": "'Rescheduling entitles you to 280E refunds for prior years' — retroactive refund claims circulating; IRS actively clawing back refunds already paid",
       "claim": "Cannabis accountants, consultants, and operators are circulating the claim that Schedule III rescheduling entitles cannabis businesses to file amended returns and claim 280E deductions for prior tax years (2023, 2024, 2025), recovering previously disallowed business deductions. The claim appears in operator forums, accounting newsletters, and consultant marketing materials.",
@@ -2999,17 +3016,6 @@
       "source": {
         "name": "CRB Monitor — IRS Pushes Back on Cannabis Tax Refunds (July 2026)",
         "url": "https://news.crbmonitor.com/2026/07/irs-pushes-back-on-cannabis-tax-refunds-as-rescheduling-reshapes-280e-fight/"
-      },
-      "date": "2026-07"
-    },
-    {
-      "id": "watch-pac-donations-rescheduling-was-bought",
-      "headline": "'Cannabis companies bought the rescheduling order' — $11.5M FEC filing narrative circulating as proof D.C. Circuit will vacate April 28 order",
-      "claim": "Following Marijuana Moment's July 20, 2026 FEC filing report showing $11.5 million in cannabis MSO donations to a Trump-linked PAC in June 2026 — weeks after Acting AG Blanche issued the April 28 Schedule III order — social media, anti-rescheduling accounts, and some commentators are framing this as definitive proof the order was 'purchased' by the cannabis industry and that D.C. Circuit courts will vacate it as corrupt agency action. Some posts cite Kevin Sabet's 'solely political' characterization at the ALJ hearing (Day 1, June 29) as confirmation. The narrative is circulating on LinkedIn, X/Twitter, and mainstream media outlets (Salon, Washington Examiner).",
-      "caution": "While the FEC filings are verified public record, the legal mechanism — donations = corrupt agency action = judicial vacatur — does not work automatically under APA review. APA courts evaluate whether an agency's decision was arbitrary and capricious based on the administrative record before the agency; they do not apply a criminal bribery standard to invalidate agency orders based on political donations to unrelated PACs. The D.C. Circuit challengers' actual legal arguments center on APA notice-and-comment bypass, treaty-authority scope, and CAMU methodology switch — not on proving the donations caused the order. The donation narrative gives anti-rescheduling media and litigation commentators politically resonant framing but does not change the four-factor stay standard the court must apply. Oklahoma operators: no compliance obligation changes. The OBNDD enforcement grace period (January 1, 2027) and DEA registration status remain in effect regardless of this political narrative. Do not adjust compliance posture based on PAC donation media coverage.",
-      "source": {
-        "name": "Marijuana Moment — Marijuana Companies Donated $11.5 Million To Trump-Linked PAC Last Month (July 20, 2026)",
-        "url": "https://www.marijuanamoment.net/marijuana-companies-donated-11-5-million-to-trump-linked-pac-last-month-new-campaign-finance-records-show"
       },
       "date": "2026-07"
     }
