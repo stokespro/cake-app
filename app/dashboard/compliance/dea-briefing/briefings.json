@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-14",
+  "lastUpdated": "2026-09-15",
   "deaRegistrationStatus": {
     "lastVerified": "2026-09-14",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -3023,6 +3023,17 @@
         "url": "https://news.crbmonitor.com/2026/07/irs-pushes-back-on-cannabis-tax-refunds-as-rescheduling-reshapes-280e-fight/"
       },
       "date": "2026-07"
+    },
+    {
+      "id": "watch-mmj-intl-attorney-schedule-iii-vacatur-warning-sept14",
+      "headline": "MMJ International Holdings-Distributed Press Release Claims Schedule III 'Will Be Overturned' — Harris Sliwoski Attorney Analysis Circulated via ACCESS Newswire as Neutral Legal Warning September 14",
+      "claim": "On September 14, 2026, MMJ International Holdings (a named petitioner in D.C. Circuit Cases 26-1106/1130/1136) distributed a press release via ACCESS Newswire amplifying Harris Sliwoski attorney Jason Adelstone's September 11 blog analysis arguing that if petitioners establish Article III standing, the April 28 Schedule III final order 'will ultimately be overturned' based on his reading of 21 U.S.C. § 811(d)(1). The release warns cannabis businesses they 'may need to stop immediately' if the order is vacated, and advises operators to 'proceed very carefully.' It has been picked up on HealthTechnologyNet, Yahoo Finance, Morningstar, and regional aggregators, appearing alongside editorial news rather than as identifiable adversarial advocacy.",
+      "caution": "The press release is issued by MMJ International Holdings, an active D.C. Circuit petitioner seeking to vacate the April 28 order — this is adversarial advocacy from a litigation party, not independent legal counsel. The press release leverages Adelstone's Harris Sliwoski analysis but was distributed through MMJ International's own press release campaign; Adelstone's original September 11 blog post is a more nuanced legal analysis than MMJ International's amplification suggests. Adelstone's reading of § 811(d)(1) is a contested statutory interpretation — the DOJ has vigorously defended the order's legality, and the D.C. Circuit denied the stay motion September 9, ruling petitioners 'have not satisfied the stringent requirements for a stay pending court review.' Oklahoma operators should not alter compliance strategy or contract posture based on advocacy distributed by an opposing petitioner. The underlying merits challenge is real and already tracked in this briefing (see: dc-circuit-merits-briefing-ordered-sept9-2026) — but the MMJ-framed claim that standing will lead definitively to vacatur overstates legal certainty in a way the attorney's own post does not. This continues an established MMJ International ACCESS Newswire advocacy campaign (see: watch-mmj-intl-aug1-foundation-holds-piece, watch-mmj-intl-aug22-games-dea-attorneys-play). Consult cannabis-specialist counsel with no financial stake in the D.C. Circuit cases before acting on this analysis.",
+      "source": {
+        "name": "ACCESS Newswire via Globe and Mail — Cannabis Attorney Warns State Operators: Marijuana Schedule III May Not Survive Court Review (September 14, 2026)",
+        "url": "https://www.theglobeandmail.com/investing/markets/markets-news/ACCESS%20Newswire/4584402/cannabis-attorney-warns-state-operators-marijuana-schedule-iii-may-not-survive-court-review/"
+      },
+      "date": "2026-09"
     }
   ]
 }
