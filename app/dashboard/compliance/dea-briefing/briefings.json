@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-15",
+  "lastUpdated": "2026-09-17",
   "deaRegistrationStatus": {
     "lastVerified": "2026-09-14",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -125,6 +125,66 @@
     }
   ],
   "items": [
+    {
+      "id": "scotus-cert-petition-peridot-tree-dcc-licensing-sept17-2026",
+      "headline": "SCOTUS Cert Petition Filed: Peridot Tree Asks Supreme Court to Resolve Cannabis Licensing DCC Circuit Split — Schedule III May Strengthen Petitioner's Case",
+      "date": "2026-09-17",
+      "summary": "Michigan cannabis operator Kenneth Gay (Peridot Tree WA, Inc. / Peridot Tree, Inc.) filed a petition for certiorari with the U.S. Supreme Court on or around September 17, 2026, asking the Court to reverse the Ninth Circuit's January 2, 2026 ruling that the Dormant Commerce Clause (DCC) does not apply to state cannabis licensing markets because marijuana remains federally illegal. The Ninth Circuit upheld Washington State's and Sacramento's denial of cannabis licenses to Gay's out-of-state companies on the grounds that the DCC does not protect interstate economic activity in a federally illegal market. The cert petition directly implicates a circuit split: the First Circuit (Maine) and Second Circuit (New York) have both found that state cannabis licensing preferences for in-state residents likely violate the DCC, while the Ninth Circuit held the DCC inapplicable entirely. The Congressional Research Service's September 2026 Legal Sidebar found the split 'likely increases the odds' the Supreme Court will take the issue up. The cert petition may be strengthened by the April 28 Schedule III rescheduling order: the Ninth Circuit's DCC-inapplicability rationale rested on cannabis being 'federally illegal,' and Schedule III removes cannabis from the fully prohibited Schedule I category — potentially undermining the doctrinal foundation of the ruling the petition seeks to reverse. The Supreme Court's October 2026 term is underway; cert consideration typically takes several weeks to months.",
+      "whyItMatters": "For CAKE as an Oklahoma-licensed cultivator/processor and for all OMMA-licensed dispensary customers: if SCOTUS grants cert and rules that state cannabis licensing residency preferences violate the DCC under the current Schedule III framework, it would open Oklahoma's cannabis license market to out-of-state capital and operators under a federal constitutional mandate. Oklahoma's OMMA has historically imposed residency requirements on license applicants. A ruling striking those preferences would fundamentally alter the competitive landscape — making it easier for larger multistate operators to enter the Oklahoma market directly, with potential effects on wholesale pricing and local competitive dynamics. Immediate compliance impact today: NONE. SCOTUS has NOT yet granted cert; a petition filed is NOT cert granted. SCOTUS receives approximately 7,000 petitions per year and grants approximately 65-80 (~1%). No Oklahoma license, DEA registration, or OBNDD obligation is affected today. The prior September 8 CRS item (scotus-cannabis-licensing-crs-report-sept2026) noted the petition was likely; the actual filing is a material step forward. Monitor scotusblog.com for any cert grant order.",
+      "tags": [
+        "federal",
+        "oklahoma",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "Marijuana Moment — SCOTUS Asked to Overturn Marijuana Business Licensing Laws That Favor In-State Residents (September 17, 2026)",
+        "url": "https://www.marijuanamoment.net/supreme-court-asked-to-overturn-marijuana-business-licensing-laws-that-favor-in-state-residents"
+      },
+      "secondarySource": {
+        "name": "Growcola — Supreme Court Asked To Overturn Marijuana Business Licensing Laws That Favor In-State Residents",
+        "url": "https://growcola.com/supreme-court-asked-to-overturn-marijuana-business-licensing-laws-that-favor-in-state-residents/"
+      },
+      "pinned": false
+    },
+    {
+      "id": "house-claim-act-reintroduced-sept17-2026",
+      "headline": "House CLAIM Act Reintroduced — Reps. Velázquez and Davidson File Bipartisan Bill to Shield Insurers Serving Cannabis Businesses From Federal Penalties",
+      "date": "2026-09-17",
+      "summary": "Representatives Nydia M. Velázquez (D-NY) and Warren Davidson (R-OH) reintroduced the House version of the Clarifying Law Around Insurance of Marijuana (CLAIM) Act on September 17, 2026 — the fourth consecutive Congress in which this legislation has been filed. The bill would prohibit federal agencies from penalizing, discouraging, or blocking insurance companies, brokers, and agents from providing coverage to state-licensed cannabis businesses. A companion Senate bill (S. 5049) was introduced July 21, 2026 by Senators Kevin Cramer (R-ND) and Ruben Gallego (D-AZ) and referred to the Senate Banking Committee. The CLAIM Act would complement SAFER Banking Act protections (which focus on depository institutions) by extending federal regulatory cover to the insurance sector, which has largely avoided the cannabis industry due to federal risk despite the April 28 Schedule III rescheduling.",
+      "whyItMatters": "For CAKE as an Oklahoma-licensed cultivator/processor: cannabis businesses continue to face difficulty obtaining mainstream commercial property, liability, and product insurance because insurers face federal regulatory risk for serving an industry that was until recently a Schedule I enterprise — and because Schedule III has not eliminated all federal exposure for insurers. If enacted, the CLAIM Act would open access to mainstream commercial insurance markets, reducing costs and improving coverage across cultivation, processing, and dispensary operations. Critical caveat: the CLAIM Act has been introduced in every Congress since 2020 without passing out of committee. House Majority Leader Scalise's active resistance to cannabis legislation (see: scalise-cannabis-gateway-drug-sept9-2026) makes floor consideration unlikely in the current Congress. The Senate companion (S. 5049) remains in Banking Committee. Track for future Congresses but do not plan operations around passage.",
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "The Marijuana Herald — Bipartisan House Lawmakers Reintroduce Bill to Protect Insurers Serving State-Legal Marijuana Businesses (September 2026)",
+        "url": "https://themarijuanaherald.com/2026/09/bipartisan-house-lawmakers-reintroduce-bill-to-protect-insurers-serving-state-legal-marijuana-businesses/"
+      },
+      "secondarySource": {
+        "name": "Marijuana Moment — Insurance Companies That Provide Coverage For Marijuana Businesses Would Be Shielded From Federal Punishment Under New Congressional Bill",
+        "url": "https://www.marijuanamoment.net/insurance-companies-that-provide-coverage-for-marijuana-businesses-would-be-shielded-from-federal-punishment-under-new-congressional-bill"
+      },
+      "pinned": false
+    },
+    {
+      "id": "cannabis-pac-anti-legalization-republicans-sept15-2026",
+      "headline": "Trump-Linked PAC Channels $11.5M in Cannabis Industry Donations to Vulnerable Republicans Opposed to Legalization — Trulieve, Curaleaf, GTI, Verano Contributed",
+      "date": "2026-09-15",
+      "summary": "A Trump-aligned super PAC, America First Agriculture Action Inc., has received approximately $11.5 million in contributions from major cannabis multistate operators — including Trulieve, Curaleaf, Green Thumb Industries, and Verano Holdings — and is using those funds to support 11 vulnerable Republican members of Congress, several of whom have voted against cannabis legalization or opposed federal rescheduling. The PAC's strategy reflects the MSO sector's decision to prioritize maintaining goodwill with the Trump administration and key Republican incumbents over direct financial support for cannabis reform legislation. The Marijuana Moment September 15, 2026 newsletter headlined the story as 'Cannabis biz PAC donations are boosting anti-legalization lawmakers.' This follows an earlier July 2026 report (cannabis-mso-trump-pac-donations-june-july2026) on MSO Trump PAC contributions; this September reporting confirms the scale of the strategy as it approaches the November midterms.",
+      "whyItMatters": "For CAKE and Oklahoma OMMA-licensed operators, this development reveals the practical limits of cannabis industry political influence in the current Congress. Major MSOs are investing tens of millions in Republican political relationships rather than in lobbying for SAFER Banking Act passage, permanent hemp regulatory fixes, or broader descheduling. The implication: the largest cannabis companies have calculated that relationship maintenance with anti-legalization Republicans is more strategically valuable than near-term legislative wins. For Oklahoma operators, this means the legislative path to SAFER Banking and a permanent hemp framework remains blocked not only by House Majority Leader Scalise's ideology but by the MSO sector's deliberate financial strategy. The compliance baseline is unchanged — DEA registration, OBNDD January 1, 2027 grace period, and December 11 hemp deadline are entirely independent of this political dynamic.",
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "Marijuana Moment — Cannabis biz PAC donations are boosting anti-legalization lawmakers (Newsletter: September 15, 2026)",
+        "url": "https://www.marijuanamoment.net/cannabis-biz-pac-donations-are-boosting-anti-legalization-lawmakers-newsletter-september-15-2026"
+      },
+      "pinned": false
+    },
     {
       "id": "dea-workers-convictions-registration-pressure-sept14-2026",
       "headline": "DEA Pressures Medical Cannabis Business to Terminate Employees With Prior Drug Convictions — Owner Plans to Fight",
@@ -2658,6 +2718,17 @@
   ],
   "discourse": [
     {
+      "id": "watch-scotus-cert-petition-dcc-misread-as-immediate-oklahoma-threat",
+      "headline": "'SCOTUS is reviewing Oklahoma's licensing system' — cert petition filed in Peridot Tree, NOT cert granted; no immediate effect on existing Oklahoma licenses",
+      "claim": "Following Marijuana Moment's September 17 newsletter reporting a cert petition asking SCOTUS to take up the cannabis licensing Dormant Commerce Clause circuit split (Peridot Tree WA, Inc. v. Washington State Liquor and Cannabis Control Board), operators and industry social media are circulating claims that 'SCOTUS is reviewing Oklahoma's licensing system,' 'Oklahoma OMMA licenses could be invalidated by the Supreme Court,' or 'the DCC case means out-of-state companies can now apply for Oklahoma licenses.' Some posts conflate a petition filed with cert granted or with an immediate ruling that residency requirements are unenforceable.",
+      "caution": "A certiorari petition filed is NOT cert granted. SCOTUS receives approximately 7,000 petitions per year and grants approximately 65-80 (~1%). The Court has not accepted this case; granting cert typically takes several weeks to months from the conference pool process. Even if SCOTUS grants cert and rules for petitioner (striking state residency preferences as DCC violations), that ruling would not invalidate existing OMMA licenses — it would only prohibit Oklahoma from enforcing residency requirements for new license applicants prospectively. The Schedule III argument (that the Ninth Circuit's federal-illegality rationale is undermined by rescheduling) is a legal argument raised in the petition, not a judicial holding. Oklahoma operators' current OMMA licenses, DEA registrations, and OBNDD compliance obligations are entirely unaffected by the cert petition filing. Monitor scotusblog.com for the court's cert pool conference and any cert grant order.",
+      "source": {
+        "name": "Marijuana Moment — SCOTUS Asked to Overturn Marijuana Business Licensing Laws That Favor In-State Residents (September 17, 2026)",
+        "url": "https://www.marijuanamoment.net/supreme-court-asked-to-overturn-marijuana-business-licensing-laws-that-favor-in-state-residents"
+      },
+      "date": "2026-09"
+    },
+    {
       "id": "watch-dc-circuit-stay-denial-merits-case-still-pending",
       "headline": "Stay Denial ≠ 'Permanently Locked In' — Merits Challenge Continues; En Banc/SCOTUS Cert Still Possible",
       "claim": "Following the D.C. Circuit's September 9 stay denial, industry media, consultants, and advocacy organizations are characterizing the ruling as definitively 'locking in' cannabis rescheduling and confirming Schedule III is 'permanent.' Some vendors are using the stay denial to market DEA registration services with no caveats about the continuing merits case.",
@@ -2935,28 +3006,6 @@
         "url": "https://www.marijuanamoment.net/amendment-to-delay-hemp-thc-ban-wont-get-a-vote-at-farm-bill-hearing-key-gop-congressional-committee-chair-signals/"
       },
       "date": "2026-08"
-    },
-    {
-      "id": "watch-senate-cr-hemp-ban-delay-enacted-false",
-      "headline": "WATCH: 'Senate approved hemp delay — November ban delayed to December' — Senate voted 89-4 on CLOTURE (procedural), NOT final passage; final floor vote still pending; House must still act; NOT yet law; synthetics still recriminalized November 12",
-      "claim": "Following the Senate's 89-4 cloture vote on August 3, 2026 advancing the CR with hemp delay provisions, BevNET and Brewbound published headlines reading 'Senate Approves 30-Day Hemp Deadline Extension,' which are circulating in hemp industry forums, dispensary social media groups, and operator channels as confirmation that the November 12, 2026 federal hemp ban has been definitively delayed to December 11. Operators are reportedly pausing compliance preparations, reformulation timelines, and inventory transition plans based on the interpretation that 'Senate approved' means federal law has changed. Some posts use the 89-4 vote count as evidence the delay is 'practically certain' and tell operators to stop compliance spending.",
-      "caution": "As of August 4, 2026: The 89-4 cloture vote is a PROCEDURAL advancement — it ends debate on the CR and enables a final floor vote, which is still pending. 'Senate Approves' headlines from BevNET/Brewbound refer to this procedural cloture step, not a final floor passage. Even a final Senate floor vote does NOT change federal law on its own: the House passed its own CR through December 4 WITHOUT any hemp delay provision; both chambers must reconcile their versions and the President must sign before the November 12 effective date shifts. House action is not expected until September at the earliest — after August recess. ADDITIONALLY: the provision does NOT delay all hemp restrictions — synthetic cannabinoids 'not capable of being naturally produced by a Cannabis sativa L. plant' are still recriminalized November 12 under any enacted CR. The delay, even if fully enacted, is only 29 additional days (to December 11, not a permanent fix). Oklahoma operators must maintain full November 12, 2026 compliance posture — do not pause reformulation, inventory transition, or product discontinuation based on the Senate cloture vote. Treat any enacted delay as a windfall only if and when signed by the President.",
-      "source": {
-        "name": "Marijuana Herald — Senate Funding Bill Would Delay Most Federal Hemp Restrictions Until December 11 (August 2, 2026)",
-        "url": "https://themarijuanaherald.com/2026/08/senate-funding-bill-would-delay-most-federal-hemp-restrictions-until-december-11/"
-      },
-      "date": "2026-08-03"
-    },
-    {
-      "id": "watch-mmj-intl-aug1-foundation-holds-piece",
-      "headline": "WATCH: 'The Cannabis Industry Built on Schedule III — Federal Courts Are About to Decide Whether That Foundation Holds' — MMJ International Holdings August 1 AccessWire release circulating as neutral news of an imminent ruling",
-      "claim": "MMJ International Holdings published a new AccessWire press release on August 1, 2026 titled 'The Cannabis Industry Built on Schedule III — Federal Courts Are About to Decide Whether That Foundation Holds,' syndicated to HealthTechnologyNet, PR-Inside, and regional aggregators. The release frames the D.C. Circuit stay motion as an existential, imminent threat to the entire cannabis industry's Schedule III foundation, implying the court is on the verge of ruling. Some compliance channels are sharing excerpts as a genuine industry news development rather than as advocacy from a named D.C. Circuit petitioner.",
-      "caution": "This is the continuation of an established MMJ International Holdings press release campaign (see also: watch-mmj-intl-july30-rescheduling-in-jeopardy, watch-mmj-intl-july20-24-dea-scientist-fake-news). MMJ International is a named petitioner in D.C. Circuit Cases 26-1106/1130/1136 with its own DEA bulk manufacturing registration pending since 2018 — a registration that cannot advance while state-licensed cannabis holds the same Schedule III pathway MMJ seeks for itself. NO D.C. CIRCUIT RULING HAS BEEN ISSUED as of August 2, 2026. The AccessWire distribution model causes these paid advocacy releases to appear indistinguishable from editorial journalism on HealthTechnologyNet, Yahoo Finance, Morningstar, and regional aggregators. 'About to decide' reflects petitioner advocacy, not judicial timing — the D.C. Circuit operates on no public deadline. Oklahoma operators: the April 28 Schedule III order remains in full effect; OBNDD enforcement grace period (January 1, 2027) is unchanged; no compliance posture change is warranted.",
-      "source": {
-        "name": "HealthTechnologyNet / AccessWire — The Cannabis Industry Built on Schedule III — Federal Courts Are About to Decide Whether That Foundation Holds (August 1, 2026)",
-        "url": "https://healthtechnologynet.com/2026/08/01/the-cannabis-industry-built-on-schedule-iii-federal-courts-are-about-to-decide-whether-that-foundation-holds/"
-      },
-      "date": "2026-08-01"
     },
     {
       "id": "watch-irs-280e-guidance-delay-dc-circuit-speculation",
