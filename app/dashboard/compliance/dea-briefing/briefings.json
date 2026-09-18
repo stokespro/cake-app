@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-09-17",
+  "lastUpdated": "2026-09-18",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-09-14",
+    "lastVerified": "2026-09-18",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -113,7 +113,7 @@
       "id": "kd-trump-admin-schedule-iii-guidance-response",
       "label": "Trump Administration Response Deadline — Bipartisan House Guidance Letter on Schedule III Implementation",
       "date": "September 30, 2026",
-      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 11, 2026, no formal response has been issued. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
+      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 18, 2026, no formal response has been issued. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
       "urgency": "urgent"
     },
     {
@@ -165,6 +165,27 @@
       "secondarySource": {
         "name": "Marijuana Moment — Insurance Companies That Provide Coverage For Marijuana Businesses Would Be Shielded From Federal Punishment Under New Congressional Bill",
         "url": "https://www.marijuanamoment.net/insurance-companies-that-provide-coverage-for-marijuana-businesses-would-be-shielded-from-federal-punishment-under-new-congressional-bill"
+      },
+      "pinned": false
+    },
+    {
+      "id": "federal-reserve-cannabis-higher-risk-banking-sept15-2026",
+      "headline": "Federal Reserve Proposes Community Bank Risk Guidance Explicitly Flagging Marijuana Businesses as Higher-Risk Customers",
+      "date": "2026-09-15",
+      "summary": "The Federal Reserve published a 'Proposed Third-Party Risk Management Guide for Traditional Community Banking Organizations' in the Federal Register on September 15, 2026 (Document 2026-18852), applicable to Federal Reserve-supervised community banks with less than $30 billion in assets. The proposal explicitly identifies 'marijuana-related businesses' as an example of higher-risk clients that may require more advanced BSA/AML monitoring capabilities beyond basic compliance tools. The Federal Reserve, FDIC, and OCC issued the parallel proposal jointly; public comments are due November 16, 2026. The guidance is nonbinding and advisory, but its inclusion of cannabis businesses as a named higher-risk category codifies existing informal banking reluctance into official proposed regulatory language.",
+      "whyItMatters": "For CAKE as an Oklahoma-licensed cultivator/processor, and for all OMMA-licensed dispensary customers: the April 28 Schedule III rescheduling order moved cannabis off Schedule I, and the industry widely expected federal banking regulators to eventually soften their stance toward cannabis-bank relationships. This Federal Reserve proposal moves in the opposite direction — explicitly naming marijuana businesses as higher-risk customers in proposed community banking guidance, signaling that regulators intend to require enhanced AML scrutiny for cannabis bank accounts even under Schedule III. For Oklahoma operators, this means mainstream community banking access remains structurally difficult and is unlikely to improve without enacted legislation (SAFER Banking Act, which remains blocked in the House). If the guidance is finalized as proposed, community banks serving Oklahoma cannabis businesses face documented regulatory expectations for more costly compliance systems — creating a further disincentive to enter or maintain cannabis banking relationships. Comment deadline is November 16, 2026 (federalregister.gov, Document 2026-18852). Industry stakeholders — including OMMA licensees and their banking partners — may submit comments before that date.",
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "Federal Register — Proposed Third-Party Risk Management Guide for Traditional Community Banking Organizations (September 15, 2026, Document 2026-18852)",
+        "url": "https://www.federalregister.gov/documents/2026/09/15/2026-18852/proposed-third-party-risk-management-guide-for-traditional-community-banking-organizations"
+      },
+      "secondarySource": {
+        "name": "Federal Reserve Board — Press Release: Agencies Seek Comment on Proposed Third-Party Risk Management Guidance (September 11, 2026)",
+        "url": "https://www.federalreserve.gov/newsevents/pressreleases/bcreg20260911a.htm"
       },
       "pinned": false
     },
