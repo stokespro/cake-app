@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-18",
+  "lastUpdated": "2026-09-19",
   "deaRegistrationStatus": {
     "lastVerified": "2026-09-18",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -113,7 +113,7 @@
       "id": "kd-trump-admin-schedule-iii-guidance-response",
       "label": "Trump Administration Response Deadline — Bipartisan House Guidance Letter on Schedule III Implementation",
       "date": "September 30, 2026",
-      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 18, 2026, no formal response has been issued. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
+      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 19, 2026, no formal response has been issued. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
       "urgency": "urgent"
     },
     {
@@ -125,6 +125,46 @@
     }
   ],
   "items": [
+    {
+      "id": "alabama-public-health-withdraws-schedule-iii-objection-sept18-2026",
+      "date": "2026-09-18",
+      "headline": "Alabama State Health Officials Unanimously Withdraw Objection to Federal Marijuana Schedule III Rescheduling",
+      "summary": "Alabama's State Committee of Public Health voted unanimously September 18, 2026 to withdraw the state's previously filed objection to the rescheduling of marijuana from Schedule I to Schedule III. The state had voted in May 2026 to delay state-level implementation to assess implications, but had stated it “fully intended” to reschedule. The September 18 vote formally ends Alabama's registered opposition in the federal administrative proceeding. The action does not legalize recreational marijuana in Alabama, change state prohibition on nonmedical possession, or independently expand the list of patients eligible for Alabama's medical cannabis program.",
+      "whyItMatters": "Political and regulatory context for Oklahoma operators — Alabama's withdrawal narrows the coalition of state health officials formally opposing Schedule III in the pending D.C. Circuit merits case. Relevant for assessing long-term durability of the federal rescheduling given the ongoing litigation. Oklahoma OBNDD enforcement (January 1, 2027 grace period), DEA registration requirements, and OMMA compliance obligations are entirely unaffected by this state-level withdrawal.",
+      "tags": [
+        "federal"
+      ],
+      "source": {
+        "name": "Alabama Reflector — Alabama withdraws objections to federal marijuana rescheduling (September 18, 2026)",
+        "url": "https://alabamareflector.com/2026/09/18/alabama-withdraws-objections-to-federal-marijuana-rescheduling/"
+      },
+      "secondarySource": {
+        "name": "Fox 10 — Alabama public health officials withdraw objection to federal marijuana rescheduling (September 18, 2026)",
+        "url": "https://www.fox10tv.com/2026/09/18/alabama-public-health-officials-withdraw-objection-federal-marijuana-rescheduling/"
+      },
+      "pinned": false
+    },
+    {
+      "id": "terrascend-moves-dismiss-280e-clawback-sept17-2026",
+      "date": "2026-09-17",
+      "headline": "TerrAscend Files Motion to Dismiss DOJ $8.36M Marijuana Tax Refund Clawback — Challenges Government on Procedural Grounds Only, Not 280E Substance",
+      "summary": "TerrAscend filed a 38-page motion to dismiss September 17, 2026 in U.S. District Court for the District of New Jersey, seeking dismissal with prejudice of the DOJ's lawsuit seeking return of $8.36 million in marijuana tax refunds. September 18 was TerrAscend's court-ordered response deadline. Critically, the motion does NOT challenge the government's substantive position on Section 280E. TerrAscend instead argues the lawsuit must be dismissed because the DOJ named “TerrAscend USA, Inc. & Subsidiaries” as the defendant — a phrase describing a consolidated federal tax return group, not a legally cognizable entity capable of being sued. The underlying DOJ lawsuit (filed May 31, 2026) sought return of a June 2024 refund based on TerrAscend's amended 2020 tax return claiming $64.2 million in 280E deductions.",
+      "whyItMatters": "For CAKE and Oklahoma OMMA operators considering retroactive 280E amended returns: (1) The DOJ/IRS enforcement against retroactive 280E refund claims is actively advancing — not abandoned or settled. (2) TerrAscend's entire defense rests on a procedural technicality, NOT a substantive argument that pre-2026 retroactive 280E refunds are valid. Even if the court dismisses on entity-naming grounds, DOJ would likely refile against the correct entity and pursue the same recovery. This motion should NOT be interpreted as IRS/DOJ conceding the substantive 280E retroactivity question. Oklahoma operators must not file pre-2026 amended 280E returns without specialized federal tax counsel.",
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "Law360 — TerrAscend Says Feds Sued Fake Co. In $8M Clawback Suit (September 2026)",
+        "url": "https://www.law360.com/newjersey/articles/2527022"
+      },
+      "secondarySource": {
+        "name": "The Marijuana Herald — TerrAscend Moves to Dismiss Federal Lawsuit Seeking Return of $8.36 Million Marijuana Tax Refund",
+        "url": "https://themarijuanaherald.com/2026/09/terrascend-moves-dismiss-federal-lawsuit-seeking-return-of-8-36-million-marijuana-tax-refund/"
+      },
+      "pinned": false
+    },
     {
       "id": "scotus-cert-petition-peridot-tree-dcc-licensing-sept17-2026",
       "headline": "SCOTUS Cert Petition Filed: Peridot Tree Asks Supreme Court to Resolve Cannabis Licensing DCC Circuit Split — Schedule III May Strengthen Petitioner's Case",
@@ -2738,6 +2778,17 @@
     }
   ],
   "discourse": [
+    {
+      "id": "watch-terrascend-dismiss-motion-retroactive-280e-safe-claim",
+      "headline": "'TerrAscend is fighting the 280E clawback — retroactive refunds must be safe now' — procedural dismissal motion misread as substantive vindication",
+      "claim": "Following TerrAscend's September 17 motion to dismiss the DOJ 280E clawback, cannabis operators and tax advisors are circulating claims that TerrAscend is 'fighting back against' the IRS's 280E position, that the motion shows 'the IRS can't claw back 280E refunds,' and that the filing signals a green light for other cannabis operators to file retroactive amended returns.",
+      "caution": "TerrAscend's motion to dismiss is on procedural grounds ONLY — it does not argue that retroactive 280E refunds are legally permissible. The motion challenges which legal entity was named (a consolidated tax filing label, not an actual corporation), not the substance of whether pre-2026 amended 280E returns are valid. If dismissed on entity grounds, DOJ will likely refile against the correct entity. The DOJ's substantive position — that the refund was 'erroneous' — is not challenged by TerrAscend's filing. IRS has not changed its documented enforcement position that pre-2026 retroactive 280E relief claims are not entitled to a refund. Oklahoma operators must not treat this motion as clearing the path for retroactive 280E claims.",
+      "source": {
+        "name": "Law360 — TerrAscend Says Feds Sued Fake Co. In $8M Clawback Suit (September 2026)",
+        "url": "https://www.law360.com/newjersey/articles/2527022"
+      },
+      "date": "2026-09"
+    },
     {
       "id": "watch-scotus-cert-petition-dcc-misread-as-immediate-oklahoma-threat",
       "headline": "'SCOTUS is reviewing Oklahoma's licensing system' — cert petition filed in Peridot Tree, NOT cert granted; no immediate effect on existing Oklahoma licenses",
