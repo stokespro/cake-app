@@ -11,6 +11,11 @@
 // sync EXACTLY. The DB is always the authority; these functions exist so the
 // UI can validate and preview without a round trip, and so the server can
 // recompute the net total without ever trusting a client-supplied total.
+//
+// One rule here is deliberately STRICTER than the SQL: amounts are money and
+// are persisted rounded to whole cents, so a sub-cent amount is rejected up
+// front rather than stored as 0.00 and bounced by the `amount > 0` CHECK
+// mid-write. See validateDeduction().
 
 /** Max length of a trimmed discount/credit reason — mirrors the CHECK constraints. */
 export const MAX_DEDUCTION_REASON_LENGTH = 255
@@ -112,6 +117,13 @@ export function normalizeDeduction(input: DeductionInput | null | undefined): No
 /**
  * Validates one normalized pair. Returns an error message, or null when the
  * pair is valid (either fully absent or fully present and in range).
+ *
+ * Cent policy (SPRO-148 reviewer fix): amounts are money, and every write path
+ * persists `roundCurrency(amount)`, so the value VALIDATED here is the
+ * normalized one — not the raw input. Without that, $0.001 passes `> 0`, is
+ * stored as 0.00 and only the DB CHECK stops it, surfacing as a generic
+ * "Failed to create order". Anything that does not round up to at least one
+ * cent is rejected here, before any write.
  */
 export function validateDeduction(kind: DeductionKind, value: NormalizedDeduction): string | null {
   const label = LABELS[kind]
@@ -124,6 +136,8 @@ export function validateDeduction(kind: DeductionKind, value: NormalizedDeductio
 
   if (!Number.isFinite(amount)) return `${label} amount must be a valid number.`
   if (amount <= 0) return `${label} amount must be greater than zero.`
+  // Sub-cent amounts: positive as typed, but 0.00 once normalized for storage.
+  if (roundCurrency(amount) <= 0) return `${label} amount must be at least $0.01.`
   if (reason.length > MAX_DEDUCTION_REASON_LENGTH) {
     return `${label} reason must be ${MAX_DEDUCTION_REASON_LENGTH} characters or less.`
   }

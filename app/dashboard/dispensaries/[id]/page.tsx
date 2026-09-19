@@ -1016,6 +1016,15 @@ export default function DispensaryDetailPage() {
           updated_at: selectedOrder.updated_at,
           last_edited_at: selectedOrder.last_edited_at,
           last_edited_by: selectedOrder.last_edited_by,
+          // The sheet rewrites the whole order on save, so every field it
+          // round-trips has to be handed to it — an omission here is a silent
+          // wipe. Line items in particular: without them the sheet opens with
+          // no items and refuses to submit at all (SPRO-148 review).
+          order_items: selectedOrder.order_items,
+          delivered_at: selectedOrder.delivered_at,
+          payment_terms: selectedOrder.payment_terms,
+          terms_payment_date: selectedOrder.terms_payment_date,
+          terms_paid_at: selectedOrder.terms_paid_at,
           // SPRO-148 — carried through so the sheet can preserve/edit/remove
           // the deductions already on the order instead of silently dropping them.
           discount_amount: selectedOrder.discount_amount,

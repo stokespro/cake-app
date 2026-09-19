@@ -3426,6 +3426,8 @@ export interface SKU {
   strain_id: string
   product_type_id: string
   price_per_unit?: number
+  /** skus.units_per_case (NOT NULL DEFAULT 32) — drives line_total (SPRO-148). */
+  units_per_case?: number
   grams_per_unit: number
   description?: string
   thc_percentage?: number

@@ -291,11 +291,12 @@ export default function NewOrderPage() {
         order_notes: orderNotes || null,
         order_date: orderDate,
         requested_delivery_date: requestedDeliveryDate,
+        // No line_total: the server re-derives every line amount from the
+        // skus table (SPRO-148). The on-screen total is a preview only.
         items: orderItems.map(item => ({
           sku_id: item.sku_id,
           cases: item.cases,
           unit_price: item.unit_price || 0,
-          line_total: Number.isFinite(item.line_total) ? item.line_total : 0,
         })),
         discount: toDeductionInput(deductions.discount),
         credit: toDeductionInput(deductions.credit),

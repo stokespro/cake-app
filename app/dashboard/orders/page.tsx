@@ -452,12 +452,13 @@ export default function OrdersPage() {
         requested_delivery_date: editForm.requested_delivery_date || null,
         delivered_at_override: editForm.delivered_at_override,
         existing_delivered_at: selectedOrder.delivered_at,
+        // No line_total: the server re-derives every line amount from the
+        // skus table (SPRO-148). The on-screen total is a preview only.
         items: (editForm.order_items ?? []).map(item => ({
           id: item.id,
           sku_id: item.sku_id,
           cases: item.cases,
           unit_price: item.unit_price,
-          line_total: item.line_total,
           _deleted: item._deleted,
         })),
         payment_terms: editForm.payment_terms ?? false,

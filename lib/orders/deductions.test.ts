@@ -130,6 +130,27 @@ describe('validateDeduction', () => {
     );
   });
 
+  it('rejects sub-cent amounts — positive as typed, 0.00 once normalized for storage', () => {
+    // Review fix: every write path persists roundCurrency(amount), so 0.001
+    // through 0.004 used to pass `> 0`, be stored as 0.00, and only be caught
+    // by the `amount > 0` CHECK part-way through the write.
+    for (const amount of [0.001, 0.002, 0.003, 0.004]) {
+      expect(validateDeduction('discount', { amount, reason: 'x' })).toBe(
+        'Discount amount must be at least $0.01.'
+      );
+      expect(validateDeduction('credit', { amount, reason: 'x' })).toBe(
+        'Credit amount must be at least $0.01.'
+      );
+    }
+  });
+
+  it('accepts the smallest cent-representable amount, and anything rounding up to it', () => {
+    expect(validateDeduction('discount', { amount: 0.01, reason: 'x' })).toBeNull();
+    expect(validateDeduction('credit', { amount: 0.01, reason: 'x' })).toBeNull();
+    // 0.005 normalizes to 0.01, so it is representable and stays accepted.
+    expect(validateDeduction('discount', { amount: 0.005, reason: 'x' })).toBeNull();
+  });
+
   it('rejects non-finite amounts', () => {
     expect(validateDeduction('credit', { amount: Number.NaN, reason: 'x' })).toBe(
       'Credit amount must be a valid number.'
@@ -277,6 +298,28 @@ describe('validateOrderDeductions', () => {
       discount: { amount: 10.005, reason: 'a' },
     });
     expect(result.ok && result.fields.discount_amount).toBe(10.01);
+  });
+
+  it('rejects a sub-cent amount rather than persisting it as 0.00', () => {
+    // The pair would reach the database as amount 0.00 with a non-null reason,
+    // which the CHECK rejects — so it has to fail here, before the write.
+    expect(validateOrderDeductions({ subtotal: 500, discount: { amount: 0.003, reason: 'a' } })).toEqual({
+      ok: false,
+      error: 'Discount amount must be at least $0.01.',
+    });
+    expect(validateOrderDeductions({ subtotal: 500, credit: { amount: '0.004', reason: 'a' } })).toEqual({
+      ok: false,
+      error: 'Credit amount must be at least $0.01.',
+    });
+  });
+
+  it('keeps a one-cent deduction, normalized and netted off the total', () => {
+    const result = validateOrderDeductions({
+      subtotal: 500,
+      discount: { amount: '0.01', reason: 'a' },
+    });
+    expect(result.ok && result.fields.discount_amount).toBe(0.01);
+    expect(result.ok && result.totals.netTotal).toBe(499.99);
   });
 });
 

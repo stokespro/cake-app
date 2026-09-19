@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import {
   getOrderCustomers,
   getActiveSkus,
+  getOrderSkus,
   getOrderCustomerPricing,
   createOrderFromSheet,
   updateOrderFromSheet,
@@ -36,6 +37,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { SkuCombobox } from '@/components/orders/sku-combobox'
+import { mapOrderItemsToForm, type OrderFormLineItem } from '@/lib/orders/line-items'
 import {
   EMPTY_ORDER_DEDUCTIONS,
   OrderDeductions,
@@ -54,16 +56,9 @@ import type { Order } from '@/types/database'
 type CustomerPricingData = CustomerPricingRecord
 type SkuOption = OrderSkuRecord
 
-interface OrderItem {
-  sku_id: string
-  sku_code: string
-  sku_name: string
-  cases: number              // number of cases ordered
-  units_per_case: number     // units per case for this SKU
-  quantity: number           // total units (cases * units_per_case)
-  unit_price: number | null  // null means manual entry required
-  line_total: number         // total price (quantity * unit_price)
-}
+// Same shape the shared mapper produces — cases ordered, units per case from
+// the SKU, quantity in total UNITS, and the line preview the server re-derives.
+type OrderItem = OrderFormLineItem
 
 interface OrderSheetProps {
   open: boolean
@@ -133,7 +128,7 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
   useEffect(() => {
     if (open) {
       fetchCustomers()
-      fetchSkus()
+      fetchSkus(!!order)
 
       // Initialize form with existing order data or defaults
       if (order) {
@@ -171,9 +166,15 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
     }
   }, [selectedCustomerId, open, fetchCustomerPricing])
 
-  // Update prices when pricing data changes
+  // Update prices when pricing data changes.
+  //
+  // Create mode only. On an EDIT this would overwrite each line's persisted
+  // unit price with the customer's current pricing, and blank out any line the
+  // customer has no pricing rule for — which then fails validation and makes
+  // the order unsavable. An edit reprices only the lines the user touches,
+  // via updateOrderItem() below (SPRO-148 review).
   useEffect(() => {
-    if (customerPricing.length > 0 && orderItems.length > 0) {
+    if (!order && customerPricing.length > 0 && orderItems.length > 0) {
       setOrderItems(prev => prev.map(item => {
         const newPrice = getPriceForSku(item.sku_id)
         return {
@@ -183,32 +184,14 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
         }
       }))
     }
-  }, [customerPricing, getPriceForSku])
+  }, [customerPricing, getPriceForSku, order])
 
-  // Load order items when skus are loaded (for edit mode)
+  // Load order items when skus are loaded (for edit mode).
+  // Mapping lives in lib/orders/line-items.ts so it stays in step with the
+  // server-side pricing in actions/orders.ts and is covered by tests.
   useEffect(() => {
     if (order && order.order_items && skus.length > 0 && orderItems.length === 0) {
-      const formOrderItems = order.order_items.map(item => {
-        const sku = skus.find(s => s.id === item.sku_id)
-        const unitsPerCase = sku?.units_per_case || 32
-        // DB stores cases in quantity field, not units
-        const cases = item.quantity
-        const totalUnits = cases * unitsPerCase
-        const unitPrice = item.unit_price ?? getPriceForSku(item.sku_id)
-        const lineTotal = unitPrice !== null ? totalUnits * unitPrice : 0
-
-        return {
-          sku_id: item.sku_id,
-          sku_code: sku?.code || '',
-          sku_name: sku?.name || 'Unknown SKU',
-          cases: cases,
-          units_per_case: unitsPerCase,
-          quantity: totalUnits,  // Total units for UI display and pricing
-          unit_price: unitPrice,
-          line_total: lineTotal
-        }
-      })
-      setOrderItems(formOrderItems)
+      setOrderItems(mapOrderItemsToForm(order.order_items, skus, getPriceForSku))
     }
   }, [skus, order, getPriceForSku])
 
@@ -239,8 +222,13 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
     setCustomers(result.data!)
   }
 
-  const fetchSkus = async () => {
-    const result = await getActiveSkus(true)
+  // Creating an order offers in-stock SKUs only. EDITING one has to resolve
+  // whatever the order already contains, which may have gone out of stock
+  // since — so it uses the same wider list the main orders edit sheet does
+  // (getOrderSkus, everything not discontinued). Anything still missing falls
+  // back to the SKU joined onto the order item (SPRO-148 review).
+  const fetchSkus = async (forEdit: boolean) => {
+    const result = forEdit ? await getOrderSkus() : await getActiveSkus(true)
     if (result.error) {
       console.error('Error fetching skus:', result.error)
       return
@@ -387,16 +375,13 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
     try {
       const isEditMode = !!order
 
-      const items = orderItems.map(item => {
-        const unitPrice = item.unit_price ?? 0
-        const lineTotal = item.quantity * unitPrice  // quantity = total units for pricing
-        return {
-          sku_id: item.sku_id,
-          cases: item.cases,        // store cases, not units
-          unit_price: unitPrice,
-          line_total: Number.isFinite(lineTotal) ? lineTotal : 0,
-        }
-      })
+      // No line_total: the server re-derives every line amount from the skus
+      // table (SPRO-148). The on-screen total is a preview only.
+      const items = orderItems.map(item => ({
+        sku_id: item.sku_id,
+        cases: item.cases,        // store cases, not units
+        unit_price: item.unit_price ?? 0,
+      }))
 
       let result: { error?: string }
 
