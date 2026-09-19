@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import {
   getOrderCustomers,
   getActiveSkus,
+  getOrderSkus,
   getOrderCustomerPricing,
   createOrderFromSheet,
   updateOrderFromSheet,
@@ -36,6 +37,15 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { SkuCombobox } from '@/components/orders/sku-combobox'
+import { mapOrderItemsToForm, type OrderFormLineItem } from '@/lib/orders/line-items'
+import {
+  EMPTY_ORDER_DEDUCTIONS,
+  OrderDeductions,
+  deductionsFromOrder,
+  toDeductionInput,
+  validateOrderDeductionsValue,
+  type OrderDeductionsValue,
+} from '@/components/orders/order-deductions'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2, Check, ChevronsUpDown } from 'lucide-react'
@@ -46,16 +56,9 @@ import type { Order } from '@/types/database'
 type CustomerPricingData = CustomerPricingRecord
 type SkuOption = OrderSkuRecord
 
-interface OrderItem {
-  sku_id: string
-  sku_code: string
-  sku_name: string
-  cases: number              // number of cases ordered
-  units_per_case: number     // units per case for this SKU
-  quantity: number           // total units (cases * units_per_case)
-  unit_price: number | null  // null means manual entry required
-  line_total: number         // total price (quantity * unit_price)
-}
+// Same shape the shared mapper produces — cases ordered, units per case from
+// the SKU, quantity in total UNITS, and the line preview the server re-derives.
+type OrderItem = OrderFormLineItem
 
 interface OrderSheetProps {
   open: boolean
@@ -76,6 +79,8 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
   const [deliveredAt, setDeliveredAt] = useState(order?.delivered_at?.split('T')[0] || '')
   const [paymentTerms, setPaymentTerms] = useState(order?.payment_terms ?? false)
   const [termsPaymentDate, setTermsPaymentDate] = useState(order?.terms_payment_date || '')
+  // SPRO-148 — seeded from the selected order so an edit preserves its deductions.
+  const [deductions, setDeductions] = useState<OrderDeductionsValue>(() => deductionsFromOrder(order))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [customerOpen, setCustomerOpen] = useState(false)
@@ -123,7 +128,7 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
   useEffect(() => {
     if (open) {
       fetchCustomers()
-      fetchSkus()
+      fetchSkus(!!order)
 
       // Initialize form with existing order data or defaults
       if (order) {
@@ -134,11 +139,13 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
         setDeliveredAt(order.delivered_at?.split('T')[0] || '')
         setPaymentTerms(order.payment_terms ?? false)
         setTermsPaymentDate(order.terms_payment_date || '')
+        setDeductions(deductionsFromOrder(order))
         fetchCustomerPricing(order.customer_id)
 
         // Order items will be loaded in separate useEffect after skus are loaded
       } else {
         // Create mode - set defaults
+        setDeductions(EMPTY_ORDER_DEDUCTIONS)
         const defaultDate = new Date()
         defaultDate.setDate(defaultDate.getDate() + 7)
         setRequestedDeliveryDate(defaultDate.toISOString().split('T')[0])
@@ -159,9 +166,15 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
     }
   }, [selectedCustomerId, open, fetchCustomerPricing])
 
-  // Update prices when pricing data changes
+  // Update prices when pricing data changes.
+  //
+  // Create mode only. On an EDIT this would overwrite each line's persisted
+  // unit price with the customer's current pricing, and blank out any line the
+  // customer has no pricing rule for — which then fails validation and makes
+  // the order unsavable. An edit reprices only the lines the user touches,
+  // via updateOrderItem() below (SPRO-148 review).
   useEffect(() => {
-    if (customerPricing.length > 0 && orderItems.length > 0) {
+    if (!order && customerPricing.length > 0 && orderItems.length > 0) {
       setOrderItems(prev => prev.map(item => {
         const newPrice = getPriceForSku(item.sku_id)
         return {
@@ -171,32 +184,14 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
         }
       }))
     }
-  }, [customerPricing, getPriceForSku])
+  }, [customerPricing, getPriceForSku, order])
 
-  // Load order items when skus are loaded (for edit mode)
+  // Load order items when skus are loaded (for edit mode).
+  // Mapping lives in lib/orders/line-items.ts so it stays in step with the
+  // server-side pricing in actions/orders.ts and is covered by tests.
   useEffect(() => {
     if (order && order.order_items && skus.length > 0 && orderItems.length === 0) {
-      const formOrderItems = order.order_items.map(item => {
-        const sku = skus.find(s => s.id === item.sku_id)
-        const unitsPerCase = sku?.units_per_case || 32
-        // DB stores cases in quantity field, not units
-        const cases = item.quantity
-        const totalUnits = cases * unitsPerCase
-        const unitPrice = item.unit_price ?? getPriceForSku(item.sku_id)
-        const lineTotal = unitPrice !== null ? totalUnits * unitPrice : 0
-
-        return {
-          sku_id: item.sku_id,
-          sku_code: sku?.code || '',
-          sku_name: sku?.name || 'Unknown SKU',
-          cases: cases,
-          units_per_case: unitsPerCase,
-          quantity: totalUnits,  // Total units for UI display and pricing
-          unit_price: unitPrice,
-          line_total: lineTotal
-        }
-      })
-      setOrderItems(formOrderItems)
+      setOrderItems(mapOrderItemsToForm(order.order_items, skus, getPriceForSku))
     }
   }, [skus, order, getPriceForSku])
 
@@ -209,6 +204,7 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
       setDeliveredAt('')
       setPaymentTerms(false)
       setTermsPaymentDate('')
+      setDeductions(EMPTY_ORDER_DEDUCTIONS)
       setError(null)
       setCustomerPricing([])
       const defaultDate = new Date()
@@ -226,8 +222,13 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
     setCustomers(result.data!)
   }
 
-  const fetchSkus = async () => {
-    const result = await getActiveSkus(true)
+  // Creating an order offers in-stock SKUs only. EDITING one has to resolve
+  // whatever the order already contains, which may have gone out of stock
+  // since — so it uses the same wider list the main orders edit sheet does
+  // (getOrderSkus, everything not discontinued). Anything still missing falls
+  // back to the SKU joined onto the order item (SPRO-148 review).
+  const fetchSkus = async (forEdit: boolean) => {
+    const result = forEdit ? await getOrderSkus() : await getActiveSkus(true)
     if (result.error) {
       console.error('Error fetching skus:', result.error)
       return
@@ -346,6 +347,13 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
       }
     }
 
+    // Client-side mirror of the server deduction rules — the server revalidates.
+    const deductionError = validateOrderDeductionsValue(deductions, orderTotal)
+    if (deductionError) {
+      setError(deductionError)
+      return false
+    }
+
     return true
   }
 
@@ -367,16 +375,13 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
     try {
       const isEditMode = !!order
 
-      const items = orderItems.map(item => {
-        const unitPrice = item.unit_price ?? 0
-        const lineTotal = item.quantity * unitPrice  // quantity = total units for pricing
-        return {
-          sku_id: item.sku_id,
-          cases: item.cases,        // store cases, not units
-          unit_price: unitPrice,
-          line_total: Number.isFinite(lineTotal) ? lineTotal : 0,
-        }
-      })
+      // No line_total: the server re-derives every line amount from the skus
+      // table (SPRO-148). The on-screen total is a preview only.
+      const items = orderItems.map(item => ({
+        sku_id: item.sku_id,
+        cases: item.cases,        // store cases, not units
+        unit_price: item.unit_price ?? 0,
+      }))
 
       let result: { error?: string }
 
@@ -386,20 +391,22 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
           order_notes: orderNotes || null,
           requested_delivery_date: requestedDeliveryDate,
           delivered_at: deliveredAt || null,
-          total_price: orderTotal,
           items,
           payment_terms: paymentTerms,
           terms_payment_date: paymentTerms ? (termsPaymentDate || null) : null,
+          discount: toDeductionInput(deductions.discount),
+          credit: toDeductionInput(deductions.credit),
         })
       } else {
         result = await createOrderFromSheet({
           customer_id: selectedCustomerId,
           order_notes: orderNotes || null,
           requested_delivery_date: requestedDeliveryDate,
-          total_price: orderTotal,
           items,
           payment_terms: paymentTerms,
           terms_payment_date: paymentTerms ? (termsPaymentDate || null) : null,
+          discount: toDeductionInput(deductions.discount),
+          credit: toDeductionInput(deductions.credit),
         })
       }
 
@@ -692,17 +699,21 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
                   </Button>
                 </div>
 
-                {/* Order Total */}
-                <div className="flex justify-end items-center gap-4 pt-3 border-t">
-                  <span className="text-sm text-muted-foreground">Order Total:</span>
-                  <span className="text-lg font-bold">
-                    {hasUnpricedItems ? (
-                      <span className="text-amber-600">Incomplete pricing</span>
-                    ) : (
-                      `$${orderTotal.toFixed(2)}`
-                    )}
-                  </span>
-                </div>
+                {/* Order Total + order-level discount / credit (SPRO-148) */}
+                {hasUnpricedItems ? (
+                  <div className="flex justify-end items-center gap-4 pt-3 border-t">
+                    <span className="text-sm text-muted-foreground">Order Total:</span>
+                    <span className="text-lg font-bold text-amber-600">Incomplete pricing</span>
+                  </div>
+                ) : (
+                  <OrderDeductions
+                    value={deductions}
+                    onChange={setDeductions}
+                    subtotal={orderTotal}
+                    disabled={loading}
+                    idPrefix="order-sheet"
+                  />
+                )}
               </div>
             )}
 
