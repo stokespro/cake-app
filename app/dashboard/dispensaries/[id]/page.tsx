@@ -47,6 +47,7 @@ import {
 import { EditDispensarySheet } from '@/components/dispensary/edit-dispensary-sheet'
 import { CommunicationSheet } from '@/components/communications/communication-sheet'
 import { OrderSheet } from '@/components/orders/order-sheet'
+import { OrderDeductionBreakdown } from '@/components/orders/order-deductions'
 import { CustomerPricingSection } from '@/components/dispensary/customer-pricing'
 import { DispensaryContacts } from '@/components/dispensaries/dispensary-contacts'
 import { DispensaryProfile, Order } from '@/types/database'
@@ -814,6 +815,8 @@ export default function DispensaryDetailPage() {
                             <span className="font-medium">
                               {formatCurrency(order.total_price)}
                             </span>
+                            {/* SPRO-148 — renders nothing unless a deduction exists */}
+                            <OrderDeductionBreakdown order={order} className="mt-1 space-y-0.5" />
                           </TableCell>
                           <TableCell className="hidden lg:table-cell">
                             <div className="text-sm">
@@ -1013,6 +1016,12 @@ export default function DispensaryDetailPage() {
           updated_at: selectedOrder.updated_at,
           last_edited_at: selectedOrder.last_edited_at,
           last_edited_by: selectedOrder.last_edited_by,
+          // SPRO-148 — carried through so the sheet can preserve/edit/remove
+          // the deductions already on the order instead of silently dropping them.
+          discount_amount: selectedOrder.discount_amount,
+          discount_reason: selectedOrder.discount_reason,
+          credit_amount: selectedOrder.credit_amount,
+          credit_reason: selectedOrder.credit_reason,
         } : undefined}
         onSuccess={() => {
           fetchOrders()

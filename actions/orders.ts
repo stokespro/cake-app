@@ -1,6 +1,8 @@
 'use server'
 
 import { requireRole } from '@/lib/auth/session'
+import { calculateItemSubtotal, validateOrderDeductions } from '@/lib/orders/deductions'
+import type { DeductionInput } from '@/lib/orders/deductions'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { OrderStatus } from '@/types/database'
 
@@ -45,7 +47,13 @@ export interface OrderRecord {
   confirmed_delivery_date?: string | null
   delivered_at?: string | null
   status: OrderStatus
+  /** Net of any order-level deduction — see lib/orders/deductions.ts (SPRO-148). */
   total_price: number
+  // SPRO-148 order-level deductions — each pair is both-null or both-set.
+  discount_amount?: number | null
+  discount_reason?: string | null
+  credit_amount?: number | null
+  credit_reason?: string | null
   approved_by?: string | null
   approved_at?: string | null
   created_at: string
@@ -393,10 +401,13 @@ export interface CreateOrderInput {
   order_notes?: string | null
   order_date: string
   requested_delivery_date: string
-  total_price: number
+  // No total_price: the net total is always recomputed server-side from the
+  // line items and the deductions below — a client total is never trusted.
   items: NewOrderItemInput[]
   payment_terms?: boolean
   terms_payment_date?: string | null
+  discount?: DeductionInput | null
+  credit?: DeductionInput | null
 }
 
 export async function createOrder(input: CreateOrderInput): Promise<
@@ -411,6 +422,14 @@ export async function createOrder(input: CreateOrderInput): Promise<
   if (!input.requested_delivery_date) return { error: 'Requested delivery date is required' }
   if (input.payment_terms && !input.terms_payment_date) return { error: 'Payment expected date is required for terms orders' }
 
+  // SPRO-148: validate the deductions and derive the net total server-side.
+  const deductions = validateOrderDeductions({
+    subtotal: calculateItemSubtotal(input.items),
+    discount: input.discount,
+    credit: input.credit,
+  })
+  if (!deductions.ok) return { error: deductions.error }
+
   const db = await createServiceClient()
 
   const { data: order, error: orderError } = await db
@@ -422,7 +441,8 @@ export async function createOrder(input: CreateOrderInput): Promise<
       order_date: input.order_date,
       requested_delivery_date: input.requested_delivery_date,
       status: 'pending',
-      total_price: input.total_price,
+      total_price: deductions.totals.netTotal,
+      ...deductions.fields,
       payment_terms: input.payment_terms ?? false,
       terms_payment_date: (input.payment_terms && input.terms_payment_date) ? input.terms_payment_date : null,
     })
@@ -512,6 +532,8 @@ export interface SaveOrderInput {
   items: UpdateOrderItemInput[]
   payment_terms: boolean
   terms_payment_date: string | null
+  discount?: DeductionInput | null
+  credit?: DeductionInput | null
 }
 
 export async function saveOrder(
@@ -523,10 +545,14 @@ export async function saveOrder(
 
   const db = await createServiceClient()
 
-  // Server-side total guard: recompute from line items — never trust the client value
-  const recomputedTotal = (input.items ?? [])
-    .filter(item => !item._deleted)
-    .reduce((sum, item) => sum + (item.line_total ?? 0), 0)
+  // Server-side total guard: recompute from the ACTIVE line items, then net off
+  // the validated deductions — never trust a client-supplied total (SPRO-148).
+  const deductions = validateOrderDeductions({
+    subtotal: calculateItemSubtotal(input.items),
+    discount: input.discount,
+    credit: input.credit,
+  })
+  if (!deductions.ok) return { error: deductions.error }
 
   // Compute delivered_at — use T12:00:00Z (midday UTC) for date strings so
   // Central-time dates don't slip a day backward.
@@ -551,7 +577,8 @@ export async function saveOrder(
     status: input.status,
     order_notes: input.order_notes,
     requested_delivery_date: input.requested_delivery_date || null,
-    total_price: recomputedTotal,
+    total_price: deductions.totals.netTotal,
+    ...deductions.fields,
     last_edited_by: auth.session.userId,
     last_edited_at: new Date().toISOString(),
     payment_terms: input.payment_terms,
@@ -633,10 +660,13 @@ export interface UpsertOrderSheetInput {
   order_notes?: string | null
   requested_delivery_date: string
   delivered_at?: string | null   // date string 'YYYY-MM-DD' or empty
-  total_price: number
+  // No total_price: the net total is always recomputed server-side from the
+  // line items and the deductions below — a client total is never trusted.
   items: NewOrderItemInput[]
   payment_terms?: boolean
   terms_payment_date?: string | null
+  discount?: DeductionInput | null
+  credit?: DeductionInput | null
 }
 
 export async function createOrderFromSheet(input: UpsertOrderSheetInput): Promise<
@@ -650,6 +680,14 @@ export async function createOrderFromSheet(input: UpsertOrderSheetInput): Promis
   if (!input.requested_delivery_date) return { error: 'Requested delivery date is required' }
   if (input.payment_terms && !input.terms_payment_date) return { error: 'Payment expected date is required for terms orders' }
 
+  // SPRO-148: validate the deductions and derive the net total server-side.
+  const deductions = validateOrderDeductions({
+    subtotal: calculateItemSubtotal(input.items),
+    discount: input.discount,
+    credit: input.credit,
+  })
+  if (!deductions.ok) return { error: deductions.error }
+
   const db = await createServiceClient()
 
   const { data: order, error: orderError } = await db
@@ -660,7 +698,8 @@ export async function createOrderFromSheet(input: UpsertOrderSheetInput): Promis
       order_notes: input.order_notes ?? null,
       requested_delivery_date: input.requested_delivery_date,
       status: 'pending',
-      total_price: input.total_price,
+      total_price: deductions.totals.netTotal,
+      ...deductions.fields,
       order_date: new Date().toISOString().split('T')[0],
       payment_terms: input.payment_terms ?? false,
       terms_payment_date: (input.payment_terms && input.terms_payment_date) ? input.terms_payment_date : null,
@@ -701,6 +740,14 @@ export async function updateOrderFromSheet(
 
   if (input.payment_terms && !input.terms_payment_date) return { error: 'Payment expected date is required for terms orders' }
 
+  // SPRO-148: validate the deductions and derive the net total server-side.
+  const deductions = validateOrderDeductions({
+    subtotal: calculateItemSubtotal(input.items),
+    discount: input.discount,
+    credit: input.credit,
+  })
+  if (!deductions.ok) return { error: deductions.error }
+
   const db = await createServiceClient()
 
   const { error: orderError } = await db
@@ -710,7 +757,8 @@ export async function updateOrderFromSheet(
       order_notes: input.order_notes ?? null,
       requested_delivery_date: input.requested_delivery_date,
       delivered_at: input.delivered_at || null,
-      total_price: input.total_price,
+      total_price: deductions.totals.netTotal,
+      ...deductions.fields,
       updated_at: new Date().toISOString(),
       last_edited_by: auth.session.userId,
       last_edited_at: new Date().toISOString(),

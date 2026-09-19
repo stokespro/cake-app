@@ -1678,8 +1678,12 @@ export type Database = {
           approved_by: string | null
           confirmed_delivery_date: string | null
           created_at: string | null
+          credit_amount: number | null
+          credit_reason: string | null
           customer_id: string
           delivered_at: string | null
+          discount_amount: number | null
+          discount_reason: string | null
           id: string
           last_edited_at: string | null
           last_edited_by: string | null
@@ -1703,8 +1707,12 @@ export type Database = {
           approved_by?: string | null
           confirmed_delivery_date?: string | null
           created_at?: string | null
+          credit_amount?: number | null
+          credit_reason?: string | null
           customer_id: string
           delivered_at?: string | null
+          discount_amount?: number | null
+          discount_reason?: string | null
           id?: string
           last_edited_at?: string | null
           last_edited_by?: string | null
@@ -1728,8 +1736,12 @@ export type Database = {
           approved_by?: string | null
           confirmed_delivery_date?: string | null
           created_at?: string | null
+          credit_amount?: number | null
+          credit_reason?: string | null
           customer_id?: string
           delivered_at?: string | null
+          discount_amount?: number | null
+          discount_reason?: string | null
           id?: string
           last_edited_at?: string | null
           last_edited_by?: string | null
@@ -3527,6 +3539,7 @@ export interface Order {
   packed_at?: string
   delivered_at?: string
   status: OrderStatus
+  /** Net of any order-level discount/credit — see lib/orders/deductions.ts (SPRO-148). */
   total_price: number
   approved_by?: string
   approved_at?: string
@@ -3537,6 +3550,11 @@ export interface Order {
   payment_terms?: boolean | null
   terms_payment_date?: string | null
   terms_paid_at?: string | null
+  // SPRO-148 order-level deductions — each pair is both-null or both-set.
+  discount_amount?: number | null
+  discount_reason?: string | null
+  credit_amount?: number | null
+  credit_reason?: string | null
   customer?: Customer
   agent?: Profile
   order_items?: OrderItem[]

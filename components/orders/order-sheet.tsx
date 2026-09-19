@@ -36,6 +36,14 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { SkuCombobox } from '@/components/orders/sku-combobox'
+import {
+  EMPTY_ORDER_DEDUCTIONS,
+  OrderDeductions,
+  deductionsFromOrder,
+  toDeductionInput,
+  validateOrderDeductionsValue,
+  type OrderDeductionsValue,
+} from '@/components/orders/order-deductions'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2, Check, ChevronsUpDown } from 'lucide-react'
@@ -76,6 +84,8 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
   const [deliveredAt, setDeliveredAt] = useState(order?.delivered_at?.split('T')[0] || '')
   const [paymentTerms, setPaymentTerms] = useState(order?.payment_terms ?? false)
   const [termsPaymentDate, setTermsPaymentDate] = useState(order?.terms_payment_date || '')
+  // SPRO-148 — seeded from the selected order so an edit preserves its deductions.
+  const [deductions, setDeductions] = useState<OrderDeductionsValue>(() => deductionsFromOrder(order))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [customerOpen, setCustomerOpen] = useState(false)
@@ -134,11 +144,13 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
         setDeliveredAt(order.delivered_at?.split('T')[0] || '')
         setPaymentTerms(order.payment_terms ?? false)
         setTermsPaymentDate(order.terms_payment_date || '')
+        setDeductions(deductionsFromOrder(order))
         fetchCustomerPricing(order.customer_id)
 
         // Order items will be loaded in separate useEffect after skus are loaded
       } else {
         // Create mode - set defaults
+        setDeductions(EMPTY_ORDER_DEDUCTIONS)
         const defaultDate = new Date()
         defaultDate.setDate(defaultDate.getDate() + 7)
         setRequestedDeliveryDate(defaultDate.toISOString().split('T')[0])
@@ -209,6 +221,7 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
       setDeliveredAt('')
       setPaymentTerms(false)
       setTermsPaymentDate('')
+      setDeductions(EMPTY_ORDER_DEDUCTIONS)
       setError(null)
       setCustomerPricing([])
       const defaultDate = new Date()
@@ -346,6 +359,13 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
       }
     }
 
+    // Client-side mirror of the server deduction rules — the server revalidates.
+    const deductionError = validateOrderDeductionsValue(deductions, orderTotal)
+    if (deductionError) {
+      setError(deductionError)
+      return false
+    }
+
     return true
   }
 
@@ -386,20 +406,22 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
           order_notes: orderNotes || null,
           requested_delivery_date: requestedDeliveryDate,
           delivered_at: deliveredAt || null,
-          total_price: orderTotal,
           items,
           payment_terms: paymentTerms,
           terms_payment_date: paymentTerms ? (termsPaymentDate || null) : null,
+          discount: toDeductionInput(deductions.discount),
+          credit: toDeductionInput(deductions.credit),
         })
       } else {
         result = await createOrderFromSheet({
           customer_id: selectedCustomerId,
           order_notes: orderNotes || null,
           requested_delivery_date: requestedDeliveryDate,
-          total_price: orderTotal,
           items,
           payment_terms: paymentTerms,
           terms_payment_date: paymentTerms ? (termsPaymentDate || null) : null,
+          discount: toDeductionInput(deductions.discount),
+          credit: toDeductionInput(deductions.credit),
         })
       }
 
@@ -692,17 +714,21 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
                   </Button>
                 </div>
 
-                {/* Order Total */}
-                <div className="flex justify-end items-center gap-4 pt-3 border-t">
-                  <span className="text-sm text-muted-foreground">Order Total:</span>
-                  <span className="text-lg font-bold">
-                    {hasUnpricedItems ? (
-                      <span className="text-amber-600">Incomplete pricing</span>
-                    ) : (
-                      `$${orderTotal.toFixed(2)}`
-                    )}
-                  </span>
-                </div>
+                {/* Order Total + order-level discount / credit (SPRO-148) */}
+                {hasUnpricedItems ? (
+                  <div className="flex justify-end items-center gap-4 pt-3 border-t">
+                    <span className="text-sm text-muted-foreground">Order Total:</span>
+                    <span className="text-lg font-bold text-amber-600">Incomplete pricing</span>
+                  </div>
+                ) : (
+                  <OrderDeductions
+                    value={deductions}
+                    onChange={setDeductions}
+                    subtotal={orderTotal}
+                    disabled={loading}
+                    idPrefix="order-sheet"
+                  />
+                )}
               </div>
             )}
 

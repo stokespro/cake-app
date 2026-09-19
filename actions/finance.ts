@@ -15,6 +15,7 @@ import {
   BILL_OVERPAY_PREFIX,
 } from '@/lib/finance/bill-payments'
 import type { PaymentMethod, PaymentErrorCode } from '@/lib/finance/bill-payments'
+import { orderRevenueFromItems } from '@/lib/orders/deductions'
 import type {
   BillInput,
   OrderInput,
@@ -1308,11 +1309,14 @@ export async function getMonthSummary(month: string): Promise<{
       //   (relaxed from delivered-only so pre-delivery terms orders count in pipeline)
       // Joins order_items for HYBRID revenue rule (line items when present,
       // else fall back to orders.total_price for legacy header-only orders).
+      // SPRO-148: the itemized branch is net of the persisted order-level
+      // discount/credit — hence discount_amount/credit_amount in the select.
       supabase
         .from('orders')
         .select(`
           id, order_number, status, total_price, delivered_at, requested_delivery_date,
           payment_terms, terms_payment_date, terms_paid_at,
+          discount_amount, credit_amount,
           customers(business_name),
           order_items(line_total)
         `)
@@ -1396,8 +1400,9 @@ export async function getMonthSummary(month: string): Promise<{
     }
 
     // Compute realized and pipeline revenue — HYBRID rule:
-    // use SUM(order_items.line_total) when the order has items, else fall back
-    // to orders.total_price (preserves $176,940 of legacy header-only orders).
+    // use SUM(order_items.line_total) LESS the persisted order-level
+    // discount/credit (SPRO-148) when the order has items, else fall back to
+    // orders.total_price (preserves $176,940 of legacy header-only orders).
     // Terms orders: realized on terms_paid_at; pipeline on terms_payment_date until paid.
     let realizedRevenue = 0
     let pipelineNonTerms = 0
@@ -1412,10 +1417,8 @@ export async function getMonthSummary(month: string): Promise<{
         : order.customers
       const customerName = customer?.business_name ?? 'Unknown'
 
-      const items = (order.order_items ?? []) as { line_total: number | null }[]
-      const itemsTotal = items.reduce((s, i) => s + (i.line_total ?? 0), 0)
-      // HYBRID: line items when present, else legacy header total
-      const orderRevenue = items.length > 0 ? itemsTotal : (order.total_price ?? 0)
+      // HYBRID: active line items less deductions when present, else legacy header total
+      const orderRevenue = orderRevenueFromItems(order)
 
       // Terms-aware revenue attribution
       const isTerms = order.payment_terms === true
@@ -1565,6 +1568,7 @@ export async function getWeeklyBudget(params?: { weeks?: number }): Promise<{
         .select(`
           id, order_number, status, total_price, delivered_at, requested_delivery_date,
           payment_terms, terms_payment_date, terms_paid_at,
+          discount_amount, credit_amount,
           customers(business_name),
           order_items(line_total)
         `)
@@ -1645,7 +1649,8 @@ export async function getWeeklyBudget(params?: { weeks?: number }): Promise<{
       planned_pay_date: (b as { planned_pay_date?: string | null }).planned_pay_date ?? null,
     }))
 
-    // Map orders to OrderInput[] — HYBRID revenue rule (same as getMonthSummary)
+    // Map orders to OrderInput[] — HYBRID revenue rule, net of the persisted
+    // order-level discount/credit (same as getMonthSummary; SPRO-148)
     const orderInputs: OrderInput[] = []
     for (const order of ordersRes.data ?? []) {
       const customer = Array.isArray(order.customers)
@@ -1653,9 +1658,7 @@ export async function getWeeklyBudget(params?: { weeks?: number }): Promise<{
         : order.customers
       const customerName = (customer as { business_name?: string } | null)?.business_name ?? 'Unknown'
 
-      const items = (order.order_items ?? []) as { line_total: number | null }[]
-      const itemsTotal = items.reduce((s, i) => s + (i.line_total ?? 0), 0)
-      const orderRevenue = items.length > 0 ? itemsTotal : (order.total_price ?? 0)
+      const orderRevenue = orderRevenueFromItems(order)
 
       const isTerms    = order.payment_terms === true
       const revenueDate  = isTerms ? (order.terms_paid_at ?? null) : (order.delivered_at ?? null)
