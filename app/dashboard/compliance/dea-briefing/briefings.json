@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-19",
+  "lastUpdated": "2026-09-20",
   "deaRegistrationStatus": {
     "lastVerified": "2026-09-18",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -205,6 +205,26 @@
       "secondarySource": {
         "name": "Marijuana Moment — Insurance Companies That Provide Coverage For Marijuana Businesses Would Be Shielded From Federal Punishment Under New Congressional Bill",
         "url": "https://www.marijuanamoment.net/insurance-companies-that-provide-coverage-for-marijuana-businesses-would-be-shielded-from-federal-punishment-under-new-congressional-bill"
+      },
+      "pinned": false
+    },
+    {
+      "id": "senate-farm-bill-passes-committee-12-11-sept16-2026",
+      "headline": "Senate Agriculture Committee Passes Farm Bill 12–11 With No Hemp Provisions — Neither Chamber's Farm Bill Delays December 11 Hemp Ban",
+      "date": "2026-09-16",
+      "summary": "The U.S. Senate Agriculture, Nutrition, and Forestry Committee passed the Agricultural Act of 2026 ('Farm Bill 2.0') on a 12–11 party-line vote on September 16, 2026, aided by the return of Sen. Mitch McConnell (R-KY) after a three-month medical absence. The Senate bill now moves to the Senate floor for consideration. Critically, the Senate version contains NO hemp provisions — the word 'hemp' does not appear in the bill — in contrast to the House-passed version (H.R. 7567, April 30, 2026), which also contains no hemp ban delay or regulatory fix. Senate Majority Leader Thune stated he wants to move quickly to reconcile the two chambers' versions before November elections, but the Senate has only approximately two weeks of floor time remaining before lawmakers break. The current farm bill extension expires September 30, 2026.",
+      "whyItMatters": "For CAKE as an OMMA-licensed cultivator/processor and for dispensary customers that also carry hemp-derived products: the Senate Agriculture Committee's passage of the Farm Bill with NO hemp provisions means neither the House nor the Senate Farm Bill provides any path to delay or fix the December 11, 2026 effective date for the hemp THC ban. Even if chambers reconcile quickly via conference, hemp relief would require passing a floor amendment with hemp language in a ~two-week window against confirmed opposition from Republican senators who have previously blocked hemp delay efforts. White House Director of Legislative Affairs James Braid reportedly committed that there would be 'no further extensions' beyond December 11. With the December 11 deadline now approximately 82 days away and no viable legislative vehicle confirmed, Oklahoma operators holding hemp-derived product inventory (delta-8, delta-10, THCA flower) should treat December 11 as a hard operative deadline and not wait on a Farm Bill fix. CAKE's OMMA-licensed medical marijuana products are unaffected by this development.",
+      "tags": [
+        "federal",
+        "deadline"
+      ],
+      "source": {
+        "name": "Senate Farm Bill Clears Key Hurdle in Razor-Thin Vote, Aided by McConnell's Return (AP/CBS12, September 16, 2026)",
+        "url": "https://cbs12.com/news/nation-world/mcconnell-returns-to-back-senate-farm-bill-as-panel-advances-it-on-party-line-vote"
+      },
+      "secondarySource": {
+        "name": "Senate Fails to Advance 2026 Farm Bill; What It Means for Hemp — Cannabis Business Times",
+        "url": "https://www.cannabisbusinesstimes.com/legislation-and-regulation/2018-farm-bill-status/news/15831972/senate-fails-to-advance-2026-farm-bill-what-it-means-for-hemp"
       },
       "pinned": false
     },
@@ -2778,6 +2798,17 @@
     }
   ],
   "discourse": [
+    {
+      "id": "watch-senate-farm-bill-committee-hemp-fix-claim",
+      "headline": "Senate Farm Bill Committee Passage Misread as 'Hemp Fix Is Coming' — Senate Bill Contains Zero Hemp Provisions",
+      "claim": "Following the September 16, 2026 passage of the Agricultural Act of 2026 out of the Senate Agriculture Committee (12–11), hemp industry social media and trade newsletters are circulating suggestions that the Farm Bill floor process will include a hemp amendment or further delay the December 11 hemp ban. Some vendors are advising hemp operators to 'wait and see' rather than plan for December 11.",
+      "caution": "The Senate Farm Bill (Agricultural Act of 2026) contains no hemp provisions — 'hemp' does not appear in the bill text. The House Farm Bill also contains no hemp delay or fix. Both chambers would need to pass floor amendments, reconcile in conference, and secure the President's signature within approximately two weeks before November elections — against confirmed Republican opposition to a hemp delay and a White House commitment of 'no further extensions' beyond December 11. Oklahoma hemp operators relying on a Farm Bill fix are at high risk of being wrong. December 11 for naturally-derived hemp THC products and November 12 for synthetics remain the operative deadlines.",
+      "source": {
+        "name": "Agricultural Act of 2026 (Farm Bill 2.0) — Senate Agriculture Committee",
+        "url": "https://www.agriculture.senate.gov/agricultural-act-of-2026-farm-bill-20"
+      },
+      "date": "2026-09"
+    },
     {
       "id": "watch-terrascend-dismiss-motion-retroactive-280e-safe-claim",
       "headline": "'TerrAscend is fighting the 280E clawback — retroactive refunds must be safe now' — procedural dismissal motion misread as substantive vindication",
