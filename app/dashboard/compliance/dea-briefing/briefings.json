@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-09-20",
+  "lastUpdated": "2026-09-21",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-09-18",
+    "lastVerified": "2026-09-21",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -125,6 +125,27 @@
     }
   ],
   "items": [
+    {
+      "id": "cure-act-federal-employment-cannabis-sept17-2026",
+      "headline": "Bipartisan CURE Act (H.R. 10504) Would Bar Federal Agencies From Penalizing Job Applicants Over Past Marijuana Use",
+      "date": "2026-09-17",
+      "summary": "Reps. Jamie Raskin (D-MD) and Zach Nunn (R-IA) introduced the Cannabis Users' Restoration of Eligibility (CURE) Act, H.R. 10504, on September 17, 2026. The bill would amend federal law governing security-clearance and employment suitability determinations to prohibit adverse decisions based solely on past marijuana use. If enacted, federal agencies would be required — within one year — to review all past denials of security clearances or federal employment opportunities based on cannabis use going back to January 1, 2008. The measure has been referred to the House Committee on Oversight and Government Reform and has not yet received a hearing or committee vote. Republican cosponsor Rep. Nunn is the bill's bipartisan anchor.",
+      "whyItMatters": "For Oklahoma cannabis operators and their employees: currently, past or current marijuana use can disqualify individuals from federal employment, federal security clearances, and federal contractor work — creating talent pipeline friction and collateral consequences for employees in cannabis-adjacent roles. If enacted, the CURE Act would eliminate this barrier prospectively and require retroactive agency review back to 2008. For CAKE as an Oklahoma-licensed cultivator/processor and for dispensary customers as employers: the bill could ease background-check complications for staff with prior cannabis use. Critical caveat: the bill is early-stage — no committee hearing scheduled, no floor vote, and House Majority Leader Scalise has actively opposed recent cannabis legislation. The bill has NOT passed and is unlikely to advance quickly under current House leadership. Do not modify HR, background-check, or employee onboarding policies based on the filing alone.",
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "Marijuana Moment — People Couldn't Be Denied Federal Jobs Or Security Clearances Due To Past Marijuana Use Under New Bipartisan Bill In Congress (September 17, 2026)",
+        "url": "https://www.marijuanamoment.net/people-couldnt-be-denied-federal-jobs-or-security-clearances-due-to-past-marijuana-use-under-new-bipartisan-bill-in-congress"
+      },
+      "secondarySource": {
+        "name": "Kind Green Buds — New Federal Bill Would Protect Past Marijuana Users Seeking Government Jobs and Security Clearances",
+        "url": "https://kindgreenbuds.com/news/new-federal-bill-would-protect-past-marijuana-users-seeking-government-jobs-and-security-clearances/"
+      },
+      "pinned": false
+    },
     {
       "id": "alabama-public-health-withdraws-schedule-iii-objection-sept18-2026",
       "date": "2026-09-18",
@@ -2876,17 +2897,6 @@
       "date": "2026-09-01"
     },
     {
-      "id": "watch-house-cr-hemp-vote-passed-premature-claims-aug31",
-      "headline": "'House passed the CR — hemp delay is now law' — premature claims circulating August 31 before House vote outcome confirmed; legislation requires presidential signature",
-      "claim": "As the House takes up the Senate-passed CR on August 31, cannabis and hemp operators are circulating claims across social media, WhatsApp operator groups, and compliance newsletters that the hemp delay is 'now law' or 'passed' before any official vote tally is confirmed. Some claims conflate the House taking up the CR with final enactment; others cite the Senate's 90-6 passage (August 8) as sufficient for the delay to take effect. A related false claim holds that November 12 is 'now pushed back to December 11' based on news reports about the vote being scheduled, not completed.",
-      "caution": "A bill becomes law only after both chambers pass identical text AND the President signs it (or the President's veto is overridden). The House's consideration of the CR under suspension of rules is NOT passage; a vote tally confirmation is NOT presidential signature. Even if the House passes the Senate-sent CR on August 31, the President must sign the bill before any hemp delay takes effect. Verify the official House clerk vote record at clerk.house.gov/Votes and the White House for signature confirmation before changing any compliance posture. Until a signed bill is publicly confirmed, November 12, 2026 remains the operative federal hemp compliance deadline. Note: the Senate CR hemp delay (if enacted) applies only to most plant-derived cannabinoids — synthetic cannabinoids not naturally produced by Cannabis sativa L. (HHC, THC-O acetate, and related variants) remain subject to November 12 with NO delay, as those were explicitly excluded in the Senate CR text.",
-      "source": {
-        "name": "House Clerk — Vote Records (verify official tally here)",
-        "url": "https://clerk.house.gov/Votes"
-      },
-      "date": "2026-08"
-    },
-    {
       "id": "watch-cr-hemp-delay-converted-delta8-scope-ambiguity",
       "headline": "'Senate CR delay covers all delta-8 including CBD-converted' vs. 'converted delta-8 not naturally produced — no delay' — two competing readings circulating in hemp compliance channels",
       "claim": "As hemp operators and compliance consultants analyze the Senate CR text (H.R. 6500, passed August 8, 90–6), two conflicting readings of the delay's scope have emerged and are circulating in WhatsApp groups, newsletters, and compliance webinars. Reading A (industry-favorable, ATACH position): because delta-8 THC is 'capable of being naturally produced' by the Cannabis sativa L. plant (it exists in trace amounts), ALL delta-8 products qualify for the November 12 → December 11 delay regardless of whether this specific batch was made by isomerizing CBD. Reading B (stricter, CADCA and some regulatory counsel): commercially manufactured delta-8 produced via chemical conversion from CBD was not 'naturally produced' by the cannabis plant in this product and falls outside the delay — such products face Section 781 recriminalization November 12 with no extension. Both readings are circulating simultaneously and being used by different vendors to justify conflicting compliance postures.",
@@ -3067,17 +3077,6 @@
       "date": "2026-08"
     },
     {
-      "id": "watch-senate-90-6-passage-december11-now-law-false",
-      "headline": "'Senate 90-6 Passage = December 11 Is Now the Law' — False; House Must Still Act; House CR Has No Hemp Delay; Not Until September",
-      "claim": "Following the Senate's 90-6 final passage of the Continuing Appropriations and Extensions Act, 2027 (CR) on August 8, 2026, industry trackers, trade association newsletters, and social media posts are presenting December 11, 2026 as the operative hemp compliance deadline — treating Senate passage as effective enactment of the delay. Some outlets describe the hemp ban as 'delayed' or 'pushed back' as a fait accompli. Headlines such as 'Senate Votes To Delay Hemp Ban' and 'Senate Approves Bill That Would Delay Federal Hemp Restrictions' are driving the impression that November 12 is no longer the relevant deadline.",
-      "caution": "Senate passage (even 90-6) is NOT enactment — the CR is NOT law until the House passes the same version AND the President signs it. The House passed its own competing CR in July 2026 through December 4 with NO hemp delay provision. The House is in recess until approximately the first week of September 2026. When the House returns, it may accept the Senate version, reject it, or strip the hemp delay in conference. The 35-state/territory AG coalition explicitly urged House Speaker Johnson to reject the delay; Sens. Budd and Ricketts publicly committed to pressing the House to strip it. Even if enacted, the delay is only 29 days (to December 11) and does NOT cover synthetic cannabinoids not naturally produced by Cannabis sativa L. (HHC, THC-O acetate), which face November 12 recriminalization regardless. Oklahoma dispensaries and CAKE's wholesale customers carrying hemp-derived THCA-flower, delta-8, delta-10, or high-potency hemp beverages must continue November 12 compliance planning.",
-      "source": {
-        "name": "Marijuana Moment — Senate Votes To Delay Hemp Ban (August 8, 2026)",
-        "url": "https://www.marijuanamoment.net/senate-rejects-amendment-to-keep-hemp-thc-product-ban-on-track-for-november-teeing-up-delay-trump-pushed-for/"
-      },
-      "date": "2026-08"
-    },
-    {
       "id": "watch-white-house-hemp-delay-conflict-interest",
       "headline": "White House Hemp Delay Advocacy Framed as Conflict of Interest — Speculative Commentary, Not a Legal Finding",
       "claim": "Media and critics are circulating reports that the Trump White House's push for the hemp THC product ban delay is driven by political conflicts of interest, including past hemp industry ties among White House staff. Some outlets are framing this as evidence the hemp delay is corrupted by financial motives and should be disregarded.",
@@ -3096,17 +3095,6 @@
       "source": {
         "name": "Cannabis Business Times — US Senate Plans to Delay Ban on Intoxicating Hemp Products (August 4, 2026)",
         "url": "https://www.cannabisbusinesstimes.com/hemp/news/15831475/us-senate-plans-to-delay-ban-on-intoxicating-hemp-products"
-      },
-      "date": "2026-08"
-    },
-    {
-      "id": "watch-farm-bill-aug6-markup-hemp-relief-vehicle",
-      "headline": "Senate Farm Bill August 6 Markup Circulating as Hemp Relief Opportunity — Chair Boozman Confirmed Hemp Delay Amendment Will NOT Get a Vote",
-      "claim": "In the August 1–5, 2026 period, some operators, advocacy groups, and trade commentators have framed the Senate Agriculture Committee markup scheduled for August 6, 2026 as a potential vehicle for hemp delay relief. Groups aligned with hemp-saving legislation (including those supporting the Lawful Hemp Protection Act) encouraged supporters to contact senators before the markup.",
-      "caution": "Senate Agriculture Committee Chair Boozman confirmed to Marijuana Moment that a hemp delay amendment will NOT be allowed a vote at the August 6 Farm Bill markup — mirroring the House markup where hemp delay amendments were ruled not germane before proceedings began. Farm Bill 2.0's base text (released July 31) contains no hemp delay provision. Even if a hemp amendment somehow survived committee over the chair's objection, a Farm Bill that hasn't cleared committee cannot become law before November 12 — Farm Bills typically take months of floor debate, conference, and reconciliation. The only realistic near-term congressional mechanism for a hemp delay is the separate CR track (Senate passed ~August 4; House action pending). The Farm Bill markup is not a relief event for the November 12, 2026 deadline.",
-      "source": {
-        "name": "Marijuana Moment — Amendment To Delay Hemp THC Ban Won't Get A Vote At Farm Bill Hearing (August 2026)",
-        "url": "https://www.marijuanamoment.net/amendment-to-delay-hemp-thc-ban-wont-get-a-vote-at-farm-bill-hearing-key-gop-congressional-committee-chair-signals/"
       },
       "date": "2026-08"
     },
