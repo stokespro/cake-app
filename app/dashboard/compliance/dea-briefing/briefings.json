@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-21",
+  "lastUpdated": "2026-09-22",
   "deaRegistrationStatus": {
     "lastVerified": "2026-09-21",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -113,7 +113,7 @@
       "id": "kd-trump-admin-schedule-iii-guidance-response",
       "label": "Trump Administration Response Deadline — Bipartisan House Guidance Letter on Schedule III Implementation",
       "date": "September 30, 2026",
-      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 19, 2026, no formal response has been issued. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
+      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 22, 2026, no formal response has been issued. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
       "urgency": "urgent"
     },
     {
@@ -125,6 +125,44 @@
     }
   ],
   "items": [
+    {
+      "id": "fda-cannabis-public-health-messaging-initiative-sept2026",
+      "headline": "FDA Plans Cannabis Public Health Messaging Initiative — Sole-Source Contract With Reagan-Udall Foundation Starting September 30; Focus Groups With Consumers and Healthcare Providers",
+      "date": "2026-09-21",
+      "summary": "The U.S. Food and Drug Administration published a September 14, 2026 Federal contracting notice announcing its intent to award a sole-source contract to the Reagan-Udall Foundation for 16 regulatory science and public health projects, one of which is a dedicated 'Cannabis Public Health Message Testing' project. The contract would run from September 30, 2026 through September 29, 2027. The cannabis project would use focus groups, stakeholder engagement, and message testing to develop recommendations covering potency, product formulations, manufacturing, and health impacts while examining consumer misconceptions about cannabis safety and the extent of FDA regulation. A healthcare provider component would assess information gaps and clinical decision-aid needs. The final stage would produce a white paper and communications report with proposed messaging strategies for FDA and HHS. Responses from other potentially capable organizations were due September 21, 2026; FDA had not yet formally awarded the contract as of September 22.",
+      "whyItMatters": "For CAKE as an Oklahoma-licensed cultivator/processor and for all OMMA-licensed dispensary customers: this initiative marks a concrete step by FDA toward developing Schedule III-era public communications about cannabis — the first formal FDA consumer messaging project on cannabis products distinct from prior drug-safety warnings. Practically, an FDA-endorsed public health messaging framework for cannabis (covering potency, manufacturing, safe handling) is likely to influence how state regulators, insurance companies, and institutional purchasers frame cannabis products going forward. For Oklahoma dispensary staff counseling medical patients: FDA-developed clinical decision aids, once published, may become de facto standards for healthcare providers discussing cannabis with patients, affecting how dispensary staff are expected to communicate about products. No immediate compliance deadline is created by this contract award. The initiative is wholly distinct from DEA registration, 280E tax treatment, or OBNDD enforcement obligations. Monitor FDA.gov and the Reagan-Udall Foundation for publication of the resulting white paper and messaging recommendations expected in 2027.",
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "The Marijuana Herald — FDA Plans Cannabis Public Health Messaging Initiative With Consumer and Healthcare Provider Testing (September 2026)",
+        "url": "https://themarijuanaherald.com/2026/09/fda-plans-cannabis-public-health-messaging-initiative-with-consumer-and-healthcare-provider-testing/"
+      },
+      "pinned": false
+    },
+    {
+      "id": "caaf-marijuana-urinalysis-permissive-inference-lawrence-sept2026",
+      "headline": "Military's Highest Court (CAAF) Agrees to Decide Whether Positive Marijuana Test Alone Proves Knowing Use — U.S. v. Lawrence; Opening Brief Due September 15",
+      "date": "2026-09-21",
+      "summary": "The U.S. Court of Appeals for the Armed Forces (CAAF) has granted review in United States v. Collyn L. Lawrence, agreeing to consider whether a positive marijuana urinalysis alone can constitutionally support an inference of knowing drug use — a 'permissive inference' derived from a 1987 precedent. Lawrence, an Airman First Class, tested positive for THC-9 at 22 ng/ml (7 ng/ml above the DoD cutoff) following a random urinalysis on January 9, 2024. The Air Force Court of Criminal Appeals upheld his conviction in May 2026. Lawrence's attorneys argue that widespread marijuana legalization, commercial availability, and the proliferation of THC-containing products — including OMMA-licensed medical marijuana, hemp-derived CBD, and common dietary supplements — have fundamentally undermined the factual assumptions on which the permissive inference was built. CAAF will address both whether the permissive inference is unconstitutional in marijuana cases and whether Lawrence's conviction was legally supported by the evidence. Lawrence's opening brief was due September 15, 2026; the government has 21 days to respond, followed by a seven-day reply period. An oral argument date has not yet been set.",
+      "whyItMatters": "For CAKE as an Oklahoma-licensed cultivator/processor and for all OMMA-licensed dispensary customers as employers: the CAAF's decision in Lawrence will directly affect how military branches and, by extension, federal contractor employers interpret employee marijuana urinalysis results in the Schedule III era. Oklahoma has approximately 350,000–430,000 active OMMA patient cardholders, and many CAKE and dispensary employees hold OMMA medical marijuana cards. Oklahoma law does not prohibit OMMA cardholders from being employed by cannabis businesses, but federal drug testing frameworks (used by defense contractors, federal grant recipients, and safety-sensitive employers) continue to treat a positive marijuana test as evidence of wrongful use under 18 U.S.C. § 922(g)(3) and parallel federal statutes. If CAAF rules that a positive test alone cannot constitute a permissive inference of knowing use — particularly given the prevalence of hemp-derived products, THCA flower, and state-licensed medical marijuana — it could shift the legal landscape for employment drug testing involving marijuana in safety-sensitive federal contractor positions relevant to Oklahoma's defense industry. No immediate compliance obligation is created today for OMMA-licensed operators; the case must still be briefed, argued, and decided. Monitor armfor.uscourts.gov for the CAAF docket. Oklahoma employers in federal-contractor roles should consult employment counsel regarding drug-testing policies before the ruling.",
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "The Marijuana Herald — Military's Highest Court to Decide Whether Positive Marijuana Test Alone Can Prove Knowing Use (September 2026)",
+        "url": "https://themarijuanaherald.com/2026/09/militarys-highest-court-to-decide-whether-positive-marijuana-test-alone-can-prove-knowing-use-2/"
+      },
+      "secondarySource": {
+        "name": "National Institute of Military Justice — CAAF Grant in United States v. Lawrence",
+        "url": "https://www.nimj.org/caaflog/a-grant-in-united-states-v-lawrence"
+      },
+      "pinned": false
+    },
     {
       "id": "cure-act-federal-employment-cannabis-sept17-2026",
       "headline": "Bipartisan CURE Act (H.R. 10504) Would Bar Federal Agencies From Penalizing Job Applicants Over Past Marijuana Use",
@@ -2934,17 +2972,6 @@
       "date": "2026-08"
     },
     {
-      "id": "watch-mmj-intl-aug22-games-dea-attorneys-play",
-      "headline": "MMJ International Holdings Publishes August 22 'Games DEA Attorneys Play' Attack on DEA Closing Brief",
-      "claim": "MMJ International Holdings (an active D.C. Circuit petitioner in Cases 26-1106/26-1136 seeking to vacate the April 28 Schedule III order) published an August 22, 2026 commentary on healthtechnologynet.com titled 'The Games DEA Attorneys Play: What Marijuana Rescheduling Closing Brief Didn't Tell Judge Julius' — alleging that DEA attorneys deliberately omitted or mischaracterized key evidence in their August 17 post-hearing brief and failed to disclose information material to ALJ Julius's recommended decision.",
-      "caution": "This piece is authored by or in close collaboration with MMJ International Holdings, an active litigant seeking to vacate the April 28 Schedule III order — it is advocacy by an adverse party, not journalism or neutral legal analysis. Its claims about DEA attorney conduct are precisely what the ALJ proceeding and D.C. Circuit appeal are designed to adjudicate and cannot be evaluated from a healthtechnologynet.com post. The DEA's brief was filed through the official administrative record and formally urged Schedule III. A compliance director encountering this piece should treat it as one litigant's closing argument, not as established fact about the DEA brief's integrity. MMJ International Holdings has a documented pattern of publishing Newswire/healthtechnologynet.com advocacy pieces designed to shape public perception of the ALJ proceeding — see prior discourse entries: watch-mmj-intl-aug9-alj-crystal-ball, watch-mmj-intl-aug1-foundation-holds-piece, watch-mmj-intl-july30-rescheduling-in-jeopardy, watch-mmj-intl-july15-norml1977-stay-piece, watch-mmj-intl-july19-bet-goes-wrong.",
-      "source": {
-        "name": "Health Technology Net — MMJ International Holdings: 'The Games DEA Attorneys Play' (August 22, 2026)",
-        "url": "https://healthtechnologynet.com/2026/08/22/the-games-dea-attorneys-play-what-marijuana-rescheduling-closing-brief-didnt-tell-judge-julius/"
-      },
-      "date": "2026-08"
-    },
-    {
       "id": "watch-fda-social-media-monitoring-dispensary-crackdown-misread",
       "headline": "FDA Social Media Solicitation Misread as Imminent Crackdown on Dispensary Marketing Accounts",
       "claim": "The FDA contractor solicitation for cannabis social media monitoring is circulating with claims that 'the feds are now actively watching dispensary Instagram accounts' and 'FDA will start pulling licenses for social media advertising.' Some consultants are marketing 'FDA social media audit' services in response.",
@@ -2956,17 +2983,6 @@
       "date": "2026-08"
     },
     {
-      "id": "watch-alj-transcript-corrections-as-outcome-signal",
-      "headline": "ALJ 'Substantive Corrections' to Hearing Transcript Misread as Evidence of Record Manipulation or Ruling Signal",
-      "claim": "Following the August 20 DEA transcript correction order, circulating claims include: (1) that 'substantive corrections' mean the hearing record was falsified or manipulated; (2) that specific corrections (e.g., changing 'This is a medication' to 'This is a medication?' or 'there\\'s adulterants' to 'there\\'s no adulterants') signal that the ALJ will rule against Schedule III; (3) that corrections changing declarative statements into questions undermine DEA's case for rescheduling; and (4) that the correction process itself reveals bias in how the hearing was conducted.",
-      "caution": "Transcript correction is a standard administrative procedure in DEA evidentiary hearings — parties are routinely invited to propose corrections after a hearing concludes, and the ALJ reconciles those proposals before publishing the official record. Correcting a statement to a question or fixing a substance reference corrects what was actually said at the hearing, not the ALJ's legal conclusions about what it means. The ALJ's recommended decision will be based on the full corrected record and the legal standards in the CSA — not on any individual corrected transcript line. No correction in the August 20 order constitutes evidence of bias, outcome-signaling, or record manipulation. Wait for the ALJ's actual recommended decision (expected months from now) before drawing conclusions about the proceeding's direction. Official corrected transcript was released on DEA.gov on August 26, 2026 — meeting the ALJ's deadline.",
-      "source": {
-        "name": "Marijuana Moment — DEA Judge Issues Order On Marijuana Rescheduling Hearing Transcript Corrections",
-        "url": "https://www.marijuanamoment.net/dea-judge-issues-order-on-marijuana-rescheduling-hearing-transcript-corrections"
-      },
-      "date": "2026-08"
-    },
-    {
       "id": "watch-congress-letter-medicare-cannabis-coverage-imminent",
       "headline": "Congressional Letter Asking About Medicare Cannabis Coverage Misread as Policy Signal or Imminent Coverage",
       "claim": "The bipartisan House letter to Trump (August 18) asking whether Medicare will cover Schedule III medical cannabis is being interpreted by operators and patients as a signal that Medicare coverage of medical cannabis is imminent, already authorized, or that the administration is about to announce CMS coverage. Some accounts further claim that the September 30 response deadline means cannabis will be covered by Medicare by that date.",
@@ -2974,17 +2990,6 @@
       "source": {
         "name": "Marijuana Moment — Bipartisan Lawmakers Press Trump For Marijuana Rescheduling Guidance—Including Whether Medicare Will Cover Medical Cannabis",
         "url": "https://www.marijuanamoment.net/bipartisan-lawmakers-press-trump-for-marijuana-rescheduling-guidance-including-whether-medicare-will-cover-medical-cannabis"
-      },
-      "date": "2026-08"
-    },
-    {
-      "id": "watch-dea-brief-urges-schedule-iii-misread-as-final-ruling",
-      "headline": "DEA August 17 Post-Hearing Brief Urging Broader Schedule III Circulating as 'Rescheduling Confirmed' or 'All Marijuana Now Schedule III'",
-      "claim": "Following the August 17, 2026 DEA post-hearing brief filing — in which DEA/DOJ formally argued that all marijuana should be recommended for Schedule III in the broader administrative proceeding — operators, consultants, and cannabis media are circulating framing that broader Schedule III rescheduling is now 'confirmed,' 'essentially done,' or 'imminent.' Some vendors are using the brief to market DEA registration services as immediately necessary for broader-rescheduling compliance or to claim the ALJ will definitely rule for Schedule III.",
-      "caution": "The August 17 DEA brief is a closing argument in an administrative proceeding — advocacy for a position, not a ruling or decision. The ALJ has not issued a recommended decision. Even after the ALJ issues a recommended decision (expected months from now), designated parties have 20 days to file exceptions, and the DEA Administrator then reviews the record and issues the final administrative order. That final order could then face additional D.C. Circuit review. The April 28 order already covers OMMA-licensed state medical operators under Schedule III — their current DEA registration obligations and 280E treatment are unchanged by the August 17 brief. The D.C. Circuit stay motion (Cases 26-1106/1130/1136) remains fully briefed and can issue at any time, which could stay or vacate the existing April 28 order independent of the ALJ proceeding. Do not accelerate or change compliance plans based on a closing argument.",
-      "source": {
-        "name": "Marijuana Moment — Final briefs filed in cannabis rescheduling hearing (Newsletter: August 19, 2026)",
-        "url": "https://www.marijuanamoment.net/final-briefs-filed-in-cannabis-rescheduling-hearing-newsletter-august-19-2026"
       },
       "date": "2026-08"
     },
@@ -3033,17 +3038,6 @@
       "date": "2026-08"
     },
     {
-      "id": "watch-cr-hemp-delay-conflated-with-rescheduling",
-      "headline": "WATCH: 'The Senate CR delayed federal cannabis rescheduling too' — Senate CR applies only to the hemp product ban; April 28 Schedule III order for state-licensed medical marijuana is entirely unaffected",
-      "claim": "Following the Senate's 90-6 passage of the Continuing Appropriations and Extensions Act, 2027 on August 8, 2026 — which includes a provision delaying most hemp-derived product restrictions from November 12 to December 11, 2026 — operators, forum participants, and some cannabis media have conflated the hemp delay with the broader marijuana rescheduling timeline. Claims circulating include: 'the feds pushed everything back to December,' 'rescheduling is delayed until December,' and 'we have more time on all the federal cannabis deadlines.' Some operators are reportedly easing urgency around DEA registration and supply chain compliance based on the mistaken belief that the CR delay covers marijuana.",
-      "caution": "The Senate CR hemp delay and marijuana rescheduling under the CSA are completely separate regulatory tracks with no overlap. The CR narrowed the application of Section 781 of P.L. 119-37 (the federal hemp redefinition) temporarily for plant-derived cannabinoids — it does NOT affect the April 28, 2026 DEA Final Order rescheduling state-licensed medical marijuana from Schedule I to Schedule III. The OBNDD enforcement grace period (January 1, 2027), DEA registration requirements, and the ALJ post-hearing brief process (August 17 deadline) are all entirely unrelated to and unaffected by the Senate CR. For Oklahoma operators specifically: DEA registration obligations for cultivators, manufacturers, and distributors are governed by the April 28 rescheduling order and OBNDD's May 8 bulletin — not by the hemp CR. Do not treat the Senate CR as delaying any marijuana-rescheduling compliance obligation.",
-      "source": {
-        "name": "Forbes — Senate Votes to Delay Looming Hemp THC Ban (August 9, 2026)",
-        "url": "https://www.forbes.com/sites/ajherrington/2026/08/09/senate-votes-to-delay-looming-hemp-thc-ban/"
-      },
-      "date": "2026-08"
-    },
-    {
       "id": "watch-square-cutoff-not-delayed-by-cr",
       "headline": "WATCH: 'The Senate CR delays the November ban, so Square's cutoff dates are delayed too' — Square's October 15/November 5 enforcement dates are Square's own business policy, NOT tied to the federal statutory date; Senate CR does NOT affect them",
       "claim": "Following the Senate's passage of the Continuing Appropriations and Extensions Act, 2027 containing a hemp delay from November 12 to December 11, 2026, hemp and CBD operators using Square for payment processing are circulating the claim that Square's October 15 catalog-removal deadline and November 5 account-closure deadline have been or will be automatically extended. Some operators report telling customers 'we have until December now' based on the Senate CR, expecting Square to follow the new federal timeline.",
@@ -3055,17 +3049,6 @@
       "date": "2026-08"
     },
     {
-      "id": "watch-mmj-intl-aug9-alj-crystal-ball",
-      "headline": "WATCH: MMJ International August 9 'ALJ's Crystal Ball' piece circulating as neutral post-hearing analysis — interested-party advocacy framing the hearing record to support their D.C. Circuit stay motion",
-      "claim": "MMJ International Holdings published a Newswire press release on August 9, 2026 titled 'A Look Into the ALJ's Crystal Ball: What the DEA Marijuana Hearing Record May Be Telling Us,' syndicated via Newswire to regional aggregators. CEO Duane Boise argues that 'the most important question may no longer be whether marijuana reaches Schedule III — but whether the evidentiary record actually supports the government's state-licensed marijuana pathway,' framing testimony at the June 29–July 15 ALJ hearing as having exposed scientific tensions that could lead the ALJ to recommend against rescheduling. The piece is circulating in compliance channels as neutral post-hearing analysis of the regulatory outlook.",
-      "caution": "MMJ International Holdings is a named petitioner in D.C. Circuit Cases 26-1106/1130/1136, actively seeking to vacate the April 28 rescheduling order. MMJ BioPharma Cultivation has maintained its own DEA bulk manufacturing registration pending since 2018 — a registration that cannot advance while state-licensed cannabis holds the same Schedule III pathway MMJ seeks for itself. The August 9 release continues MMJ's sustained Newswire/AccessWire press release campaign (see also: watch-mmj-intl-aug1-foundation-holds-piece, watch-mmj-intl-july30-rescheduling-in-jeopardy, watch-mmj-intl-july20-24-dea-scientist-fake-news). No ALJ recommended decision has been issued; Chief ALJ Julius begins drafting after August 17 post-hearing brief submissions — with no statutory deadline and historical precedent of 1–3 years from hearing close to recommended decision. The official DEA.gov hearing transcript has not been published; MMJ's characterization of 'what the record may be telling us' is interpretation by an adverse litigation party without access to a finalized transcript. No compliance posture change is warranted — the April 28 Schedule III order for state-licensed medical marijuana remains in full effect; OBNDD enforcement grace period (January 1, 2027) is unchanged.",
-      "source": {
-        "name": "Newswire — A Look Into the ALJ's Crystal Ball: What the DEA Marijuana Hearing Record May Be Telling Us (August 9, 2026)",
-        "url": "https://www.newswire.com/news/a-look-into-the-alj-s-crystal-ball-what-the-dea-marijuana-hearing-22844100"
-      },
-      "date": "2026-08-09"
-    },
-    {
       "id": "watch-cr-hemp-delay-synthetics-still-nov12",
       "headline": "'The Senate CR delays all hemp products to December 11' — Synthetic cannabinoids (HHC, THC-O, THC-B) are explicitly carved out and face November 12 regardless",
       "claim": "Hemp operators and consultants are circulating that the Senate CR delays 'the hemp ban' to December 11. Some marketing material omits the synthetics carve-out. The CR as written extends the deadline only for cannabinoids 'capable of being naturally produced by a Cannabis sativa L. plant'; synthetic cannabinoids (HHC, THC-O acetate, THC-B, THCJD, etc.) face November 12 recriminalization even if the CR becomes law.",
@@ -3073,17 +3056,6 @@
       "source": {
         "name": "Marijuana Moment — Senate Votes To Delay Hemp Ban",
         "url": "https://www.marijuanamoment.net/senate-rejects-amendment-to-keep-hemp-thc-product-ban-on-track-for-november-teeing-up-delay-trump-pushed-for/"
-      },
-      "date": "2026-08"
-    },
-    {
-      "id": "watch-white-house-hemp-delay-conflict-interest",
-      "headline": "White House Hemp Delay Advocacy Framed as Conflict of Interest — Speculative Commentary, Not a Legal Finding",
-      "claim": "Media and critics are circulating reports that the Trump White House's push for the hemp THC product ban delay is driven by political conflicts of interest, including past hemp industry ties among White House staff. Some outlets are framing this as evidence the hemp delay is corrupted by financial motives and should be disregarded.",
-      "caution": "Conflict-of-interest allegations are speculative commentary — they are not a court ruling, regulatory action, or change in legal status. The operative legal question for Oklahoma operators is solely whether Congress enacts a hemp delay and the President signs it. White House motivation does not affect the November 12, 2026 effective date of Section 781 of P.L. 119-37. Do not use political-corruption narratives as a basis for compliance decisions. The Senate Parliamentarian ruling making Budd's amendment passable at 50 votes is a far more consequential development than any conflict-of-interest claim — plan for November 12 regardless.",
-      "source": {
-        "name": "MS Now — 'Reefer Madness': White House's Hemp Reversal Divides GOP and Sparks Conflict of Interest Concerns",
-        "url": "https://www.ms.now/news/white-house-hemp-reversal-susie-wiles"
       },
       "date": "2026-08"
     },
