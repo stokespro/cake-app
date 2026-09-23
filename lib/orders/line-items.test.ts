@@ -11,7 +11,7 @@
 // Follows the house style of lib/orders/deductions.test.ts.
 
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_UNITS_PER_CASE, mapOrderItemsToForm } from './line-items';
+import { DEFAULT_UNITS_PER_CASE, firstOrderableSku, mapOrderItemsToForm } from './line-items';
 
 /** No customer-pricing rule for anything — the common case. */
 const noPricing = () => null;
@@ -165,5 +165,44 @@ describe('mapOrderItemsToForm', () => {
 
     expect(line.sku_code).toBe('AS');
     expect(line.line_total).toBe(64);
+  });
+});
+
+// SPRO-151: both order creation surfaces (app/dashboard/orders/new/page.tsx and
+// components/orders/order-sheet.tsx) list out-of-stock SKUs so the user can see
+// they exist, greyed out and unselectable. That makes the first picker entry an
+// unsafe default for a new line — it may be exactly the SKU the server
+// availability gate in actions/orders.ts rejects — so both surfaces default
+// through firstOrderableSku() instead, and disable "Add Item" when it is null.
+describe('firstOrderableSku', () => {
+  it('picks the first in-stock SKU, skipping out-of-stock ones ahead of it', () => {
+    const skus = [
+      { id: 'mac-b', in_stock: false },
+      { id: 'bb-b', in_stock: false },
+      { id: 'sku-a', in_stock: true },
+      { id: 'sku-b', in_stock: true },
+    ];
+
+    expect(firstOrderableSku(skus)?.id).toBe('sku-a');
+  });
+
+  it('returns null when nothing is in stock, so Add Item stays disabled', () => {
+    expect(firstOrderableSku([{ id: 'mac-b', in_stock: false }])).toBeNull();
+  });
+
+  it('never defaults to a SKU with unknown stock', () => {
+    expect(firstOrderableSku([{ id: 'sku-a' }, { id: 'sku-b', in_stock: null }])).toBeNull();
+  });
+
+  it('returns null for an empty list, null and undefined', () => {
+    expect(firstOrderableSku([])).toBeNull();
+    expect(firstOrderableSku(null)).toBeNull();
+    expect(firstOrderableSku(undefined)).toBeNull();
+  });
+
+  it('returns the original SKU object, so the caller keeps its pricing fields', () => {
+    const inStock = { id: 'sku-b', in_stock: true, units_per_case: 10 };
+
+    expect(firstOrderableSku([{ id: 'mac-b', in_stock: false }, inStock])).toBe(inStock);
   });
 });

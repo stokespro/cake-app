@@ -30,6 +30,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { SkuCombobox } from '@/components/orders/sku-combobox'
+import { firstOrderableSku } from '@/lib/orders/line-items'
 import {
   EMPTY_ORDER_DEDUCTIONS,
   OrderDeductions,
@@ -193,8 +194,9 @@ export default function NewOrderPage() {
   // SPRO-151: this picker deliberately lists out-of-stock SKUs so the user can
   // see they exist (greyed out, labelled "Out of Stock" and unselectable), so
   // skus[0] is NOT necessarily orderable. Every default and every enablement
-  // decision below has to go through the in-stock subset instead.
-  const firstInStockSku = skus.find(sku => sku.in_stock) ?? null
+  // decision below has to go through the in-stock subset instead — same shared
+  // rule <OrderSheet> applies.
+  const firstInStockSku = firstOrderableSku(skus)
   const hasInStockSku = firstInStockSku !== null
 
   const addOrderItem = () => {
