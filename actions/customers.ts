@@ -1,6 +1,7 @@
 'use server'
 
 import { requireRole } from '@/lib/auth/session'
+import { isPackageEligible } from '@/lib/inventory/package-eligibility'
 import { createServiceClient } from '@/lib/supabase/server'
 import { resolveInitials } from '@/lib/initials'
 
@@ -604,17 +605,21 @@ export async function getAvailableInventory(): Promise<
     }
   }
 
-  // Vault grams by strain + product type
+  const strainMap = new Map(strains.map(s => [s.id, s.name]))
+  const typeMap = new Map(productTypes.map(t => [t.id, t.name]))
+  const inventoryMap = new Map(inventory.map(i => [i.sku_id, i]))
+
+  // Vault grams by strain + product type.
+  // SPRO-150: a package too light to fill a case on its own never reaches the
+  // total — partial packages are separate sealed containers and cannot be
+  // pooled to make one. Non-target product types are unaffected.
   const vaultByStrainAndType = new Map<string, number>()
   for (const pkg of vaultPackages) {
+    if (!isPackageEligible(typeMap.get(pkg.type_id), pkg.current_weight)) continue
     const key = `${pkg.strain_id}-${pkg.type_id}`
     const current = vaultByStrainAndType.get(key) ?? 0
     vaultByStrainAndType.set(key, current + pkg.current_weight)
   }
-
-  const strainMap = new Map(strains.map(s => [s.id, s.name]))
-  const typeMap = new Map(productTypes.map(t => [t.id, t.name]))
-  const inventoryMap = new Map(inventory.map(i => [i.sku_id, i]))
 
   const availabilityByStrainType = new Map<string, InventoryAvailabilityRecord>()
 

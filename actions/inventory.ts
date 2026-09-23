@@ -1,6 +1,7 @@
 'use server'
 
 import { requireRole } from '@/lib/auth/session'
+import { filterEligiblePackages } from '@/lib/inventory/package-eligibility'
 import { createServiceClient } from '@/lib/supabase/server'
 
 // Roles that can view inventory (matches canViewSection 'inventory')
@@ -112,13 +113,22 @@ export async function getInventoryData(): Promise<
     return { error: ordersResult.error.message }
   }
 
+  const productTypes = productTypesResult.data || []
+
+  // SPRO-150: availability is aggregated from these packages, so drop the ones
+  // that are too light to count BEFORE the caller sums them — two half-full
+  // A Buds packages are two sealed containers, not one case. Vault reads
+  // packages through actions/vault.ts and is unaffected.
+  const productTypeNameById = new Map(productTypes.map(t => [t.id, t.name]))
+  const packages = filterEligiblePackages(packagesResult.data || [], productTypeNameById)
+
   return {
     data: {
       skus: skusResult.data || [],
       strains: strainsResult.data || [],
-      productTypes: productTypesResult.data || [],
+      productTypes,
       inventory: inventoryResult.data || [],
-      packages: packagesResult.data || [],
+      packages,
       orders: (ordersResult.data || []) as InventoryOrder[],
     }
   }
