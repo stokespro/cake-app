@@ -142,6 +142,13 @@ interface SubmittedLineItem {
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
 /**
+ * Raised whenever a submitted line references a SKU row the server cannot find.
+ * Shared by the pricing pass and the availability gate so both reject an
+ * unknown SKU with the same wording.
+ */
+const MISSING_SKU_ERROR = 'Order item references a SKU that no longer exists.'
+
+/**
  * Derives each line amount from server truth and returns the subtotal.
  *
  * The house pricing rule, shared by all three order forms, is
@@ -191,7 +198,7 @@ async function priceLineItems<T extends SubmittedLineItem>(
 
     const perCase = item.sku_id ? unitsPerCase.get(item.sku_id) : undefined
     if (perCase === undefined) {
-      return { ok: false, error: 'Order item references a SKU that no longer exists.' }
+      return { ok: false, error: MISSING_SKU_ERROR }
     }
 
     if (!Number.isInteger(item.cases) || item.cases <= 0) {
@@ -209,6 +216,70 @@ async function priceLineItems<T extends SubmittedLineItem>(
   }
 
   return { ok: true, items: priced, subtotal }
+}
+
+// ---------------------------------------------------------------------------
+// Server-authoritative availability gate (SPRO-151)
+// ---------------------------------------------------------------------------
+
+/**
+ * Rejects a creation payload that references a SKU which cannot be ordered.
+ *
+ * The new-order picker shows out-of-stock SKUs greyed out and unselectable, but
+ * that is presentation: a hand-rolled server-action POST, a stale tab whose SKU
+ * list predates the stock change, or a future picker regression all reach this
+ * layer with an unorderable sku_id. `skus.in_stock` is the single source of
+ * availability truth (maintained by the DB triggers in
+ * supabase/migrations/*_derive_sku_in_stock.sql and its successors) — nothing
+ * here parses SKU codes or recomputes inventory.
+ *
+ * A SKU passes only if its row exists, its status is 'active' and in_stock is
+ * true, which is exactly the set getActiveSkus(true) offers.
+ *
+ * Creation paths only: an existing order may legitimately contain a SKU that
+ * has since gone out of stock, and editing it must not become impossible.
+ */
+async function assertSkusAvailable(
+  db: ServiceClient,
+  items: readonly SubmittedLineItem[] | null | undefined
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const live = (items ?? []).filter(item => !item._deleted)
+
+  // An empty sku_id can never resolve to a row; treat it as missing rather than
+  // sending '' to a uuid column.
+  if (live.some(item => !item.sku_id)) return { ok: false, error: MISSING_SKU_ERROR }
+
+  const skuIds = [...new Set(live.map(item => item.sku_id))]
+  if (skuIds.length === 0) return { ok: true }
+
+  const { data, error } = await db
+    .from('skus')
+    .select('id, code, status, in_stock')
+    .in('id', skuIds)
+
+  if (error) {
+    console.error('[orders] assertSkusAvailable skus error:', error)
+    return { ok: false, error: 'Failed to verify SKU availability' }
+  }
+
+  const found = data ?? []
+  const foundIds = new Set(found.map(sku => sku.id))
+
+  // Every requested id must have come back. `id` is the primary key, so a
+  // short result set means a row is genuinely absent, not deduplicated.
+  if (skuIds.some(id => !foundIds.has(id))) return { ok: false, error: MISSING_SKU_ERROR }
+
+  const unavailable = found.filter(sku => sku.status !== 'active' || sku.in_stock !== true)
+  if (unavailable.length > 0) {
+    // Code, not id — this string is shown to the person placing the order.
+    const labels = unavailable.map(sku => sku.code ?? sku.id).sort().join(', ')
+    return {
+      ok: false,
+      error: `These SKUs are unavailable and cannot be ordered: ${labels}. Remove them and try again.`,
+    }
+  }
+
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
@@ -511,6 +582,11 @@ export async function createOrder(input: CreateOrderInput): Promise<
 
   const db = await createServiceClient()
 
+  // SPRO-151: nothing unorderable gets past here — checked before any write, so
+  // a rejected order leaves no orders row and no order_items rows behind.
+  const available = await assertSkusAvailable(db, input.items)
+  if (!available.ok) return { error: available.error }
+
   // SPRO-148: derive every line amount from the skus table, then validate the
   // deductions against that server subtotal — both before any write.
   const priced = await priceLineItems(db, input.items)
@@ -773,6 +849,11 @@ export async function createOrderFromSheet(input: UpsertOrderSheetInput): Promis
   if (input.payment_terms && !input.terms_payment_date) return { error: 'Payment expected date is required for terms orders' }
 
   const db = await createServiceClient()
+
+  // SPRO-151: same availability gate as createOrder — the order sheet is the
+  // other way a brand-new order gets created.
+  const available = await assertSkusAvailable(db, input.items)
+  if (!available.ok) return { error: available.error }
 
   // SPRO-148: derive every line amount from the skus table, then validate the
   // deductions against that server subtotal — both before any write.
