@@ -494,6 +494,15 @@ export async function getCustomerCommunications(customerId: string): Promise<
 // Read — orders for a dispensary
 // ---------------------------------------------------------------------------
 
+/**
+ * Orders for the dispensary detail page.
+ *
+ * The selection is deliberately wider than the table needs: the Orders tab
+ * feeds the SAME record straight into <OrderSheet> for editing, so anything
+ * the sheet round-trips has to be here or it is silently dropped on save.
+ * That is order_items (with the SKU details the sheet needs to price a line),
+ * the delivery/terms fields and the SPRO-148 deduction pairs.
+ */
 export async function getCustomerOrders(customerId: string): Promise<
   | { data: Record<string, unknown>[]; error?: never }
   | { data?: never; error: string }
@@ -513,12 +522,30 @@ export async function getCustomerOrders(customerId: string): Promise<
       order_date,
       status,
       total_price,
+      discount_amount,
+      discount_reason,
+      credit_amount,
+      credit_reason,
       order_notes,
       requested_delivery_date,
       confirmed_delivery_date,
+      delivered_at,
+      payment_terms,
+      terms_payment_date,
+      terms_paid_at,
       created_at,
       updated_at,
-      agent:users!orders_agent_id_fkey(name)
+      agent:users!orders_agent_id_fkey(name),
+      order_items(
+        id,
+        order_id,
+        sku_id,
+        quantity,
+        unit_price,
+        line_total,
+        created_at,
+        sku:skus(id, code, name, units_per_case, price_per_unit, product_type_id)
+      )
     `)
     .eq('customer_id', customerId)
     .order('order_date', { ascending: false })

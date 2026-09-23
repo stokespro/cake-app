@@ -30,6 +30,15 @@ import {
 } from '@/components/ui/select'
 import { SkuCombobox } from '@/components/orders/sku-combobox'
 import {
+  EMPTY_ORDER_DEDUCTIONS,
+  OrderDeductionBreakdown,
+  OrderDeductions,
+  deductionsFromOrder,
+  toDeductionInput,
+  validateOrderDeductionsValue,
+  type OrderDeductionsValue,
+} from '@/components/orders/order-deductions'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -100,6 +109,7 @@ interface EditFormData {
   payment_terms: boolean
   terms_payment_date: string
   terms_paid_at_display: string  // read-only display of actual payment receipt date
+  deductions: OrderDeductionsValue  // SPRO-148 order-level discount / credit
 }
 
 type SortField = 'order_number' | 'customer' | 'status' | 'order_date' | 'delivery_date' | 'total'
@@ -408,6 +418,7 @@ export default function OrdersPage() {
       payment_terms: order.payment_terms ?? false,
       terms_payment_date: order.terms_payment_date || '',
       terms_paid_at_display: order.terms_paid_at ? order.terms_paid_at.substring(0, 10) : '',
+      deductions: deductionsFromOrder(order),
     })
   }
 
@@ -424,6 +435,15 @@ export default function OrdersPage() {
 
   const saveSheetOrder = async () => {
     if (!selectedOrder || !user) return
+
+    // Client-side mirror of the server deduction rules — the server revalidates.
+    const editDeductions = editForm.deductions ?? EMPTY_ORDER_DEDUCTIONS
+    const deductionError = validateOrderDeductionsValue(editDeductions, getEditTotal())
+    if (deductionError) {
+      toast.error(deductionError)
+      return
+    }
+
     setSaving(true)
     try {
       const result = await saveOrder(selectedOrder.id, {
@@ -432,16 +452,19 @@ export default function OrdersPage() {
         requested_delivery_date: editForm.requested_delivery_date || null,
         delivered_at_override: editForm.delivered_at_override,
         existing_delivered_at: selectedOrder.delivered_at,
+        // No line_total: the server re-derives every line amount from the
+        // skus table (SPRO-148). The on-screen total is a preview only.
         items: (editForm.order_items ?? []).map(item => ({
           id: item.id,
           sku_id: item.sku_id,
           cases: item.cases,
           unit_price: item.unit_price,
-          line_total: item.line_total,
           _deleted: item._deleted,
         })),
         payment_terms: editForm.payment_terms ?? false,
         terms_payment_date: editForm.payment_terms ? (editForm.terms_payment_date || null) : null,
+        discount: toDeductionInput(editDeductions.discount),
+        credit: toDeductionInput(editDeductions.credit),
       })
 
       if (result.error) throw new Error(result.error)
@@ -465,7 +488,7 @@ export default function OrdersPage() {
     }
   }
 
-  // Calculate edit form total
+  // Active line-item subtotal for the edit form, before order-level deductions
   const getEditTotal = () => {
     return editForm.order_items
       ?.filter(item => !item._deleted)
@@ -1084,6 +1107,12 @@ export default function OrdersPage() {
                           )
                         })}
                       </div>
+                      {/* SPRO-148 — renders nothing unless a deduction exists */}
+                      <OrderDeductionBreakdown
+                        order={order}
+                        showTotal
+                        className="ml-5 space-y-1 pt-2 border-t"
+                      />
                     </div>
                   )}
 
@@ -1239,9 +1268,13 @@ export default function OrdersPage() {
                         </div>
                       )
                     })}
-                    <div className="flex justify-between items-center p-3 bg-muted/50">
-                      <p className="font-semibold">Total</p>
-                      <p className="text-lg font-bold">${(selectedOrder.total_price || 0).toFixed(2)}</p>
+                    <div className="p-3 bg-muted/50 space-y-1">
+                      {/* SPRO-148 — renders nothing unless a deduction exists */}
+                      <OrderDeductionBreakdown order={selectedOrder} className="space-y-1 pb-1 border-b" />
+                      <div className="flex justify-between items-center">
+                        <p className="font-semibold">Total</p>
+                        <p className="text-lg font-bold">${(selectedOrder.total_price || 0).toFixed(2)}</p>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -1499,12 +1532,14 @@ export default function OrdersPage() {
                   </Button>
                 </div>
 
-                {/* Edit Total */}
-                <div className="flex justify-end pt-2 border-t">
-                  <div className="text-sm font-medium">
-                    Total: <span className="text-lg">${getEditTotal().toFixed(2)}</span>
-                  </div>
-                </div>
+                {/* Edit Total + order-level discount / credit (SPRO-148) */}
+                <OrderDeductions
+                  value={editForm.deductions ?? EMPTY_ORDER_DEDUCTIONS}
+                  onChange={(value) => updateEditForm('deductions', value)}
+                  subtotal={getEditTotal()}
+                  disabled={saving}
+                  idPrefix="orders-edit"
+                />
               </div>
 
               {/* Order Notes */}

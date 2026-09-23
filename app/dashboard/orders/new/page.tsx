@@ -30,7 +30,14 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { SkuCombobox } from '@/components/orders/sku-combobox'
-import { ArrowLeft, Loader2, Plus, Trash2, DollarSign, Check, ChevronsUpDown } from 'lucide-react'
+import {
+  EMPTY_ORDER_DEDUCTIONS,
+  OrderDeductions,
+  toDeductionInput,
+  validateOrderDeductionsValue,
+  type OrderDeductionsValue,
+} from '@/components/orders/order-deductions'
+import { ArrowLeft, Loader2, Plus, Trash2, Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 // Use types from the server actions layer
 type Customer = CustomerBasicRecord
@@ -57,7 +64,9 @@ export default function NewOrderPage() {
   const [orderNotes, setOrderNotes] = useState('')
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState('')
   const [orderDate, setOrderDate] = useState('')
+  // Active line-item subtotal, before order-level deductions (SPRO-148).
   const [totalPrice, setTotalPrice] = useState(0)
+  const [deductions, setDeductions] = useState<OrderDeductionsValue>(EMPTY_ORDER_DEDUCTIONS)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [customerOpen, setCustomerOpen] = useState(false)
@@ -266,6 +275,13 @@ export default function NewOrderPage() {
       return
     }
 
+    // Client-side mirror of the server deduction rules — the server revalidates.
+    const deductionError = validateOrderDeductionsValue(deductions, totalPrice)
+    if (deductionError) {
+      setError(deductionError)
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -275,13 +291,15 @@ export default function NewOrderPage() {
         order_notes: orderNotes || null,
         order_date: orderDate,
         requested_delivery_date: requestedDeliveryDate,
-        total_price: totalPrice,
+        // No line_total: the server re-derives every line amount from the
+        // skus table (SPRO-148). The on-screen total is a preview only.
         items: orderItems.map(item => ({
           sku_id: item.sku_id,
           cases: item.cases,
           unit_price: item.unit_price || 0,
-          line_total: Number.isFinite(item.line_total) ? item.line_total : 0,
         })),
+        discount: toDeductionInput(deductions.discount),
+        credit: toDeductionInput(deductions.credit),
       })
 
       if (result.error) throw new Error(result.error)
@@ -519,16 +537,14 @@ export default function NewOrderPage() {
                   </Button>
                 </div>
 
-                {/* Total */}
-                <div className="flex justify-end pt-4">
-                  <div className="flex items-center gap-2 text-xl font-semibold">
-                    <span>Order Total:</span>
-                    <div className="flex items-center">
-                      <DollarSign className="h-5 w-5" />
-                      {totalPrice.toFixed(2)}
-                    </div>
-                  </div>
-                </div>
+                {/* Totals + order-level discount / credit (SPRO-148) */}
+                <OrderDeductions
+                  value={deductions}
+                  onChange={setDeductions}
+                  subtotal={totalPrice}
+                  disabled={loading}
+                  idPrefix="new-order"
+                />
               </>
             )}
           </CardContent>

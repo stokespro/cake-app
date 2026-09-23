@@ -1,6 +1,9 @@
 'use server'
 
 import { requireRole } from '@/lib/auth/session'
+import { roundCurrency, validateOrderDeductions } from '@/lib/orders/deductions'
+import type { DeductionInput } from '@/lib/orders/deductions'
+import { DEFAULT_UNITS_PER_CASE } from '@/lib/orders/line-items'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { OrderStatus } from '@/types/database'
 
@@ -45,7 +48,13 @@ export interface OrderRecord {
   confirmed_delivery_date?: string | null
   delivered_at?: string | null
   status: OrderStatus
+  /** Net of any order-level deduction — see lib/orders/deductions.ts (SPRO-148). */
   total_price: number
+  // SPRO-148 order-level deductions — each pair is both-null or both-set.
+  discount_amount?: number | null
+  discount_reason?: string | null
+  credit_amount?: number | null
+  credit_reason?: string | null
   approved_by?: string | null
   approved_at?: string | null
   created_at: string
@@ -100,11 +109,14 @@ export interface CustomerPricingRecord {
   price_per_unit: number
 }
 
+// No line_total on either input: line amounts are always derived server-side
+// by priceLineItems() from the skus table, so a forged payload cannot set the
+// amount persisted on an order item or the subtotal the deduction ceiling and
+// the header total are computed from (SPRO-148).
 export interface NewOrderItemInput {
   sku_id: string
   cases: number    // stored as quantity in DB
   unit_price: number
-  line_total: number
 }
 
 export interface UpdateOrderItemInput {
@@ -112,8 +124,91 @@ export interface UpdateOrderItemInput {
   sku_id: string
   cases: number    // stored as quantity in DB
   unit_price: number | null
-  line_total: number
   _deleted?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Server-authoritative line pricing (SPRO-148)
+// ---------------------------------------------------------------------------
+
+/** The shape every write path submits per line, before server pricing. */
+interface SubmittedLineItem {
+  sku_id: string
+  cases: number
+  unit_price?: number | null
+  _deleted?: boolean
+}
+
+type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
+
+/**
+ * Derives each line amount from server truth and returns the subtotal.
+ *
+ * The house pricing rule, shared by all three order forms, is
+ * `line_total = cases x units_per_case x unit_price`. Cases and unit price are
+ * accepted from the client — a manually typed unit price is a real workflow for
+ * SKUs with no customer_pricing row — but `units_per_case` is read from the
+ * skus table and the multiplication is redone here, so a submitted line amount
+ * is never persisted and never feeds the subtotal, the deduction ceiling or
+ * total_price.
+ *
+ * Returns the items in submission order, each carrying its derived line_total
+ * (a deleted item gets 0 and is excluded from the subtotal).
+ */
+async function priceLineItems<T extends SubmittedLineItem>(
+  db: ServiceClient,
+  items: readonly T[] | null | undefined
+): Promise<
+  | { ok: true; items: Array<T & { line_total: number }>; subtotal: number }
+  | { ok: false; error: string }
+> {
+  const submitted = items ?? []
+  const skuIds = [...new Set(submitted.filter(item => !item._deleted).map(item => item.sku_id))]
+
+  const unitsPerCase = new Map<string, number>()
+
+  if (skuIds.length > 0) {
+    const { data, error } = await db.from('skus').select('id, units_per_case').in('id', skuIds)
+
+    if (error) {
+      console.error('[orders] priceLineItems skus error:', error)
+      return { ok: false, error: 'Failed to price order items' }
+    }
+
+    for (const sku of data ?? []) {
+      unitsPerCase.set(sku.id, sku.units_per_case ?? DEFAULT_UNITS_PER_CASE)
+    }
+  }
+
+  const priced: Array<T & { line_total: number }> = []
+  let subtotal = 0
+
+  for (const item of submitted) {
+    if (item._deleted) {
+      priced.push({ ...item, line_total: 0 })
+      continue
+    }
+
+    const perCase = item.sku_id ? unitsPerCase.get(item.sku_id) : undefined
+    if (perCase === undefined) {
+      return { ok: false, error: 'Order item references a SKU that no longer exists.' }
+    }
+
+    if (!Number.isInteger(item.cases) || item.cases <= 0) {
+      return { ok: false, error: 'Order item quantity must be a whole number of cases greater than zero.' }
+    }
+
+    const unitPrice = item.unit_price ?? 0
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      return { ok: false, error: 'Order item unit price must be a valid, non-negative number.' }
+    }
+
+    const lineTotal = roundCurrency(item.cases * perCase * unitPrice)
+    subtotal = roundCurrency(subtotal + lineTotal)
+    priced.push({ ...item, line_total: lineTotal })
+  }
+
+  return { ok: true, items: priced, subtotal }
 }
 
 // ---------------------------------------------------------------------------
@@ -393,10 +488,13 @@ export interface CreateOrderInput {
   order_notes?: string | null
   order_date: string
   requested_delivery_date: string
-  total_price: number
+  // No total_price: the net total is always recomputed server-side from the
+  // line items and the deductions below — a client total is never trusted.
   items: NewOrderItemInput[]
   payment_terms?: boolean
   terms_payment_date?: string | null
+  discount?: DeductionInput | null
+  credit?: DeductionInput | null
 }
 
 export async function createOrder(input: CreateOrderInput): Promise<
@@ -413,6 +511,18 @@ export async function createOrder(input: CreateOrderInput): Promise<
 
   const db = await createServiceClient()
 
+  // SPRO-148: derive every line amount from the skus table, then validate the
+  // deductions against that server subtotal — both before any write.
+  const priced = await priceLineItems(db, input.items)
+  if (!priced.ok) return { error: priced.error }
+
+  const deductions = validateOrderDeductions({
+    subtotal: priced.subtotal,
+    discount: input.discount,
+    credit: input.credit,
+  })
+  if (!deductions.ok) return { error: deductions.error }
+
   const { data: order, error: orderError } = await db
     .from('orders')
     .insert({
@@ -422,7 +532,8 @@ export async function createOrder(input: CreateOrderInput): Promise<
       order_date: input.order_date,
       requested_delivery_date: input.requested_delivery_date,
       status: 'pending',
-      total_price: input.total_price,
+      total_price: deductions.totals.netTotal,
+      ...deductions.fields,
       payment_terms: input.payment_terms ?? false,
       terms_payment_date: (input.payment_terms && input.terms_payment_date) ? input.terms_payment_date : null,
     })
@@ -434,16 +545,13 @@ export async function createOrder(input: CreateOrderInput): Promise<
     return { error: 'Failed to create order' }
   }
 
-  const itemsToInsert = input.items.map(item => {
-    const lineTotal = Number.isFinite(item.line_total) ? item.line_total : 0
-    return {
-      order_id: order.id,
-      sku_id: item.sku_id,
-      quantity: item.cases,      // store cases, not units
-      unit_price: item.unit_price,
-      line_total: lineTotal,
-    }
-  })
+  const itemsToInsert = priced.items.map(item => ({
+    order_id: order.id,
+    sku_id: item.sku_id,
+    quantity: item.cases,      // store cases, not units
+    unit_price: item.unit_price,
+    line_total: item.line_total,
+  }))
 
   const { error: itemsError } = await db.from('order_items').insert(itemsToInsert)
 
@@ -512,6 +620,8 @@ export interface SaveOrderInput {
   items: UpdateOrderItemInput[]
   payment_terms: boolean
   terms_payment_date: string | null
+  discount?: DeductionInput | null
+  credit?: DeductionInput | null
 }
 
 export async function saveOrder(
@@ -523,10 +633,18 @@ export async function saveOrder(
 
   const db = await createServiceClient()
 
-  // Server-side total guard: recompute from line items — never trust the client value
-  const recomputedTotal = (input.items ?? [])
-    .filter(item => !item._deleted)
-    .reduce((sum, item) => sum + (item.line_total ?? 0), 0)
+  // Server-side total guard: re-derive every ACTIVE line amount from the skus
+  // table, then net off the validated deductions — neither a client line
+  // amount nor a client total is ever trusted (SPRO-148).
+  const priced = await priceLineItems(db, input.items)
+  if (!priced.ok) return { error: priced.error }
+
+  const deductions = validateOrderDeductions({
+    subtotal: priced.subtotal,
+    discount: input.discount,
+    credit: input.credit,
+  })
+  if (!deductions.ok) return { error: deductions.error }
 
   // Compute delivered_at — use T12:00:00Z (midday UTC) for date strings so
   // Central-time dates don't slip a day backward.
@@ -551,7 +669,8 @@ export async function saveOrder(
     status: input.status,
     order_notes: input.order_notes,
     requested_delivery_date: input.requested_delivery_date || null,
-    total_price: recomputedTotal,
+    total_price: deductions.totals.netTotal,
+    ...deductions.fields,
     last_edited_by: auth.session.userId,
     last_edited_at: new Date().toISOString(),
     payment_terms: input.payment_terms,
@@ -572,8 +691,8 @@ export async function saveOrder(
     return { error: 'Failed to save order' }
   }
 
-  // Handle order item mutations
-  const items = input.items ?? []
+  // Handle order item mutations — amounts come from priceLineItems, not the client
+  const items = priced.items
 
   // Delete removed items
   const deletedItems = items.filter(item => item._deleted && item.id)
@@ -633,10 +752,13 @@ export interface UpsertOrderSheetInput {
   order_notes?: string | null
   requested_delivery_date: string
   delivered_at?: string | null   // date string 'YYYY-MM-DD' or empty
-  total_price: number
+  // No total_price: the net total is always recomputed server-side from the
+  // line items and the deductions below — a client total is never trusted.
   items: NewOrderItemInput[]
   payment_terms?: boolean
   terms_payment_date?: string | null
+  discount?: DeductionInput | null
+  credit?: DeductionInput | null
 }
 
 export async function createOrderFromSheet(input: UpsertOrderSheetInput): Promise<
@@ -652,6 +774,18 @@ export async function createOrderFromSheet(input: UpsertOrderSheetInput): Promis
 
   const db = await createServiceClient()
 
+  // SPRO-148: derive every line amount from the skus table, then validate the
+  // deductions against that server subtotal — both before any write.
+  const priced = await priceLineItems(db, input.items)
+  if (!priced.ok) return { error: priced.error }
+
+  const deductions = validateOrderDeductions({
+    subtotal: priced.subtotal,
+    discount: input.discount,
+    credit: input.credit,
+  })
+  if (!deductions.ok) return { error: deductions.error }
+
   const { data: order, error: orderError } = await db
     .from('orders')
     .insert({
@@ -660,7 +794,8 @@ export async function createOrderFromSheet(input: UpsertOrderSheetInput): Promis
       order_notes: input.order_notes ?? null,
       requested_delivery_date: input.requested_delivery_date,
       status: 'pending',
-      total_price: input.total_price,
+      total_price: deductions.totals.netTotal,
+      ...deductions.fields,
       order_date: new Date().toISOString().split('T')[0],
       payment_terms: input.payment_terms ?? false,
       terms_payment_date: (input.payment_terms && input.terms_payment_date) ? input.terms_payment_date : null,
@@ -673,12 +808,12 @@ export async function createOrderFromSheet(input: UpsertOrderSheetInput): Promis
     return { error: 'Failed to create order' }
   }
 
-  const itemsToInsert = input.items.map(item => ({
+  const itemsToInsert = priced.items.map(item => ({
     order_id: order.id,
     sku_id: item.sku_id,
     quantity: item.cases,
     unit_price: item.unit_price,
-    line_total: Number.isFinite(item.line_total) ? item.line_total : 0,
+    line_total: item.line_total,
   }))
 
   const { error: itemsError } = await db.from('order_items').insert(itemsToInsert)
@@ -703,6 +838,18 @@ export async function updateOrderFromSheet(
 
   const db = await createServiceClient()
 
+  // SPRO-148: derive every line amount from the skus table, then validate the
+  // deductions against that server subtotal — both before any write.
+  const priced = await priceLineItems(db, input.items)
+  if (!priced.ok) return { error: priced.error }
+
+  const deductions = validateOrderDeductions({
+    subtotal: priced.subtotal,
+    discount: input.discount,
+    credit: input.credit,
+  })
+  if (!deductions.ok) return { error: deductions.error }
+
   const { error: orderError } = await db
     .from('orders')
     .update({
@@ -710,7 +857,8 @@ export async function updateOrderFromSheet(
       order_notes: input.order_notes ?? null,
       requested_delivery_date: input.requested_delivery_date,
       delivered_at: input.delivered_at || null,
-      total_price: input.total_price,
+      total_price: deductions.totals.netTotal,
+      ...deductions.fields,
       updated_at: new Date().toISOString(),
       last_edited_by: auth.session.userId,
       last_edited_at: new Date().toISOString(),
@@ -735,12 +883,12 @@ export async function updateOrderFromSheet(
     return { error: 'Failed to update order items' }
   }
 
-  const itemsToInsert = input.items.map(item => ({
+  const itemsToInsert = priced.items.map(item => ({
     order_id: orderId,
     sku_id: item.sku_id,
     quantity: item.cases,
     unit_price: item.unit_price,
-    line_total: Number.isFinite(item.line_total) ? item.line_total : 0,
+    line_total: item.line_total,
   }))
 
   const { error: itemsError } = await db.from('order_items').insert(itemsToInsert)
