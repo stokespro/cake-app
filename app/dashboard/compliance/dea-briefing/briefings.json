@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-09-23",
+  "lastUpdated": "2026-09-24",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-09-23",
+    "lastVerified": "2026-09-24",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -139,6 +139,46 @@
     }
   ],
   "items": [
+    {
+      "id": "gao-dea-fda-scheduling-policy-gaps-sept23-2026",
+      "headline": "Federal Watchdog Finds DEA and FDA Lack Written Policies for Drug Scheduling Process — Published Amid Ongoing Broader Rescheduling ALJ Deliberation",
+      "date": "2026-09-23",
+      "summary": "The U.S. Government Accountability Office published report GAO-26-108623 on September 23, 2026 finding that both DEA and FDA lack comprehensive written policies governing the drug scheduling process. DEA-specific gaps: no written procedures for collecting and analyzing information prior to administrative rulemaking; no procedures for new drug application scheduling; no documented three-factor analysis process for temporary scheduling orders; no documented eight-factor analysis procedures for schedule placement; and no formal policies for incorporating HHS scientific/medical evaluations and recommendations when making final scheduling decisions. FDA's gaps: no policies specifying how staff conduct eight-factor evaluations or develop scheduling recommendations. Of 208 substances scheduled from 2020–2025, DEA's final decisions aligned with HHS recommendations for all 84 for which final rules were published. GAO recommended both agencies develop formal written policies. Report is 44 pages; the GAO earlier published a September 8 banking-access report (GAO-26-107203) — these are two separate reports.",
+      "whyItMatters": "For Oklahoma operators: this report explains why DEA has provided so little implementation guidance on Schedule III requirements — the agency literally lacks formal procedures for many core scheduling decisions. It reinforces the California DCC Director's September 22 statement that DEA has 'no interest' in helping states prepare. The report does not alter any compliance obligation: OBNDD annual renewal (October 31, 2026), OBNDD enforcement grace period (January 1, 2027), and the December 11 hemp redefinition are unchanged. The broader-rescheduling ALJ deliberation and D.C. Circuit merits briefing proceed independently of this report. If anything, the documented procedural gaps give future litigants additional administrative-law arguments against the rescheduling order — monitor D.C. Circuit Cases 26-1106/1130/1136 for any party attempting to leverage this GAO finding.",
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "GAO — Drug Scheduling: While DEA Decisions Have Aligned with Recent HHS Recommendations, Both Need Comprehensive Policies (GAO-26-108623, September 23, 2026)",
+        "url": "https://www.gao.gov/products/gao-26-108623"
+      },
+      "secondarySource": {
+        "name": "Marijuana Moment — Federal Watchdog Agency Says Drug Scheduling Process Has 'Gaps' As DEA's Marijuana Review Continues (September 24, 2026)",
+        "url": "https://www.marijuanamoment.net/federal-watchdog-agency-says-drug-scheduling-process-has-gaps-as-deas-marijuana-review-continues/"
+      },
+      "pinned": false
+    },
+    {
+      "id": "irs-ninth-circuit-280e-mission-organic-center-sept2026",
+      "headline": "IRS Files Ninth Circuit Brief Defending §280E Disallowance in Cannabis Dispensary Offer-in-Compromise Case — Mission Organic Center",
+      "date": "2026-09-24",
+      "summary": "The IRS filed a brief with the U.S. Court of Appeals for the Ninth Circuit in September 2026 urging the court to uphold a Tax Court ruling allowing the IRS to disregard certain operating expenses when evaluating San Francisco marijuana dispensary Mission Organic Center's offer in compromise (OIC) to settle unpaid federal tax liabilities. The IRS argues §280E — which bars business deductions for Schedule I/II controlled substance traffickers — properly applies when determining the dispensary's reasonable collection potential (RCP) in OIC proceedings, even for tax years now covered by Schedule III rescheduling. The case: Mission Organic Center Inc. v. Commissioner of Internal Revenue. The Tax Court had upheld the IRS's position; the dispensary appealed to the Ninth Circuit.",
+      "whyItMatters": "For CAKE as an Oklahoma-licensed cultivator/processor and for all OMMA-licensed operators with pre-2026 federal tax liability: this IRS brief signals the government is defending §280E not only in tax-return deduction contexts but in collections and settlement proceedings as well. Oklahoma operators who filed amended returns claiming §280E refunds or who have pre-rescheduling IRS debt should review their position with a cannabis tax attorney. An adverse Ninth Circuit ruling would confirm §280E applies in OIC calculations, increasing the calculated tax debt for settlement purposes. This case runs alongside the IRS's May 2026 lawsuit against TerrAscend (seeking return of $8.36M in refunds) and TerrAscend's September 17 motion to dismiss — together these cases illustrate IRS defending §280E across multiple litigation fronts simultaneously. The Treasury press release (April 23, 2026) promised guidance on §280E apportionment; that guidance has not yet been issued as of September 24, 2026.",
+      "tags": [
+        "tax",
+        "federal",
+        "cultivation",
+        "dispensary",
+        "litigation"
+      ],
+      "source": {
+        "name": "The Marijuana Herald — IRS Urges Ninth Circuit to Uphold §280E Treatment in Marijuana Dispensary's Multi-Million Dollar Tax Case (September 2026)",
+        "url": "https://themarijuanaherald.com/2026/09/irs-urges-ninth-circuit-to-uphold-%C2%A7280e-treatment-in-marijuana-dispensarys-multi-million-dollar-tax-case/"
+      },
+      "pinned": false
+    },
     {
       "id": "cdc-teen-cannabis-use-all-time-low-sept23-2026",
       "headline": "CDC Data: Teen Marijuana Use Hits All-Time Low — 12.9% in 2025, Down 44% From 2011 Peak",
