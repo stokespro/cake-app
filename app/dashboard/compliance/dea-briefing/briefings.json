@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-24",
+  "lastUpdated": "2026-09-25",
   "deaRegistrationStatus": {
     "lastVerified": "2026-09-24",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -113,7 +113,7 @@
       "id": "kd-trump-admin-schedule-iii-guidance-response",
       "label": "Trump Administration Response Deadline — Bipartisan House Guidance Letter on Schedule III Implementation",
       "date": "September 30, 2026",
-      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 23, 2026, no formal response has been issued. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
+      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 25, 2026, no formal response has been issued. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
       "urgency": "urgent"
     },
     {
@@ -3228,17 +3228,6 @@
       "source": {
         "name": "Cannabis Musings (Marc Hauser) — July 23, 2026",
         "url": "https://cannabismusings.substack.com/p/cannabis-musings-july-23-2026"
-      },
-      "date": "2026-07"
-    },
-    {
-      "id": "watch-dea-registrant-supply-chain-only",
-      "headline": "'Non-registered operators will be cut out of the supply chain' — DEA registrant-to-registrant purchase rule creating new pressure on late filers post-June 29",
-      "claim": "Oklahoma cannabis operators and industry publications are circulating the argument that DEA registration is now practically unavoidable for supply-chain participation, regardless of OBNDD's January 1, 2027 grace period: under DEA rules (21 CFR 1307.11), DEA registrants may only purchase or receive Schedule III controlled substances from other DEA registrants. Operators who missed the June 29 expedited window and have not yet filed argue they face an immediate practical risk of being cut off from licensed supply-chain transactions — even before OBNDD begins administrative enforcement in January 2027. Some vendors are using this framing to urge late registration immediately.",
-      "caution": "The DEA registrant-to-registrant purchase requirement under 21 CFR 1307.11 is a real legal rule, not merely industry commentary. However, active enforcement of this supply-chain restriction against Oklahoma state-licensed cannabis operators is not yet documented — its practical impact depends on how aggressively compliant supply-chain partners (distributors, dispensaries, processors) enforce it in day-to-day transactions. Using this framing to pressure peers into rushed or undiscounseled filings should be evaluated carefully. That said, this is a legitimate compliance risk: operators who have not yet applied should file via Form 225 at deadiversion.usdoj.gov now (late filing is better than not filing) and consult Oklahoma-licensed counsel about the no-safe-harbor gap period between application submission and final DEA registration.",
-      "source": {
-        "name": "MG Magazine — DEA Registration Deadline and Supply Chain Implications",
-        "url": "https://mgmagazine.com/business-strategy/operations-supply-chain/medical-cannabis-dea-registration-deadline/"
       },
       "date": "2026-07"
     },
