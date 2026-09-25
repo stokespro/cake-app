@@ -9,6 +9,8 @@ import type { Task, Order } from '@/types/database'
 // ---------------------------------------------------------------------------
 
 export interface DashboardSummary {
+  /** Display name of the signed-in user, straight from the session. */
+  userName: string | null
   stats: {
     totalOrders: number
     pendingTasks: number
@@ -130,6 +132,7 @@ export async function getDashboardSummary(): Promise<
 
   return {
     data: {
+      userName: auth.session.name,
       stats: {
         totalOrders: monthlyOrders.length,
         pendingTasks: pendingTasksResult.count ?? 0,
