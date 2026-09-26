@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-25",
+  "lastUpdated": "2026-09-26",
   "deaRegistrationStatus": {
     "lastVerified": "2026-09-24",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -2034,27 +2034,6 @@
         "url": "https://home.treasury.gov/news/press-releases/sb0471"
       },
       "pinned": true
-    },
-    {
-      "id": "irs-280e-guidance-still-pending-house-demand-may2026",
-      "headline": "IRS/Treasury 280E Guidance Still Not Issued — Seven House Democrats Demand Action",
-      "date": "2026-05-28",
-      "summary": "Seven House Democrats led by Reps. Steven Horsford and Steve Cohen wrote to IRS Commissioner Danny Bisignano and Treasury Secretary Scott Bessent on May 28, 2026, demanding prompt publication of formal 280E guidance following the April 28 medical-marijuana rescheduling order. As of June 19, 2026 — over seven weeks after rescheduling took effect — neither IRS nor Treasury has published a revenue ruling, IRS notice, proposed regulation, or other binding written guidance on how 280E applies to Schedule III medical-marijuana operators. The April 23 Treasury press release (SB0471) announced intent to issue guidance including a transition rule treating relief as applying for the full 2026 taxable year; it is not itself binding. Operators and CPAs are acting on the legal interpretation that 280E does not apply to state-licensed medical activity, but without IRS confirmation of allocation methodologies or treatment of mixed-use operators.",
-      "whyItMatters": "Oklahoma medical-marijuana operators — cultivators, processors, and dispensaries — cannot finalize 2026 tax strategy with certainty until IRS publishes formal guidance. The seven-week gap between the rescheduling order and any binding IRS action leaves operators exposed if Treasury ultimately limits relief in ways not currently anticipated.",
-      "tags": [
-        "federal",
-        "dispensary",
-        "cultivation"
-      ],
-      "source": {
-        "name": "Cannabis Business Times — 7 House Democrats Demand 280E Guidance",
-        "url": "https://www.cannabisbusinesstimes.com/legislation-and-regulation/cannabis-tax-law/news/15826367/7-house-democrats-demand-irs-treasury-provide-280e-cannabis-guidance"
-      },
-      "secondarySource": {
-        "name": "The Marijuana Herald — Lawmakers Urge IRS and Treasury",
-        "url": "https://themarijuanaherald.com/2026/05/lawmakers-urge-irs-and-treasury-to-clarify-marijuana-tax-rules-following-rescheduling-order/"
-      },
-      "pinned": false
     },
     {
       "id": "irs-doj-terrascend-280e-refund-clawback",
