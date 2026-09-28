@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-26",
+  "lastUpdated": "2026-09-28",
   "deaRegistrationStatus": {
     "lastVerified": "2026-09-24",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -93,7 +93,14 @@
       "label": "OBNDD Annual Registration Renewal Deadline",
       "date": "October 31, 2026",
       "description": "SEPTEMBER 1 UPDATE — TIMELY-FEE WINDOW HAS CLOSED: The OBNDD timely renewal fee submission window closed September 1, 2026 (per OBNDD Facebook confirmation, August 2026). Operators who did not submit the timely renewal fee by September 1 are now on a late-renewal track — this does NOT immediately revoke registration. The hard annual renewal deadline for Oklahoma cannabis operators is October 31, 2026. Failure to renew by October 31 results in loss of Metrc seed-to-sale tracking access and required cessation of operations — independent of any DEA registration issue. Operators who missed the September 1 timely-fee window should submit late renewal fees immediately at obndd.ok.gov/registration-pmp/registration before the October 31 hard deadline. This deadline is separate from the OBNDD enforcement grace period for DEA Schedule III registration (January 1, 2027).",
-      "urgency": "standard"
+      "urgency": "urgent"
+    },
+    {
+      "id": "kd-square-hemp-catalog-removal-oct15",
+      "label": "Square October 15 — Hemp/CBD Catalog Removal Deadline (Mixed-Catalog Merchants)",
+      "date": "October 15, 2026",
+      "description": "Square's October 15, 2026 deadline requires mixed-catalog merchants (businesses with both hemp/CBD and non-hemp products) to remove all hemp and CBD items from their Square in-person and online catalogs. Failure to remove hemp items by October 15 risks Square closing the entire merchant account on November 5, 2026. Note: Square's November 5 account-closure date for hemp-focused merchants is unaffected by any federal legislative extension — Square's deadlines are private contractual enforcement actions, not federal law. Operators using Square for any hemp-adjacent product category (CBD, THCA flower, delta-8, hemp beverages) must complete catalog cleanup and secure replacement payment processing now. See item square-hemp-cbd-processor-ban-oct-nov2026 for full analysis.",
+      "urgency": "urgent"
     },
     {
       "id": "kd-hb2837-employee-credential-training",
@@ -113,7 +120,7 @@
       "id": "kd-trump-admin-schedule-iii-guidance-response",
       "label": "Trump Administration Response Deadline — Bipartisan House Guidance Letter on Schedule III Implementation",
       "date": "September 30, 2026",
-      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 25, 2026, no formal response has been issued. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
+      "description": "A bipartisan group of House members sent a letter to HHS Secretary Robert F. Kennedy Jr. and DEA Acting Administrator Robert Murphy requesting federal implementation guidance for state-licensed medical marijuana operators under the April 28, 2026 Schedule III order. The letter specifically asks for clarity on banking, IRS 280E implementation, and interstate commerce implications. September 30, 2026 is the deadline the letter set for a formal Administration response. As of September 28, 2026, no formal response has been issued — the deadline expires in two days. Failure to respond by September 30 is likely to generate additional congressional pressure and media coverage but does not itself create a new legal obligation for Oklahoma operators.",
       "urgency": "urgent"
     },
     {
@@ -3101,17 +3108,6 @@
       "date": "2026-08"
     },
     {
-      "id": "watch-fda-social-media-monitoring-dispensary-crackdown-misread",
-      "headline": "FDA Social Media Solicitation Misread as Imminent Crackdown on Dispensary Marketing Accounts",
-      "claim": "The FDA contractor solicitation for cannabis social media monitoring is circulating with claims that 'the feds are now actively watching dispensary Instagram accounts' and 'FDA will start pulling licenses for social media advertising.' Some consultants are marketing 'FDA social media audit' services in response.",
-      "caution": "The FDA solicitation is for a research and policy-informing contractor — it is NOT a live law enforcement surveillance program or a license-pulling mechanism. FDA does not issue or revoke Oklahoma OMMA licenses. The practical compliance implication is real but narrower: under Schedule III, FDA's authority over cannabis product labeling and therapeutic claims is expanding, and product-level claims on social media (health claims, disease treatment claims) remain an area of potential FDA action — but the current solicitation is an information-gathering exercise, not an enforcement action. Monitor FDA guidance as it develops.",
-      "source": {
-        "name": "Marijuana Moment — FDA cannabis social media monitoring solicitation (Aug 21, 2026)",
-        "url": "https://www.marijuanamoment.net/fda-seeks-contractor-to-monitor-marijuana-and-hemp-posts-on-tiktok-reddit-and-instagram/"
-      },
-      "date": "2026-08"
-    },
-    {
       "id": "watch-congress-letter-medicare-cannabis-coverage-imminent",
       "headline": "Congressional Letter Asking About Medicare Cannabis Coverage Misread as Policy Signal or Imminent Coverage",
       "claim": "The bipartisan House letter to Trump (August 18) asking whether Medicare will cover Schedule III medical cannabis is being interpreted by operators and patients as a signal that Medicare coverage of medical cannabis is imminent, already authorized, or that the administration is about to announce CMS coverage. Some accounts further claim that the September 30 response deadline means cannabis will be covered by Medicare by that date.",
@@ -3154,17 +3150,6 @@
         "url": "https://investors.glasshousebrands.com/news-releases/news-release-details/glass-house-brands-reports-second-quarter-2026-financial-results"
       },
       "date": "2026-08-13"
-    },
-    {
-      "id": "watch-hemp-ban-unenforceable-fda-dea-crs-claim",
-      "headline": "Industry Vendors Claiming Hemp Ban Is 'Unenforceable' — CRS Enforcement Concerns Being Misread as Compliance Permission",
-      "claim": "Industry CEOs (including Mamba Brand's CEO) and hemp vendors are publicly citing the December 2025 Congressional Research Service report (Insight IN12620) to claim the November 12, 2026 federal hemp ban is effectively unenforceable because FDA and DEA lack the resources to police it. The narrative — 'federal agencies won't come after you' — is circulating in operator networks as a rationale for not completing November 12 compliance preparations for hemp-derived THCA-flower, delta-8, delta-10, and related products.",
-      "caution": "The CRS Insight IN12620 (December 3, 2025) notes uncertainty about how aggressively FDA, DEA, and DOJ will enforce the hemp ban — it does NOT state the ban will not be enforced or that operators are safe to continue selling non-compliant products. Several enforcement realities operate independently of federal agency resource constraints: (1) State law enforcement agencies — including Oklahoma OBNDD and OMMA — do not face the same resource limitations and will enforce Oklahoma-specific compliance requirements regardless of federal posture; (2) Texas law enforcement demonstrated July 31, 2026 that state agencies will treat newly banned hemp products as criminal offenses immediately at the effective date; (3) Square's private enforcement dates (October 15 catalog removal, November 5 account closures) are independent business decisions not subject to any federal enforcement reprieve; (4) Products that become marijuana under Section 781 of P.L. 119-37 revert to Schedule I status — DEA can act under Schedule I authority without mounting a dedicated enforcement campaign. Treating 'federal enforcement uncertain' as compliance clearance exposes Oklahoma operators to state enforcement, banking disruption, and criminal liability.",
-      "source": {
-        "name": "MJBizDaily — Report: Hemp THC ban may be unenforceable",
-        "url": "https://mjbizdaily.com/report-hemp-thc-ban-may-be-unenforceable/"
-      },
-      "date": "2026-08"
     },
     {
       "id": "watch-square-cutoff-not-delayed-by-cr",
