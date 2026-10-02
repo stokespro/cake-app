@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-10-01",
+  "lastUpdated": "2026-10-02",
   "deaRegistrationStatus": {
     "lastVerified": "2026-10-01",
     "headline": "DEA Registration Status \u2014 Oklahoma Operators",
@@ -3243,6 +3243,17 @@
         "url": "https://www.marijuanamoment.net/dea-judge-pauses-marijuana-rescheduling-hearing-as-opponents-highlight-government-report-detailing-gaps-in-federal-processes/"
       },
       "date": "2026-09-30"
+    },
+    {
+      "id": "watch-obndd-october31-extension-false-claim",
+      "headline": "'The OBNDD October 31 deadline has been extended due to federal rescheduling' — False claim circulating; no official extension exists",
+      "claim": "Claims are circulating among Oklahoma cannabis operators that the OBNDD annual registration renewal deadline of October 31, 2026 has been extended or suspended due to the April 28, 2026 federal Schedule III rescheduling order or the ongoing federal regulatory uncertainty. Some operators are reportedly delaying renewal actions based on this claim.",
+      "caution": "NO official extension of the October 31, 2026 OBNDD annual registration renewal deadline has been announced by OBNDD or the Oklahoma State Department of Health. The October 31 deadline is a standing annual requirement entirely independent of DEA Schedule III registration and federal rescheduling. Failure to renew by October 31 results in loss of Metrc seed-to-sale tracking access and required cessation of operations beginning November 1, 2026 — independent of any DEA registration issue or OBNDD enforcement grace period (the January 1, 2027 grace period applies ONLY to DEA Schedule III registration, not to OBNDD annual renewal). Any operator who received a message — from a consultant, peer, or unverified post — that this deadline was extended should verify directly with OBNDD at obndd.ok.gov before relying on that claim. Submit renewal immediately at obndd.ok.gov/registration-pmp/registration if not already done.",
+      "source": {
+        "name": "OBNDD — Annual Registration Renewal (official registration portal)",
+        "url": "https://www.obndd.ok.gov/registration-pmp/registration"
+      },
+      "date": "2026-10"
     }
   ]
 }
