@@ -3379,7 +3379,7 @@ export interface Customer {
   updated_at: string
   // Joined data
   pricing?: CustomerPricing[]
-  assigned_sales?: Profile
+  assigned_sales?: Pick<Profile, 'id' | 'name'> | null
 }
 
 // Customer-specific pricing (by item or category)

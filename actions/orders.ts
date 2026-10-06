@@ -70,6 +70,8 @@ export interface OrderRecord {
     omma_license?: string | null
     city?: string | null
     assigned_sales_id?: string | null
+    // The dispensary's assigned rep (SPRO-199) — null when unassigned
+    assigned_sales?: { id: string; name: string } | null
   } | null
   order_items?: OrderItemRecord[]
   // Legacy alias kept for UI compatibility
@@ -252,7 +254,7 @@ export async function getOrders(): Promise<
     .from('orders')
     .select(`
       *,
-      customer:customers(business_name, license_name, omma_license, city, assigned_sales_id),
+      customer:customers(business_name, license_name, omma_license, city, assigned_sales_id, assigned_sales:users!customers_assigned_sales_id_fkey(id, name)),
       order_items(
         id,
         sku_id,
@@ -305,7 +307,7 @@ export async function getOrder(orderId: string): Promise<
     .from('orders')
     .select(`
       *,
-      customer:customers(business_name, license_name, omma_license, city, assigned_sales_id),
+      customer:customers(business_name, license_name, omma_license, city, assigned_sales_id, assigned_sales:users!customers_assigned_sales_id_fkey(id, name)),
       order_items(
         id,
         sku_id,
