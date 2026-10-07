@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-10-06",
+  "lastUpdated": "2026-10-07",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-10-06",
+    "lastVerified": "2026-10-07",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -160,6 +160,24 @@
     }
   ],
   "items": [
+    {
+      "id": "state-regulators-dea-radio-silence-oct7-2026",
+      "headline": "Multi-State Marijuana Regulators Escalate Complaints Over DEA 'Radio Silence' on Rescheduling Guidance — October 7, 2026",
+      "date": "2026-10-07",
+      "summary": "Top marijuana regulators from a growing number of states publicly escalated complaints on October 7, 2026 that the DEA is providing no implementation guidance following the April 28 Schedule III rescheduling order. Vermont Cannabis Control Board chair James Pepper, speaking for an association representing state marijuana regulators, said the group received 'radio silence' from the DEA in response to their questions about rescheduling implementation. The multi-state complaint extends the pattern established by California DCC Director Clint Kellum's September 22 statement and South Dakota officials' August 22 confirmation that states have 'more questions than answers.' No formal federal implementation guidance on Schedule III mechanics has been issued to state agencies as of October 7, 2026.",
+      "whyItMatters": "For Oklahoma OMMA-licensed operators including CAKE: the October 7 multi-state escalation confirms at the associational regulatory level that no federal guidance on Schedule III implementation mechanics is forthcoming from DEA — not for 280E treatment of dual-license operators, not for Medicare/Medicaid coverage questions, not for DEA registration enforcement posture post-January 1, 2027. Oklahoma OMMA operators should plan all compliance actions solely on: (1) the April 28 rescheduling order text itself; (2) OBNDD bulletins (grace period: January 1, 2027); and (3) OMMA updates. This is not a signal to delay DEA registration applications — OBNDD enforcement begins January 1, 2027 regardless of whether federal guidance has been issued. The October 13 DEA/DOJ deadline to respond in the ALJ GAO-report stay and the October 13 Oklahoma House interim study on cannabis testing are the next near-term milestones.",
+      "tags": [
+        "federal",
+        "oklahoma",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "Marijuana Moment — It's 'High Time' For DEA To Answer Questions About Marijuana Rescheduling, State Officials Say (October 7, 2026)",
+        "url": "https://marijuanamoment.net/its-high-time-for-dea-to-answer-questions-about-marijuana-rescheduling-state-officials-say"
+      },
+      "pinned": false
+    },
     {
       "id": "dea-manufacturers-distributors-labs-portal-launched-oct5-2026",
       "headline": "DEA Launches Dedicated Registration Portal for Medical Cannabis Manufacturers, Distributors, and Labs — October 5, 2026",
