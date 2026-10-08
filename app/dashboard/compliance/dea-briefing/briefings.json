@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-10-07",
+  "lastUpdated": "2026-10-08",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-10-07",
+    "lastVerified": "2026-10-08",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -132,10 +132,10 @@
     },
     {
       "id": "kd-scotus-peridot-tree-wa-response",
-      "label": "SCOTUS — Washington State Response Due in Peridot Tree DCC Cannabis Licensing Cert Petition (Extension Requested)",
-      "date": "October 15, 2026",
-      "description": "OCTOBER 6 UPDATE — EXTENSION REQUESTED: Washington State officials filed a request for additional time to respond beyond the October 15, 2026 deadline (per SCOTUS docket, late September 2026). Extension requests are routinely granted by SCOTUS; if approved, the new response date will appear at scotusblog.com. The effective deadline may shift to approximately November 14, 2026 or later. Monitor scotusblog.com/case-files/cases/peridot-tree-wa-inc-v-washington-state-liquor-and-cannabis-board/ for any updated deadline. ORIGINAL: Washington State's response to the cert petition in Peridot Tree WA, Inc. v. Washington State Liquor and Cannabis Board is due October 15, 2026. The cert petition was docketed at SCOTUS September 15, 2026, challenging the 9th Circuit's January 2026 ruling that the Dormant Commerce Clause does not apply to cannabis licensing residency restrictions (because cannabis is federally illegal). A cert grant could affect Oklahoma OMMA in-state residency and ownership requirements. SCOTUS has not yet scheduled a conference on the petition. Monitor supremecourt.gov.",
-      "urgency": "urgent"
+      "label": "SCOTUS — Washington State Response Due December 4, 2026 in Peridot Tree DCC Cannabis Licensing Cert Petition (Extension Granted)",
+      "date": "December 4, 2026",
+      "description": "OCTOBER 8 UPDATE — EXTENSION GRANTED, DEADLINE CONFIRMED DECEMBER 4: Washington State was granted a 50-day extension; the response to the cert petition is now due December 4, 2026 (confirmed per SCOTUS docket). Monitor scotusblog.com/case-files/cases/peridot-tree-wa-inc-v-washington-state-liquor-and-cannabis-board/ for any further changes. ORIGINAL: Washington State's response to the cert petition in Peridot Tree WA, Inc. v. Washington State Liquor and Cannabis Board, challenging the 9th Circuit's January 2026 ruling that the Dormant Commerce Clause does not apply to cannabis licensing residency restrictions (because cannabis is federally illegal). A cert grant could affect Oklahoma OMMA in-state residency and ownership requirements. SCOTUS has not yet scheduled a conference on the petition. Monitor supremecourt.gov.",
+      "urgency": "standard"
     },
     {
       "id": "kd-fed-reserve-banking-comment-deadline",
@@ -146,10 +146,10 @@
     },
     {
       "id": "kd-terrascend-280e-hearing-oct19",
-      "label": "TerrAscend 280E Clawback Dismissal Motion Hearing (U.S. District Court, NJ)",
-      "date": "October 19, 2026",
-      "description": "The U.S. District Court (District of New Jersey) will hear TerrAscend USA's motion to dismiss the IRS's lawsuit seeking return of $8.36 million in §280E refunds issued after the April 28, 2026 rescheduling. TerrAscend's September 17 dismissal motion argues procedural defects; government response due October 5; TerrAscend reply due October 13. The October 19 hearing is the next substantive milestone in the most closely watched §280E clawback case in the country. A ruling will determine whether the case proceeds to the merits — i.e., whether a court will rule on the legality of §280E refunds issued post-rescheduling. Outcome will be precedent-relevant for all Oklahoma operators who filed amended returns or pre-paid §280E refund claims.",
-      "urgency": "urgent"
+      "label": "TerrAscend 280E Clawback — DOJ Response Nov 19; Hearing Adjourned to December 21, 2026 (From Oct 19)",
+      "date": "December 21, 2026",
+      "description": "OCTOBER 8 UPDATE — HEARING ADJOURNED TO DECEMBER 21: On October 2, 2026, Judge Esther Salas (D.N.J.) signed an order granting DOJ a 45-day extension to respond to TerrAscend's motion to dismiss. Government response now due November 19, 2026. The hearing on the motion to dismiss has been adjourned from October 19 to December 21, 2026. ORIGINAL: The U.S. District Court (District of New Jersey) is hearing TerrAscend USA's motion to dismiss the IRS's lawsuit seeking return of $8.36 million in §280E refunds issued after the April 28, 2026 rescheduling. A ruling will determine whether the case proceeds to the merits — i.e., whether a court will rule on the legality of §280E refunds issued post-rescheduling. Outcome will be precedent-relevant for all Oklahoma operators who filed amended returns or pre-paid §280E refund claims.",
+      "urgency": "standard"
     },
     {
       "id": "kd-omma-eac-october16",
@@ -160,6 +160,24 @@
     }
   ],
   "items": [
+    {
+      "id": "terrascend-280e-clawback-hearing-adjourned-dec21-oct2-2026",
+      "headline": "TerrAscend §280E Clawback Hearing Adjourned from October 19 to December 21, 2026 — Judge Grants DOJ 45-Day Extension (October 2, 2026)",
+      "date": "2026-10-02",
+      "summary": "On October 2, 2026, U.S. District Judge Esther Salas (District of New Jersey) signed an order granting DOJ a 45-day extension to respond to TerrAscend USA's motion to dismiss the IRS's §280E clawback lawsuit. The government's response is now due November 19, 2026 (moved from October 5). The dismissal motion hearing, previously scheduled for October 19, 2026, has been adjourned to December 21, 2026. TerrAscend's reply to the government's response will be due approximately December 10, 2026. The underlying lawsuit seeks return of $8.36 million in §280E tax refunds TerrAscend received after the April 28, 2026 rescheduling. TerrAscend's September 17 motion to dismiss argues procedural defects in the IRS suit.",
+      "whyItMatters": "For Oklahoma OMMA-licensed operators including CAKE: the hearing adjournment pushes the first substantive federal court ruling on §280E refund clawback legality from October 19 to December 21, 2026. Operators who received or filed for §280E refunds after April 28, 2026 should note that the government is actively extending and defending the clawback position — the extension itself signals the DOJ is not abandoning the case. No precedent-setting ruling will arrive before year-end. Oklahoma operators who filed amended returns or pre-paid refund claims should consult their tax advisors on timing and whether to hold or spend those funds pending the December 21 hearing outcome.",
+      "tags": [
+        "federal",
+        "tax",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "The Marijuana Herald — Court Grants DOJ Extension in TerrAscend §280E Clawback Suit; Hearing Moved to December 21 (October 2026)",
+        "url": "https://themarijuanaherald.com/2026/10/court-doj-terrascend/"
+      },
+      "pinned": false
+    },
     {
       "id": "state-regulators-dea-radio-silence-oct7-2026",
       "headline": "Multi-State Marijuana Regulators Escalate Complaints Over DEA 'Radio Silence' on Rescheduling Guidance — October 7, 2026",
@@ -3042,6 +3060,19 @@
     }
   ],
   "discourse": [
+    {
+      "id": "watch-terrascend-oct19-hearing-date-wrong-dec21",
+      "claim": "The TerrAscend §280E clawback hearing is October 19, 2026 — operators should watch for a ruling in October.",
+      "risk": "Operators and advisors who have not seen the October 2 court order may be tracking October 19 as the hearing date and expecting a ruling before year-end. Acting on that date (e.g., timing a refund spend, tax planning) based on a ruling that won't happen until December would be premature.",
+      "fact": "The October 19, 2026 hearing in TerrAscend USA v. United States (D.N.J.) was adjourned by Judge Esther Salas on October 2, 2026. DOJ received a 45-day extension; government response is now due November 19, 2026. The hearing on TerrAscend's motion to dismiss has been rescheduled to December 21, 2026. No §280E clawback ruling will issue in October 2026.",
+      "date": "2026-10-08",
+      "sources": [
+        {
+          "label": "The Marijuana Herald — Court Grants DOJ Extension in TerrAscend §280E Clawback Suit (October 2026)",
+          "url": "https://themarijuanaherald.com/2026/10/court-doj-terrascend/"
+        }
+      ]
+    },
     {
       "id": "watch-oklahoma-sq837-adult-use-withdrawal-doom-claims-2026",
       "claim": "Oklahoma's adult-use legalization initiative (SQ 837) withdrawal means dispensaries/cultivators lose protection, or that adult-use is effectively imminent by another route.",
