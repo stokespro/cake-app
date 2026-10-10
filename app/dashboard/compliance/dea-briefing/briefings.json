@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-10-09",
+  "lastUpdated": "2026-10-10",
   "deaRegistrationStatus": {
     "lastVerified": "2026-10-09",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -2077,25 +2077,6 @@
         "url": "https://www.marijuanamoment.net/oklahoma-lawmakers-vote-to-extend-medical-marijuana-business-license-moratorium"
       },
       "pinned": true
-    },
-    {
-      "id": "dea-rescheduling-stay-motion-ndasa-mmj-june9",
-      "headline": "NDASA + MMJ BioPharma File D.C. Circuit Stay Motion — First Formal Stay Request in Case 26-1136",
-      "date": "2026-06-09",
-      "summary": "On June 9, 2026, the National Drug and Alcohol Screening Association (NDASA), MMJ International Holdings, MMJ BioPharma Cultivation, and MMJ BioPharma Labs jointly filed a motion in D.C. Circuit Case No. 26-1136 seeking a stay of Attorney General Order No. 6754-2026 (the April 28 medical-marijuana rescheduling order). The petitioners argue (1) the order bypassed required notice-and-comment rulemaking; (2) the AG lacked authority to act without completing the statutory DEA hearing; and (3) MMJ International/MMJ BioPharma — which invested more than $10 million and nearly a decade developing cannabinoid pharmaceuticals through FDA/DEA channels — suffer commercial harm from state-licensed marijuana operators now competing under the same Schedule III classification without equivalent safety review. Supporting the stay motion, Harvard Medical School neuroscientist Dr. Bertha K. Madras filed an expert declaration (also June 9) warning the D.C. Circuit that rescheduling poses 'substantial' and 'unacceptably high' public health risks — particularly for adolescents and unborn children — and that marijuana does not meet the standards required of a medicine. This is a distinct stay motion from the June 4 SAM/NDASA opening brief. Petitioners may also seek emergency relief before the June 29 broader-rescheduling ALJ hearing. No court ruling has issued as of June 19, 2026.",
-      "whyItMatters": "This is the first formal motion in Case 26-1136 asking the D.C. Circuit to actually halt the order. A granted stay would revert state medical marijuana to Schedule I, nullify all DEA registrations filed under the expedited pathway, and undo 280E relief. Oklahoma operators filing DEA registration before the June 26–27 window preserves the safe-harbor regardless of litigation outcome; the risk of not registering (OBNDD sanctions, license jeopardy) is immediate and certain, while stay risk is real but not yet realized.",
-      "tags": [
-        "federal"
-      ],
-      "source": {
-        "name": "Marijuana Herald — NDASA/MMJ Ask Court to Pause Rescheduling",
-        "url": "https://themarijuanaherald.com/2026/06/drug-testing-industry-and-pharmaceutical-company-ask-court-to-pause-federal-rescheduling-order/"
-      },
-      "secondarySource": {
-        "name": "Marijuana Moment — Drug Testing Industry Asks Court to Pause",
-        "url": "https://www.marijuanamoment.net/drug-testing-industry-and-pharmaceutical-company-ask-court-to-pause-trumps-marijuana-rescheduling-move/"
-      },
-      "pinned": false
     },
     {
       "id": "broader-rescheduling-alj-hearing-june-july-2026",
