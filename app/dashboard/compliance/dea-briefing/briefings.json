@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-10-10",
+  "lastUpdated": "2026-10-12",
   "deaRegistrationStatus": {
     "lastVerified": "2026-10-09",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -153,6 +153,23 @@
     }
   ],
   "items": [
+    {
+      "id": "dc-circuit-parties-agree-briefing-schedule-oct2026",
+      "headline": "Parties in D.C. Circuit Cannabis Rescheduling Challenge Jointly Agree on Merits Briefing Schedule — Oral Argument Requested",
+      "date": "2026-10-10",
+      "summary": "The federal government (DOJ/DEA) and the anti-marijuana petitioners (NDASA, SAM, states coalition) challenging the April 28, 2026 Schedule III rescheduling order jointly agreed on a proposed merits briefing schedule in consolidated D.C. Circuit Cases 26-1106/1130/1136, filed following the October 9, 2026 format-proposal deadline. The parties also jointly requested that the D.C. Circuit schedule oral argument on the merits challenge. Per Marijuana Moment (October 2026), the feds and marijuana opponents reached agreement on the briefing format, reflecting that both sides are prepared to proceed to full merits argument. The D.C. Circuit's formal scheduling order — which will establish binding briefing deadlines — is expected around October 16, 2026. Confirmed specific dates for opening briefs, government response, and oral argument have not been independently verified; they will be set in the court's formal order.",
+      "whyItMatters": "For Oklahoma OMMA-licensed operators including CAKE: the agreed briefing schedule is a procedural step confirming full merits review of the April 28 rescheduling order is proceeding in the D.C. Circuit. The fact that both sides jointly proposed a schedule signals no party seeks delay — the case is moving toward oral argument. Oklahoma operators should monitor for the court's formal scheduling order (expected ~October 16, 2026), which will confirm binding briefing deadlines. Based on standard D.C. Circuit timelines, oral argument is not expected before February/March 2027 and a merits ruling would likely follow months afterward — the April 28 order remains fully operative throughout this period. OBNDD enforcement grace period (January 1, 2027), DEA registration requirements, and 280E treatment are unchanged while merits briefing proceeds. Operators should NOT delay compliance actions waiting on the D.C. Circuit merits ruling.",
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "Marijuana Moment — Feds And Marijuana Opponents Agree On Briefing Schedule In Lawsuit Challenging Trump's Reclassification Move",
+        "url": "https://marijuanamoment.net/feds-and-marijuana-opponents-agree-on-briefing-schedule-in-lawsuit-challenging-trumps-rescheduling-move"
+      },
+      "pinned": false
+    },
     {
       "id": "dc-circuit-merits-briefing-format-deadline-oct9-2026",
       "headline": "D.C. Circuit Merits Briefing Format Deadline Reached Oct 9 — Projected Schedule: Oral Argument Late Feb / Early March 2027",
@@ -3051,6 +3068,17 @@
     }
   ],
   "discourse": [
+    {
+      "id": "watch-dea-form-225-drug-trafficking-admission-concern",
+      "headline": "DEA Form 225 Language: Operators Fear Application Language Constitutes Federal 'Admission of Drug Trafficking'",
+      "claim": "Circulating in cannabis industry legal and compliance communities: the DEA's Form 225 registration application for medical cannabis manufacturers, distributors, and labs contains certification/acknowledgment language that operators worry constitutes an admission of federal drug trafficking — effectively requiring an applicant to acknowledge participation in Schedule I-controlled-substance activity as a precondition to obtaining Schedule III registration. Cannabis Business Times reported in October 2026 that the form asks applicants to acknowledge facts that legal counsel has flagged as potentially construable as admitting to drug trafficking. Some operators cite this as a reason to consult counsel before submitting, or to submit with an express reservation of rights.",
+      "caution": "This is a concern raised by private industry counsel, not a DEA enforcement determination or formal legal ruling. The DEA has not announced any prosecutorial action against operators who apply using Form 225 in good faith under Schedule III rescheduling. OBNDD mandates Oklahoma manufacturers and distributors obtain DEA registration, with enforcement beginning January 1, 2027 — delaying application indefinitely to avoid the language risk jeopardizes OBNDD compliance. Oklahoma operators should consult Oklahoma-licensed cannabis counsel on whether to use a reservation-of-rights approach on submission, rather than declining to apply. Operators in Oklahoma's Dallas DEA Division may receive different follow-up questions than the widely reported Rocky Mountain Division forms.",
+      "source": {
+        "name": "Cannabis Business Times — DEA Schedule III Registration Asks Cannabis Businesses to Admit to Drug Trafficking",
+        "url": "https://www.cannabisbusinesstimes.com/cannabis-rescheduling/news/15823827/dea-schedule-iii-registration-asks-cannabis-businesses-to-admit-to-drug-trafficking"
+      },
+      "date": "2026-10"
+    },
     {
       "id": "watch-terrascend-oct19-hearing-date-wrong-dec21",
       "claim": "The TerrAscend §280E clawback hearing is October 19, 2026 — operators should watch for a ruling in October.",
