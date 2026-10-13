@@ -182,6 +182,10 @@ export type ActionErrorCode =
   | 'ALREADY_OUT'
   | 'BATCH_REQUIRED'
   | 'DUPLICATE_NAME'
+  | 'NO_VENDOR'
+  | 'ALREADY_APPROVED'
+  | 'HAS_PAYMENTS'
+  | 'RECONCILE'
 
 /** One return shape for every harvest-trim action, reads included. */
 export type ActionResult<T> =

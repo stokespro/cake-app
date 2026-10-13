@@ -33,6 +33,10 @@ describe('mapDbError: TRIM_E_* codes', () => {
     'ALREADY_OUT',
     'BATCH_REQUIRED',
     'DUPLICATE_NAME',
+    'NO_VENDOR',
+    'ALREADY_APPROVED',
+    'HAS_PAYMENTS',
+    'RECONCILE',
   ] as const
 
   it('the code table covers exactly the codes the SQL functions raise', () => {
@@ -51,6 +55,13 @@ describe('mapDbError: TRIM_E_* codes', () => {
       'DUPLICATE_NAME'
     )
   })
+
+  it.each(['NO_VENDOR', 'ALREADY_APPROVED', 'HAS_PAYMENTS', 'RECONCILE'] as const)(
+    '%s is its own code, not collapsed into INVALID or STATE',
+    (code) => {
+      expect(mapDbError({ code: 'P0001', message: `TRIM_E_${code}: the human message` })?.code).toBe(code)
+    }
+  )
 
   it('accepts an error with no SQLSTATE (a thrown Error from a wrapper)', () => {
     expect(mapDbError(new Error('TRIM_E_STATE: not now'))).toEqual({ message: 'not now', code: 'STATE' })

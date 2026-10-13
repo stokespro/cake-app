@@ -26,6 +26,10 @@ export interface TrimAccess {
   canApprovePay: boolean
   /** Variance settings, reopen a reconciled load, void a partial load. */
   isAdmin: boolean
+  /** Reopen a closed batch. Narrower than isAdmin: the action is admin only. */
+  canReopenBatch: boolean
+  /** The pay register and the bills it points at (admin, management). */
+  isFinance: boolean
 }
 
 export function useTrimAccess(): TrimAccess {
@@ -42,6 +46,8 @@ export function useTrimAccess(): TrimAccess {
         canManageStaff: false,
         canApprovePay: false,
         isAdmin: false,
+        canReopenBatch: false,
+        isFinance: false,
       }
     }
     return {
@@ -54,6 +60,8 @@ export function useTrimAccess(): TrimAccess {
       canManageStaff: canManageTrimStaff(user.role),
       canApprovePay: canApproveTrimPay(user.role),
       isAdmin: roleAllowed(TRIM_ADMIN_ROLES, user.role),
+      canReopenBatch: user.role === 'admin',
+      isFinance: canViewSection(user.role, 'finance'),
     }
   }, [user, isLoading])
 }

@@ -12,7 +12,7 @@ interface NavLink {
   href: string
   label: string
   /** Hidden from roles that cannot use it. */
-  needs?: 'operate' | 'weigh'
+  needs?: 'operate' | 'weigh' | 'finance'
 }
 
 const LINKS: NavLink[] = [
@@ -22,6 +22,7 @@ const LINKS: NavLink[] = [
   { href: `${BASE}/lookup`, label: 'Look up a tag' },
   { href: `${BASE}/hangers`, label: 'Hangers' },
   { href: `${BASE}/staff`, label: 'Trimmers' },
+  { href: `${BASE}/pay-register`, label: 'Pay register', needs: 'finance' },
   { href: `${BASE}/settings`, label: 'Settings' },
 ]
 
@@ -53,7 +54,10 @@ export function TrimShell({ children }: { children: React.ReactNode }) {
   }
 
   const links = LINKS.filter(
-    (l) => (l.needs !== 'operate' || access.canOperate) && (l.needs !== 'weigh' || access.canWeigh)
+    (l) =>
+      (l.needs !== 'operate' || access.canOperate) &&
+      (l.needs !== 'weigh' || access.canWeigh) &&
+      (l.needs !== 'finance' || access.isFinance)
   )
 
   return (

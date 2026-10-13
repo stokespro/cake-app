@@ -178,3 +178,42 @@ export function payloadSummary(payload: Record<string, unknown>): string {
   }
   return parts.join(' · ')
 }
+
+// ─── Pay ─────────────────────────────────────────────────────────────────────
+
+/** "$225.00/lb", or "$225.00-$250.00/lb" when the rate changed inside the window. Dash when unknown. */
+export function rateRangeText(min: number | null | undefined, max: number | null | undefined): string {
+  if (min === null || min === undefined || max === null || max === undefined) return EM_DASH
+  if (min === max) return `${moneyText(min)}/lb`
+  return `${moneyText(Math.min(min, max))}\u2013${moneyText(Math.max(min, max))}/lb`
+}
+
+/** A list of distinct rates (ascending) as one range. */
+export function ratesText(rates: readonly number[]): string {
+  if (rates.length === 0) return EM_DASH
+  return rateRangeText(Math.min(...rates), Math.max(...rates))
+}
+
+/** The finance bill's payment state, read live from the ledger. */
+export const BILL_STATUS_META: Record<string, { label: string; pill: string }> = {
+  unpaid: {
+    label: 'Unpaid',
+    pill: 'border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  },
+  partial: {
+    label: 'Part paid',
+    pill: 'border-sky-500/40 bg-sky-500/15 text-sky-700 dark:text-sky-300',
+  },
+  paid: {
+    label: 'Paid',
+    pill: 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-300',
+  },
+  void: {
+    label: 'Void',
+    pill: 'border-zinc-500/40 bg-zinc-500/15 text-zinc-600 dark:text-zinc-300',
+  },
+}
+
+export function billStatusMeta(status: string | null | undefined): { label: string; pill: string } {
+  return (status && BILL_STATUS_META[status]) || { label: status ?? 'No bill', pill: BILL_STATUS_META.void.pill }
+}
