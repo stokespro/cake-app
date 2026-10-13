@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
-import { AlertTriangle, Check, CheckCircle2, ChevronsUpDown, Plus, X } from 'lucide-react'
+import { AlertTriangle, Check, CheckCircle2, ChevronsUpDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,8 +70,12 @@ export interface DeclareHarvestBatchesFormProps {
   skipLabel?: string
 }
 
-/** "0722-F2-CM-3" -> "0722-F2-CM": the base a split suffix is added to. Free-form names are left alone. */
-function splitBase(name: string): string {
+/**
+ * "0722-F2-CM-3" -> "0722-F2-CM": the base a collision suffix is added to, so a clash on a name that
+ * already carries one steps to the next free number instead of stacking suffixes. Free-form names
+ * are left alone.
+ */
+function collisionBase(name: string): string {
   const trimmed = name.trim()
   const m = /^(\d{4}-F\d+-[A-Za-z0-9]+)-\d+$/.exec(trimmed)
   return m ? m[1] : trimmed
@@ -101,8 +105,11 @@ function clashedName(message: string, rows: DraftRow[]): string | null {
 /**
  * "Declare the strains coming out of this room." A searchable multi-select over every strain (no
  * availability filter: a room may or may not hold every strain we grow). Each ticked strain adds an
- * editable batch row pre-filled MMDD-F{room}-{ABBR}; "+ Split" adds another batch of the same strain
- * (-2, -3). Declaring is idempotent per cycle, so a retry is always safe.
+ * editable batch row pre-filled MMDD-F{room}-{ABBR}, so a strain can appear at most once: one batch
+ * per strain coming out of the room. Splitting a strain into several batches happens later, after
+ * trim, in vault admin; it is not part of this form. If a suggested name is already taken (say, by a
+ * batch entered by hand) the allocator steps to -2, -3. Declaring is idempotent per cycle, so a retry
+ * is always safe.
  *
  * It writes only to `batches`. The harvest date comes from the cycle and is never written back to
  * room_cycles (cycle dates are authoritative).
@@ -172,6 +179,14 @@ export function DeclareHarvestBatchesForm({
     return ids
   }, [strains, declared])
 
+  // A strain that picks up a batch while this form is open (declared from another device, say) can't
+  // also keep a draft row: drop the row so a strain never ends up with two batches.
+  useEffect(() => {
+    setRows((prev) =>
+      prev.some((r) => declaredStrainIds.has(r.strainId)) ? prev.filter((r) => !declaredStrainIds.has(r.strainId)) : prev
+    )
+  }, [declaredStrainIds])
+
   const declaredNames = useMemo(() => declared.map((b) => b.name), [declared])
 
   /** MMDD-F{room}-{ABBR} for a strain. Falls back to the bare abbreviation if the room is unknown. */
@@ -203,18 +218,17 @@ export function DeclareHarvestBatchesForm({
   )
 
   const addRow = useCallback(
-    (strainId: string, base: string, afterKey?: string) => {
+    (strainId: string, base: string) => {
       const key = `row-${keyRef.current++}`
       setRows((prev) => {
+        // One batch per strain: never add a second row for a strain that already has one.
+        if (prev.some((r) => r.strainId === strainId)) return prev
         const name = createBatchNameAllocator([
           ...declaredNames,
           ...taken,
           ...prev.map((r) => r.name.trim()),
         ]).allocate(base)
-        const row: DraftRow = { key, strainId, name }
-        if (afterKey === undefined) return [...prev, row]
-        const at = prev.findIndex((r) => r.key === afterKey)
-        return at < 0 ? [...prev, row] : [...prev.slice(0, at + 1), row, ...prev.slice(at + 1)]
+        return [...prev, { key, strainId, name }]
       })
       setSubmitError(null)
     },
@@ -228,10 +242,6 @@ export function DeclareHarvestBatchesForm({
     } else {
       addRow(strain.id, suggestedBase(strain))
     }
-  }
-
-  function splitRow(row: DraftRow) {
-    addRow(row.strainId, splitBase(row.name), row.key)
   }
 
   function renameRow(key: string, name: string) {
@@ -255,7 +265,7 @@ export function DeclareHarvestBatchesForm({
       const name = r.name.trim()
       const lower = name.toLowerCase()
       const suggest = () =>
-        createBatchNameAllocator(knownNames(r.key)).allocate(splitBase(name) || 'BATCH')
+        createBatchNameAllocator(knownNames(r.key)).allocate(collisionBase(name) || 'BATCH')
       if (!name) {
         out.set(r.key, { message: 'Give this batch a name.', suggestion: null })
       } else if (name.length > MAX_NAME_LENGTH) {
@@ -335,7 +345,7 @@ export function DeclareHarvestBatchesForm({
     }
     if (res.code === 'DUPLICATE_NAME') {
       const alt = createBatchNameAllocator([...declaredNames, ...taken, ...rows.map((r) => r.name), name]).allocate(
-        splitBase(name)
+        collisionBase(name)
       )
       setTaken((prev) => [...prev, name])
       setRenaming({
@@ -394,7 +404,7 @@ export function DeclareHarvestBatchesForm({
           {cycleHarvestDate
             ? `Harvest ${dateOnlyText(cycleHarvestDate)}`
             : 'This cycle has no harvest date yet, so names use today'}
-          . Tick every strain that was in the room. Each one gets its own batch, and the names can be changed.
+          . Tick every strain that was in the room. Each strain gets one batch, and the name can be changed.
         </p>
       </div>
 
@@ -601,7 +611,6 @@ export function DeclareHarvestBatchesForm({
             {rows.map((r) => {
               const strain = strainById.get(r.strainId)
               const problem = problems.get(r.key)
-              const isSplit = rows.findIndex((x) => x.strainId === r.strainId) !== rows.indexOf(r)
               return (
                 <li
                   key={r.key}
@@ -610,7 +619,6 @@ export function DeclareHarvestBatchesForm({
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-base font-semibold">{strain?.name ?? 'Unknown strain'}</p>
-                      {isSplit && <p className="text-xs text-muted-foreground">Split batch</p>}
                     </div>
                     <Button
                       type="button"
@@ -651,10 +659,6 @@ export function DeclareHarvestBatchesForm({
                       )}
                     </div>
                   )}
-                  <Button type="button" variant="outline" onClick={() => splitRow(r)}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Split
-                  </Button>
                 </li>
               )
             })}
