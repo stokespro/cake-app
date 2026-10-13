@@ -73,7 +73,7 @@ export function SettingsClient() {
       <Card>
         <CardContent className="space-y-5 pt-5">
           <div>
-            <h2 className="text-xl font-semibold">Variance flag</h2>
+            <h2 className="text-lg font-semibold">Variance flag</h2>
             <p className="text-muted-foreground">
               When a trimmer returns a hanger, the flower, trim, stems and anything left on the hanger should add back up
               to what was issued. A hanger is flagged only when it is off by <strong>more than the percent</strong> and{' '}
@@ -82,7 +82,7 @@ export function SettingsClient() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="settings-pct" className="text-base font-semibold">
+            <Label htmlFor="settings-pct">
               Percent off
             </Label>
             <div className="relative">
@@ -93,15 +93,15 @@ export function SettingsClient() {
                 value={pct}
                 disabled={!canEdit || busy}
                 onChange={(e) => PCT_KEYSTROKE.test(e.target.value) && setPct(e.target.value)}
-                className="h-16 pr-12 text-center text-3xl font-semibold md:text-3xl"
+                className="h-12 pr-12 text-center text-lg font-semibold md:text-xl"
               />
-              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-lg text-muted-foreground">%</span>
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-base text-muted-foreground">%</span>
             </div>
             {pct !== '' && !pctValid && <p className="text-sm font-medium text-destructive">Enter a percent from 0 to 100.</p>}
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="settings-floor" className="text-base font-semibold">
+            <Label htmlFor="settings-floor">
               Grams off
             </Label>
             <div className="relative">
@@ -112,9 +112,9 @@ export function SettingsClient() {
                 value={floor}
                 disabled={!canEdit || busy}
                 onChange={(e) => GRAMS_KEYSTROKE.test(e.target.value) && setFloor(e.target.value)}
-                className="h-16 pr-12 text-center text-3xl font-semibold md:text-3xl"
+                className="h-12 pr-12 text-center text-lg font-semibold md:text-xl"
               />
-              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-lg text-muted-foreground">g</span>
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-base text-muted-foreground">g</span>
             </div>
             {floorValid && floorNum !== null ? (
               <p className="text-center text-sm text-muted-foreground">= {gramsToLb(floorNum).toFixed(3)} lb</p>
@@ -133,7 +133,7 @@ export function SettingsClient() {
           {canEdit ? (
             <Button
               type="button"
-              className="h-16 w-full text-lg font-bold"
+              className="h-12 w-full text-base font-semibold"
               disabled={!changed || !pctValid || !floorValid || busy}
               onClick={save}
             >

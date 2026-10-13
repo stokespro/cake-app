@@ -82,9 +82,9 @@ export function ScanInput({
           spellCheck={false}
           enterKeyHint="go"
           disabled={busy}
-          className="h-14 text-lg"
+          className="h-12 text-lg"
         />
-        <Button type="submit" className="h-14 min-w-24 text-base font-semibold" disabled={busy || text.trim() === ''}>
+        <Button type="submit" className="h-12 min-w-24 text-base font-semibold" disabled={busy || text.trim() === ''}>
           {busy ? '...' : buttonLabel}
         </Button>
       </form>

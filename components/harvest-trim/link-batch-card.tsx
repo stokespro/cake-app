@@ -55,7 +55,7 @@ export function LinkBatchCard({ cycleId, collapsed, onLinked }: LinkBatchCardPro
 
   if (!open) {
     return (
-      <Button type="button" variant="outline" className="h-14 w-full" onClick={() => setOpen(true)}>
+      <Button type="button" variant="outline" className="w-full" onClick={() => setOpen(true)}>
         <Link2 className="mr-2 h-4 w-4" />
         Link an existing batch to this cycle
       </Button>
@@ -79,7 +79,7 @@ export function LinkBatchCard({ cycleId, collapsed, onLinked }: LinkBatchCardPro
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search batch name, e.g. 0723-F1"
             aria-label="Search unlinked batches"
-            className="h-14 pl-10 text-base"
+            className="pl-10"
           />
         </div>
         {batches === null ? (
@@ -96,7 +96,7 @@ export function LinkBatchCard({ cycleId, collapsed, onLinked }: LinkBatchCardPro
                 </div>
                 <Button
                   type="button"
-                  className="h-14 shrink-0 px-5"
+                  className="shrink-0 px-5"
                   disabled={linking !== null}
                   onClick={() => void link(b)}
                 >
@@ -107,7 +107,7 @@ export function LinkBatchCard({ cycleId, collapsed, onLinked }: LinkBatchCardPro
           </ul>
         )}
         {collapsed && (
-          <Button type="button" variant="ghost" className="h-14 w-full" onClick={() => setOpen(false)}>
+          <Button type="button" variant="ghost" className="w-full" onClick={() => setOpen(false)}>
             Close
           </Button>
         )}

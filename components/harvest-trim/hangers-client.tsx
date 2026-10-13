@@ -42,11 +42,11 @@ export function HangersClient() {
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="space-y-4">
       <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1">
-        <TabsTrigger value="registry" className="h-12 text-base">
+        <TabsTrigger value="registry">
           Registry
         </TabsTrigger>
         {access.canOperate && (
-          <TabsTrigger value="import" className="h-12 text-base">
+          <TabsTrigger value="import">
             Import IDs
           </TabsTrigger>
         )}
@@ -129,7 +129,7 @@ function Registry({ version }: { version: number }) {
           placeholder="Search tags, e.g. 042"
           aria-label="Search hangers"
           autoComplete="off"
-          className="h-14 pl-10 text-base"
+          className="pl-10"
         />
       </div>
 
@@ -145,7 +145,7 @@ function Registry({ version }: { version: number }) {
                 setShown(PAGE)
               }}
               className={cn(
-                'h-14 shrink-0 rounded-lg border-2 px-4 text-base font-semibold transition-colors',
+                'h-12 shrink-0 rounded-lg border-2 px-4 text-sm font-semibold transition-colors',
                 filter === f.key ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background hover:bg-muted'
               )}
             >
@@ -156,7 +156,7 @@ function Registry({ version }: { version: number }) {
         <Button
           type="button"
           variant="outline"
-          className="h-14 w-14 shrink-0"
+          className="h-10 w-10 shrink-0"
           aria-label="Refresh"
           disabled={refreshing}
           onClick={() => void load(search.trim(), true)}
@@ -189,11 +189,11 @@ function Registry({ version }: { version: number }) {
                 <button
                   type="button"
                   onClick={() => setDetailCode(h.code)}
-                  className="flex min-h-16 w-full items-center justify-between gap-3 p-3 text-left"
+                  className="flex min-h-12 w-full items-center justify-between gap-3 p-3 text-left"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xl font-bold">{h.code}</span>
+                      <span className="font-mono text-base font-bold">{h.code}</span>
                       <span className={cn('rounded-full border px-2.5 py-0.5 text-xs font-semibold', meta.pill)}>
                         {meta.label}
                       </span>
@@ -212,7 +212,7 @@ function Registry({ version }: { version: number }) {
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-14"
+                         
                           disabled={h.hasOpenLoad}
                           onClick={() => setChange({ hanger: h, to: 'retired' })}
                         >
@@ -221,7 +221,7 @@ function Registry({ version }: { version: number }) {
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-14"
+                         
                           disabled={h.hasOpenLoad}
                           onClick={() => setChange({ hanger: h, to: 'lost' })}
                         >
@@ -234,7 +234,7 @@ function Registry({ version }: { version: number }) {
                         )}
                       </>
                     ) : (
-                      <Button type="button" variant="outline" className="h-14" onClick={() => setChange({ hanger: h, to: 'active' })}>
+                      <Button type="button" variant="outline" onClick={() => setChange({ hanger: h, to: 'active' })}>
                         Put back in service
                       </Button>
                     )}
@@ -245,7 +245,7 @@ function Registry({ version }: { version: number }) {
           })}
           {visible.length > shown && (
             <li>
-              <Button type="button" variant="outline" className="h-14 w-full" onClick={() => setShown((n) => n + PAGE)}>
+              <Button type="button" variant="outline" className="w-full" onClick={() => setShown((n) => n + PAGE)}>
                 Show more ({visible.length - shown} left)
               </Button>
             </li>

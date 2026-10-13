@@ -14,7 +14,7 @@ import {
 import type { ScanResult } from '@/actions/hangers'
 import { checkDryWetRatio } from '@/lib/trim/weights'
 import { cn } from '@/lib/utils'
-import { batchColor, dateOnlyText, plantsText } from './format'
+import { dateOnlyText, plantsText } from './format'
 import { PlantStepper } from './plant-stepper'
 import { useTrimRun } from './use-trim-run'
 import { useWeightFields } from './use-weight-fields'
@@ -145,7 +145,7 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
     <Card>
       <CardContent className="space-y-5 pt-5">
         <div>
-          <p className="text-xl font-bold">Start a load on {scan.hanger.code}</p>
+          <p className="text-lg font-bold">Start a load on {scan.hanger.code}</p>
           <p className="text-muted-foreground">
             {last
               ? last.status === 'void'
@@ -177,7 +177,7 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
                       setBatchId(null)
                     }}
                     className={cn(
-                      'min-h-14 rounded-lg border-2 px-3 py-2 text-left text-sm font-medium transition-colors',
+                      'min-h-12 rounded-lg border-2 px-3 py-2 text-left text-sm font-medium transition-colors',
                       cycleId === c.id
                         ? 'border-primary bg-primary text-primary-foreground'
                         : 'border-border bg-background hover:bg-muted'
@@ -211,11 +211,10 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
                       aria-pressed={batchId === b.id}
                       onClick={() => setBatchId(b.id)}
                       className={cn(
-                        'flex min-h-16 items-center gap-3 rounded-lg border-2 px-3 py-2 text-left transition-colors',
+                        'flex min-h-12 items-center gap-3 rounded-lg border-2 px-3 py-2 text-left transition-colors',
                         batchId === b.id ? 'border-primary ring-2 ring-primary' : 'border-border hover:bg-muted'
                       )}
                     >
-                      <span className={cn('h-10 w-2 shrink-0 rounded-full', batchColor(b.id))} />
                       <span>
                         <span className="block text-base font-semibold">{b.strainName ?? 'Unknown strain'}</span>
                         <span className="block text-sm text-muted-foreground">
@@ -263,12 +262,12 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
             />
           </div>
         ) : (
-          <Button type="button" variant="outline" className="h-14 w-full" onClick={() => setShowMore(true)}>
+          <Button type="button" variant="outline" className="w-full" onClick={() => setShowMore(true)}>
             I also know the plants and wet weight
           </Button>
         )}
 
-        <Button type="button" className="h-16 w-full text-lg font-bold" disabled={!canCreate} onClick={create}>
+        <Button type="button" className="h-14 w-full text-lg font-semibold" disabled={!canCreate} onClick={create}>
           {busy ? 'Creating...' : 'Create load and continue'}
         </Button>
       </CardContent>

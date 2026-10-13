@@ -65,13 +65,13 @@ export function DiscrepancyPanel({
             <p className="text-sm font-semibold uppercase tracking-wide opacity-90">
               {hangerCode} &middot; {trimmerName}
             </p>
-            <h2 className="text-3xl font-extrabold leading-tight">
+            <h2 className="text-2xl font-extrabold leading-tight">
               {over ? 'Returned MORE than issued' : 'The weights do not add up'}
             </h2>
             {over ? (
-              <p className="mt-1 text-lg font-medium">Check the scale, the bin tare, or whether this is the wrong hanger.</p>
+              <p className="mt-1 text-base font-medium">Check the scale, the bin tare, or whether this is the wrong hanger.</p>
             ) : (
-              <p className="mt-1 text-lg font-medium">
+              <p className="mt-1 text-base font-medium">
                 {lbText(missingG)} ({gramsText(missingG)}) is unaccounted for.
               </p>
             )}
@@ -81,12 +81,12 @@ export function DiscrepancyPanel({
         <dl className="grid grid-cols-3 gap-3 text-center">
           <div className="rounded-lg bg-black/25 p-3">
             <dt className="text-xs font-semibold uppercase opacity-80">Issued</dt>
-            <dd className="text-2xl font-bold">{lbText(view.issuedG)}</dd>
+            <dd className="text-lg font-bold">{lbText(view.issuedG)}</dd>
             <dd className="text-sm opacity-90">{gramsText(view.issuedG)}</dd>
           </div>
           <div className="rounded-lg bg-black/25 p-3">
             <dt className="text-xs font-semibold uppercase opacity-80">Returned</dt>
-            <dd className="text-2xl font-bold">{lbText(view.returnedTotalG + view.remainingG)}</dd>
+            <dd className="text-lg font-bold">{lbText(view.returnedTotalG + view.remainingG)}</dd>
             <dd className="text-sm opacity-90">{gramsText(view.returnedTotalG + view.remainingG)}</dd>
           </div>
           <div className="rounded-lg bg-white p-3 text-red-700">
@@ -132,7 +132,7 @@ export function DiscrepancyPanel({
             <div className="grid gap-2 sm:grid-cols-2">
               <Button
                 type="button"
-                className="h-14 bg-white text-base font-bold text-red-700 hover:bg-white/90"
+                className="h-12 bg-white text-base font-semibold text-red-700 hover:bg-white/90"
                 disabled={!reasonIsValid(reason) || busy}
                 onClick={() => onAccept(reason.trim())}
               >
@@ -141,7 +141,7 @@ export function DiscrepancyPanel({
               <Button
                 type="button"
                 variant="outline"
-                className="h-14 border-white bg-transparent text-base text-white hover:bg-white/15 hover:text-white"
+                className="h-12 border-white bg-transparent text-base text-white hover:bg-white/15 hover:text-white"
                 disabled={busy}
                 onClick={() => setAccepting(false)}
               >
@@ -153,7 +153,7 @@ export function DiscrepancyPanel({
           <div className="grid gap-3">
             <Button
               type="button"
-              className="h-16 bg-white text-lg font-bold text-red-700 hover:bg-white/90"
+              className="h-12 bg-white text-base font-semibold text-red-700 hover:bg-white/90"
               disabled={busy}
               onClick={onReweigh}
             >
@@ -162,7 +162,7 @@ export function DiscrepancyPanel({
             <Button
               type="button"
               variant="outline"
-              className="h-16 border-white bg-transparent text-lg font-bold text-white hover:bg-white/15 hover:text-white"
+              className="h-12 border-white bg-transparent text-base font-semibold text-white hover:bg-white/15 hover:text-white"
               disabled={busy}
               onClick={() => setAccepting(true)}
             >
@@ -172,7 +172,7 @@ export function DiscrepancyPanel({
               <Button
                 type="button"
                 variant="outline"
-                className="h-16 border-white bg-transparent text-lg font-bold text-white hover:bg-white/15 hover:text-white"
+                className="h-12 border-white bg-transparent text-base font-semibold text-white hover:bg-white/15 hover:text-white"
                 disabled={busy}
                 onClick={onPlantsStillOn}
               >
@@ -182,7 +182,7 @@ export function DiscrepancyPanel({
             <Button
               type="button"
               variant="ghost"
-              className="h-14 text-base font-semibold text-white hover:bg-white/15 hover:text-white"
+              className="h-12 text-base font-semibold text-white hover:bg-white/15 hover:text-white"
               disabled={busy}
               onClick={onLeaveFlagged}
             >

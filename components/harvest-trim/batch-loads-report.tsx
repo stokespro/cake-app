@@ -22,7 +22,7 @@ function Stat({ label, children, sub }: { label: string; children: React.ReactNo
   return (
     <div className="rounded-lg border bg-card p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-xl font-bold">{children}</p>
+      <p className="text-lg font-bold">{children}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   )
@@ -135,7 +135,7 @@ export function BatchLoadsSection({ report, showMoney, onOpenHanger }: BatchLoad
     <div className="space-y-6">
       {/* Batch totals */}
       <section aria-label="Weights and returns" className="space-y-3">
-        <h2 className="text-xl font-semibold">Weights and returns</h2>
+        <h2 className="text-lg font-semibold">Weights and returns</h2>
         {pendingFlagged > 0 && (
           <div role="alert" className="flex items-start gap-3 rounded-lg border-2 border-red-500/60 bg-red-500/10 p-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
@@ -195,7 +195,7 @@ export function BatchLoadsSection({ report, showMoney, onOpenHanger }: BatchLoad
 
       {/* Per trimmer */}
       <section aria-label="Per trimmer" className="space-y-3">
-        <h2 className="text-xl font-semibold">
+        <h2 className="text-lg font-semibold">
           By trimmer <span className="text-base font-normal text-muted-foreground">({trimmers.length})</span>
         </h2>
         {trimmers.length === 0 ? (
@@ -303,7 +303,7 @@ export function BatchLoadsSection({ report, showMoney, onOpenHanger }: BatchLoad
 
       {/* Per hanger */}
       <section aria-label="Hangers" className="space-y-3">
-        <h2 className="text-xl font-semibold">
+        <h2 className="text-lg font-semibold">
           Hangers <span className="text-base font-normal text-muted-foreground">({report.loads.length})</span>
         </h2>
         {report.loads.length === 0 ? (
@@ -406,7 +406,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        'h-14 shrink-0 rounded-lg border-2 px-4 text-base font-semibold',
+        'h-12 shrink-0 rounded-lg border-2 px-4 text-sm font-semibold',
         active ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'
       )}
     >
@@ -420,7 +420,7 @@ function HangerButton({ code, onOpen }: { code: string; onOpen: (code: string) =
     <button
       type="button"
       onClick={() => onOpen(code)}
-      className="flex min-h-14 items-center rounded-md px-1 text-left font-mono text-lg font-bold underline-offset-4 hover:underline"
+      className="flex min-h-12 items-center rounded-md px-1 text-left font-mono text-base font-bold underline-offset-4 hover:underline"
     >
       {code}
     </button>

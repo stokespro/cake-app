@@ -25,7 +25,7 @@ export function PlantStepper({ id, label, value, onChange, min = 1, max = 500, n
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-base font-semibold">
+      <Label htmlFor={id}>
         {label}
       </Label>
       <div className="flex items-center gap-2">
@@ -33,11 +33,11 @@ export function PlantStepper({ id, label, value, onChange, min = 1, max = 500, n
           type="button"
           variant="outline"
           aria-label="One fewer"
-          className="h-16 w-16 shrink-0"
+          className="h-12 w-12 shrink-0"
           disabled={value === null || value <= min}
           onClick={() => onChange(value === null ? null : clamp(value - 1))}
         >
-          <Minus className="!size-6" />
+          <Minus />
         </Button>
         <Input
           id={id}
@@ -59,17 +59,17 @@ export function PlantStepper({ id, label, value, onChange, min = 1, max = 500, n
               e.currentTarget.blur()
             }
           }}
-          className="h-16 text-center text-3xl font-semibold md:text-3xl"
+          className="h-12 text-center text-lg font-semibold md:text-xl"
         />
         <Button
           type="button"
           variant="outline"
           aria-label="One more"
-          className="h-16 w-16 shrink-0"
+          className="h-12 w-12 shrink-0"
           disabled={value !== null && value >= max}
           onClick={() => onChange(value === null ? min : clamp(value + 1))}
         >
-          <Plus className="!size-6" />
+          <Plus />
         </Button>
       </div>
       {note && <p className="text-sm text-muted-foreground">{note}</p>}

@@ -27,7 +27,7 @@ import {
   type TrimStrainOption,
 } from '@/actions/harvest-trim'
 import { createBatchNameAllocator, deriveStrainAbbreviation, formatBatchName } from '@/lib/trim/batch-name'
-import { batchColor, dateOnlyText } from './format'
+import { dateOnlyText } from './format'
 import { useRefetchOnFocus } from './use-refetch-on-focus'
 import { useTrimRun } from './use-trim-run'
 
@@ -370,10 +370,10 @@ export function DeclareHarvestBatchesForm({
       <div className="space-y-3 rounded-lg border border-destructive/30 p-4 text-center">
         <p className="text-destructive">{loadError}</p>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-          <Button type="button" variant="outline" className="h-14" onClick={() => void load()}>
+          <Button type="button" variant="outline" onClick={() => void load()}>
             Try again
           </Button>
-          <Button type="button" variant="ghost" className="h-14" onClick={skip}>
+          <Button type="button" variant="ghost" onClick={skip}>
             {skipLabel ?? 'Skip for now'}
           </Button>
         </div>
@@ -414,7 +414,6 @@ export function DeclareHarvestBatchesForm({
               return (
                 <li key={b.id} className="rounded-lg border bg-card p-3">
                   <div className="flex items-center gap-3">
-                    <span className={cn('h-10 w-2 shrink-0 rounded-full', batchColor(b.strainId ?? b.id))} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-base font-semibold">{b.name}</p>
                       <p className="truncate text-sm text-muted-foreground">
@@ -434,7 +433,7 @@ export function DeclareHarvestBatchesForm({
                         autoCapitalize="characters"
                         autoCorrect="off"
                         spellCheck={false}
-                        className="h-14 font-mono text-base"
+                        className="font-mono"
                       />
                       {renaming.error && (
                         <p role="alert" className="text-sm font-medium text-red-700 dark:text-red-300">
@@ -442,13 +441,13 @@ export function DeclareHarvestBatchesForm({
                         </p>
                       )}
                       <div className="flex gap-2">
-                        <Button type="button" className="h-14 flex-1" disabled={busy} onClick={() => void saveRename()}>
+                        <Button type="button" className="flex-1" disabled={busy} onClick={() => void saveRename()}>
                           {busy ? 'Saving...' : 'Save name'}
                         </Button>
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-14 flex-1"
+                          className="flex-1"
                           disabled={busy}
                           onClick={() => setRenaming(null)}
                         >
@@ -465,7 +464,7 @@ export function DeclareHarvestBatchesForm({
                         <Button
                           type="button"
                           variant="destructive"
-                          className="h-14 flex-1"
+                          className="flex-1"
                           disabled={busy}
                           onClick={() => void confirmRemove(b)}
                         >
@@ -474,7 +473,7 @@ export function DeclareHarvestBatchesForm({
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-14 flex-1"
+                          className="flex-1"
                           disabled={busy}
                           onClick={() => setRemoving(null)}
                         >
@@ -489,7 +488,7 @@ export function DeclareHarvestBatchesForm({
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-14 flex-1"
+                        className="flex-1"
                         onClick={() => {
                           setManageError(null)
                           setRemoving(null)
@@ -501,7 +500,7 @@ export function DeclareHarvestBatchesForm({
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-14 flex-1"
+                        className="flex-1"
                         onClick={() => {
                           setManageError(null)
                           setRenaming(null)
@@ -535,7 +534,7 @@ export function DeclareHarvestBatchesForm({
                 return !q || (keywords?.[0] ?? '').toLowerCase().includes(q) ? 1 : 0
               }}
             >
-              <CommandInput placeholder="Search strains" className="h-14 text-base" />
+              <CommandInput placeholder="Search strains" />
               <CommandList className="max-h-72">
                 <CommandEmpty>No strain matches that search.</CommandEmpty>
                 <CommandGroup>
@@ -549,7 +548,7 @@ export function DeclareHarvestBatchesForm({
                         keywords={[s.name]}
                         disabled={alreadyDeclared}
                         onSelect={() => toggleStrain(s)}
-                        className="min-h-14 gap-3 px-3 text-base"
+                        className="min-h-12 gap-3 px-3 text-base"
                       >
                         <span
                           aria-hidden
@@ -558,7 +557,7 @@ export function DeclareHarvestBatchesForm({
                             ticked || alreadyDeclared ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
                           )}
                         >
-                          {(ticked || alreadyDeclared) && <Check className="!size-4" />}
+                          {(ticked || alreadyDeclared) && <Check className="h-4 w-4" />}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{s.name}</span>
                         {alreadyDeclared && (
@@ -572,7 +571,7 @@ export function DeclareHarvestBatchesForm({
             </Command>
             {count > 0 && (
               <div className="border-t p-2">
-                <Button type="button" variant="outline" className="h-14 w-full" onClick={() => setPickerOpen(false)}>
+                <Button type="button" variant="outline" className="w-full" onClick={() => setPickerOpen(false)}>
                   Done choosing ({count} {plural(count, 'batch', 'batches')})
                 </Button>
               </div>
@@ -582,7 +581,7 @@ export function DeclareHarvestBatchesForm({
           <Button
             type="button"
             variant="outline"
-            className="h-14 w-full justify-between"
+            className="w-full justify-between"
             aria-expanded={false}
             onClick={() => setPickerOpen(true)}
           >
@@ -609,7 +608,6 @@ export function DeclareHarvestBatchesForm({
                   className={cn('space-y-2 rounded-xl border-2 p-3', problem ? 'border-red-500/60' : 'border-border')}
                 >
                   <div className="flex items-center gap-3">
-                    <span className={cn('h-10 w-2 shrink-0 rounded-full', batchColor(r.strainId))} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-base font-semibold">{strain?.name ?? 'Unknown strain'}</p>
                       {isSplit && <p className="text-xs text-muted-foreground">Split batch</p>}
@@ -618,10 +616,10 @@ export function DeclareHarvestBatchesForm({
                       type="button"
                       variant="ghost"
                       aria-label={`Remove ${r.name || strain?.name || 'this batch'}`}
-                      className="h-14 w-14 shrink-0"
+                      className="h-10 w-10 shrink-0"
                       onClick={() => removeRow(r.key)}
                     >
-                      <X className="!size-5" />
+                      <X />
                     </Button>
                   </div>
                   <Input
@@ -633,7 +631,7 @@ export function DeclareHarvestBatchesForm({
                     autoCorrect="off"
                     spellCheck={false}
                     enterKeyHint="done"
-                    className="h-14 font-mono text-base"
+                    className="font-mono"
                   />
                   {problem && (
                     <div role="alert" className="space-y-2">
@@ -645,7 +643,7 @@ export function DeclareHarvestBatchesForm({
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-14 w-full font-mono"
+                          className="w-full font-mono"
                           onClick={() => renameRow(r.key, problem.suggestion ?? r.name)}
                         >
                           Use {problem.suggestion}
@@ -653,7 +651,7 @@ export function DeclareHarvestBatchesForm({
                       )}
                     </div>
                   )}
-                  <Button type="button" variant="outline" className="h-14" onClick={() => splitRow(r)}>
+                  <Button type="button" variant="outline" onClick={() => splitRow(r)}>
                     <Plus className="mr-2 h-4 w-4" />
                     Split
                   </Button>
@@ -680,13 +678,13 @@ export function DeclareHarvestBatchesForm({
       <div className="space-y-2">
         <Button
           type="button"
-          className="h-16 w-full text-lg font-bold"
+          className="h-14 w-full text-lg font-semibold"
           disabled={!canSubmit}
           onClick={() => void submit()}
         >
           {submitting ? 'Declaring...' : `Declare ${count} ${plural(count, 'batch', 'batches')}`}
         </Button>
-        <Button type="button" variant="ghost" className="h-14 w-full" disabled={submitting} onClick={skip}>
+        <Button type="button" variant="ghost" className="w-full" disabled={submitting} onClick={skip}>
           {skipText}
         </Button>
       </div>

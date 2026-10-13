@@ -266,7 +266,7 @@ function Station() {
 
       {view.kind === 'loading' && (
         <Card>
-          <CardContent className="py-8 text-center text-lg text-muted-foreground">Looking up {view.code}...</CardContent>
+          <CardContent className="py-8 text-center text-base text-muted-foreground">Looking up {view.code}...</CardContent>
         </Card>
       )}
 
@@ -274,18 +274,18 @@ function Station() {
         <Card className="border-destructive/40">
           <CardContent className="space-y-3 py-6 text-center">
             <Ban className="mx-auto h-10 w-10 text-destructive" />
-            <p className="text-lg font-semibold">{view.message}</p>
+            <p className="text-base font-semibold">{view.message}</p>
             {view.notFound && (
               <p className="text-muted-foreground">
                 If this tag is new, add it on the Hangers page first (Import tab).
               </p>
             )}
             <div className="flex flex-wrap justify-center gap-2">
-              <Button type="button" variant="outline" className="h-14" onClick={() => void resolve(view.code, 'typed')}>
+              <Button type="button" variant="outline" onClick={() => void resolve(view.code, 'typed')}>
                 Try again
               </Button>
               {view.notFound && (
-                <Button asChild variant="outline" className="h-14">
+                <Button asChild variant="outline">
                   <Link href={`${BASE}/hangers`}>Go to Hangers</Link>
                 </Button>
               )}
@@ -372,9 +372,9 @@ function Station() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-14">Keep working on {currentCodeRef.current}</AlertDialogCancel>
+            <AlertDialogCancel>Keep working on {currentCodeRef.current}</AlertDialogCancel>
             <AlertDialogAction
-              className="h-14"
+             
               onClick={() => {
                 const p = pendingScan
                 setPendingScan(null)
@@ -471,12 +471,12 @@ function ScanFlow({
     return (
       <Card className="border-destructive/40">
         <CardContent className="space-y-3 py-6">
-          <p className="font-mono text-3xl font-bold">{hanger.code}</p>
-          <p className="text-lg font-semibold text-destructive">
+          <p className="font-mono text-2xl font-bold">{hanger.code}</p>
+          <p className="text-base font-semibold text-destructive">
             This hanger is {meta.label.toLowerCase()}. It cannot take new loads.
           </p>
           {hanger.notes && <p className="text-muted-foreground">Note: {hanger.notes}</p>}
-          <Button type="button" variant="outline" className="h-14" onClick={onHistory}>
+          <Button type="button" variant="outline" onClick={onHistory}>
             See its history
           </Button>
         </CardContent>
@@ -588,9 +588,9 @@ function ScanFlow({
   return (
     <Card>
       <CardContent className="space-y-3 py-6">
-        <p className="font-mono text-3xl font-bold">{hanger.code}</p>
-        <p className="text-lg">Nothing to do with this tag right now.</p>
-        <Button type="button" variant="outline" className="h-14" onClick={onHistory}>
+        <p className="font-mono text-2xl font-bold">{hanger.code}</p>
+        <p className="text-base">Nothing to do with this tag right now.</p>
+        <Button type="button" variant="outline" onClick={onHistory}>
           See its history
         </Button>
       </CardContent>
@@ -602,8 +602,8 @@ function MissingEpisode({ onRefresh }: { onRefresh: () => void }) {
   return (
     <Card>
       <CardContent className="space-y-3 py-6 text-center">
-        <p className="text-lg font-semibold">The details for this hanger did not load.</p>
-        <Button type="button" variant="outline" className="h-14" onClick={onRefresh}>
+        <p className="text-base font-semibold">The details for this hanger did not load.</p>
+        <Button type="button" variant="outline" onClick={onRefresh}>
           Reload
         </Button>
       </CardContent>

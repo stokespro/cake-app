@@ -25,7 +25,7 @@ export function DeclareBatchesCard({ cycle, collapsed, onDeclared }: DeclareBatc
 
   if (!open) {
     return (
-      <Button type="button" variant="outline" className="h-14 w-full" onClick={() => setOpen(true)}>
+      <Button type="button" variant="outline" className="w-full" onClick={() => setOpen(true)}>
         <PackagePlus className="mr-2 h-4 w-4" />
         Declare batches for this room
       </Button>

@@ -225,7 +225,7 @@ export function HangerImport({ onImported, onViewRegistry }: HangerImportProps) 
       <Card>
         <CardContent className="space-y-4 pt-5">
           <div>
-            <h2 className="text-xl font-semibold">Import hanger IDs</h2>
+            <h2 className="text-lg font-semibold">Import hanger IDs</h2>
             <p className="text-muted-foreground">
               Load the IDs you printed. Paste a list (one per line) or upload the CSV your label tool exports. Safe to run
               again: tags that are already registered are skipped.
@@ -233,7 +233,7 @@ export function HangerImport({ onImported, onViewRegistry }: HangerImportProps) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="import-text" className="text-base font-semibold">
+            <Label htmlFor="import-text">
               Paste a list
             </Label>
             <Textarea
@@ -244,7 +244,7 @@ export function HangerImport({ onImported, onViewRegistry }: HangerImportProps) 
               placeholder={EXAMPLE}
               spellCheck={false}
               autoCapitalize="characters"
-              className="font-mono text-base"
+              className="font-mono"
               disabled={busy}
             />
           </div>
@@ -258,7 +258,7 @@ export function HangerImport({ onImported, onViewRegistry }: HangerImportProps) 
               onChange={onFile}
               aria-label="Upload a CSV or text file of hanger IDs"
             />
-            <Button type="button" variant="outline" className="h-14" onClick={() => fileRef.current?.click()} disabled={busy}>
+            <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>
               <FileUp className="mr-2 h-4 w-4" />
               Upload a CSV
             </Button>
@@ -267,7 +267,7 @@ export function HangerImport({ onImported, onViewRegistry }: HangerImportProps) 
 
           <Button
             type="button"
-            className="h-16 w-full text-lg font-bold"
+            className="h-12 w-full text-base font-semibold"
             disabled={busy || text.trim() === ''}
             onClick={doPreview}
           >
@@ -279,13 +279,13 @@ export function HangerImport({ onImported, onViewRegistry }: HangerImportProps) 
       {preview && (
         <Card>
           <CardContent className="space-y-4 pt-5">
-            <h2 className="text-xl font-semibold">Preview</h2>
+            <h2 className="text-lg font-semibold">Preview</h2>
             <p className="text-muted-foreground">
               {preview.rowCount} {preview.rowCount === 1 ? 'row' : 'rows'} read. Nothing has been saved yet.
             </p>
             <ImportGroups report={preview} addedLabel="Will be added" addedCodes={preview.newCodes} />
             {newCount > 0 ? (
-              <Button type="button" className="h-16 w-full text-lg font-bold" disabled={busy} onClick={doConfirm}>
+              <Button type="button" className="h-12 w-full text-base font-semibold" disabled={busy} onClick={doConfirm}>
                 {busy
                   ? 'Adding...'
                   : preview.rejected.length > 0
@@ -309,13 +309,13 @@ export function HangerImport({ onImported, onViewRegistry }: HangerImportProps) 
       {result && (
         <Card className="border-green-500/50">
           <CardContent className="space-y-4 pt-5">
-            <h2 className="text-xl font-semibold">Import finished</h2>
+            <h2 className="text-lg font-semibold">Import finished</h2>
             <ImportGroups report={result} addedLabel="Added" addedCodes={result.insertedCodes ?? []} />
             <div className="grid gap-2 sm:grid-cols-2">
-              <Button type="button" className="h-14" onClick={onViewRegistry}>
+              <Button type="button" onClick={onViewRegistry}>
                 View the registry
               </Button>
-              <Button type="button" variant="outline" className="h-14" onClick={reset}>
+              <Button type="button" variant="outline" onClick={reset}>
                 Import another list
               </Button>
             </div>
@@ -324,7 +324,7 @@ export function HangerImport({ onImported, onViewRegistry }: HangerImportProps) 
       )}
 
       <details className="rounded-lg border bg-card">
-        <summary className="flex min-h-14 cursor-pointer list-none items-center px-4 py-3 font-semibold [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center px-4 py-3 font-semibold [&::-webkit-details-marker]:hidden">
           Advanced: register the next sequential IDs
         </summary>
         <div className="space-y-3 border-t p-4">
@@ -340,12 +340,12 @@ export function HangerImport({ onImported, onViewRegistry }: HangerImportProps) 
               inputMode="numeric"
               placeholder="How many?"
               aria-label="How many IDs to register"
-              className="h-14 text-lg"
+              className="h-12 text-lg"
             />
             <Button
               type="button"
               variant="outline"
-              className="h-14 shrink-0"
+              className="shrink-0"
               disabled={busy || count === '' || Number(count) < 1}
               onClick={doGenerate}
             >

@@ -124,16 +124,16 @@ export function BatchDetailClient({ batchId }: { batchId: string }) {
       {/* Needs attention */}
       {(flagged.length > 0 || out.length > 0 || partial.length > 0) && (
         <section aria-label="Needs attention" className="space-y-3">
-          <h2 className="text-xl font-semibold">In progress</h2>
+          <h2 className="text-lg font-semibold">In progress</h2>
           <ul className="grid gap-2 md:grid-cols-2">
             {flagged.map((f) => (
               <li key={f.checkoutId}>
                 <Link
                   href={stationHref(f.hangerCode)}
-                  className="flex min-h-16 items-center justify-between gap-3 rounded-lg border-2 border-red-500/60 bg-red-500/10 p-3"
+                  className="flex min-h-12 items-center justify-between gap-3 rounded-lg border-2 border-red-500/60 bg-red-500/10 p-3"
                 >
                   <div>
-                    <p className="font-mono text-lg font-bold">{f.hangerCode}</p>
+                    <p className="font-mono text-base font-bold">{f.hangerCode}</p>
                     <p className="text-sm font-semibold text-red-700 dark:text-red-300">
                       Flagged &middot; {f.trimmerName} &middot; {signedGramsText(f.varianceG === null ? null : -f.varianceG)} (
                       {pctText(f.variancePct === null ? null : -f.variancePct, 1, true)})
@@ -147,10 +147,10 @@ export function BatchDetailClient({ batchId }: { batchId: string }) {
               <li key={p.loadId}>
                 <Link
                   href={stationHref(p.hangerCode)}
-                  className="flex min-h-16 items-center justify-between gap-3 rounded-lg border-2 border-violet-500/40 bg-violet-500/5 p-3"
+                  className="flex min-h-12 items-center justify-between gap-3 rounded-lg border-2 border-violet-500/40 bg-violet-500/5 p-3"
                 >
                   <div>
-                    <p className="font-mono text-lg font-bold">{p.hangerCode}</p>
+                    <p className="font-mono text-base font-bold">{p.hangerCode}</p>
                     <p className="text-sm text-muted-foreground">
                       Unfinished &middot; {plantsText(p.remainingPlants)} left &middot; {lbText(p.remainingG)}
                     </p>
@@ -163,10 +163,10 @@ export function BatchDetailClient({ batchId }: { batchId: string }) {
               <li key={o.checkoutId}>
                 <Link
                   href={stationHref(o.hangerCode)}
-                  className="flex min-h-16 items-center justify-between gap-3 rounded-lg border-2 border-amber-500/50 bg-amber-500/10 p-3"
+                  className="flex min-h-12 items-center justify-between gap-3 rounded-lg border-2 border-amber-500/50 bg-amber-500/10 p-3"
                 >
                   <div>
-                    <p className="font-mono text-lg font-bold">{o.hangerCode}</p>
+                    <p className="font-mono text-base font-bold">{o.hangerCode}</p>
                     <p className="text-sm text-muted-foreground">
                       With {o.trimmerName} &middot; {lbText(o.issuedG)} &middot; {agoText(o.checkedOutAt)}
                     </p>
@@ -181,7 +181,7 @@ export function BatchDetailClient({ batchId }: { batchId: string }) {
 
       {/* Yield and totals */}
       <section aria-label="Totals and yield" className="space-y-3">
-        <h2 className="text-xl font-semibold">Totals and yield</h2>
+        <h2 className="text-lg font-semibold">Totals and yield</h2>
         {report.summary.hangers === 0 ? (
           <Card>
             <CardContent className="py-6 text-center text-muted-foreground">
@@ -210,7 +210,7 @@ export function BatchDetailClient({ batchId }: { batchId: string }) {
         <Card className="border-destructive/30">
           <CardContent className="space-y-2 py-5 text-center">
             <p className="text-destructive">{data.loadsError ?? 'Could not load the hangers for this batch.'}</p>
-            <Button type="button" variant="outline" className="h-14" onClick={() => void load()}>
+            <Button type="button" variant="outline" onClick={() => void load()}>
               Try again
             </Button>
           </CardContent>
@@ -224,7 +224,7 @@ export function BatchDetailClient({ batchId }: { batchId: string }) {
 
 function BackLink() {
   return (
-    <Button asChild variant="ghost" className="-ml-3 h-14">
+    <Button asChild variant="ghost" className="-ml-3">
       <Link href={BASE}>
         <ArrowLeft className="mr-2 h-4 w-4" />
         Overview

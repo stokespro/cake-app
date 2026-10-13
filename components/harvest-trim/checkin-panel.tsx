@@ -251,7 +251,7 @@ export function CheckInPanel({
       <CardContent className="space-y-5 pt-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xl font-bold">{mode === 'correct' ? 'Re-weigh the return' : 'Check in'}</p>
+            <p className="text-lg font-bold">{mode === 'correct' ? 'Re-weigh the return' : 'Check in'}</p>
             <p className="text-muted-foreground">
               With <span className="font-semibold text-foreground">{episode.trimmerName}</span> &middot; out{' '}
               {agoText(episode.checkedOutAt)}
@@ -273,7 +273,7 @@ export function CheckInPanel({
               aria-pressed={kind === k}
               onClick={() => setKind(k)}
               className={cn(
-                'h-16 rounded-lg border-2 text-lg font-bold transition-colors',
+                'h-12 rounded-lg border-2 text-base font-semibold transition-colors',
                 kind === k
                   ? k === 'complete'
                     ? 'border-green-600 bg-green-600 text-white'
@@ -353,7 +353,7 @@ export function CheckInPanel({
 
         <Button
           type="button"
-          className="h-16 w-full text-lg font-bold"
+          className="h-14 w-full text-lg font-semibold"
           disabled={!canSubmit}
           onClick={handleSubmit}
         >
@@ -370,13 +370,13 @@ export function CheckInPanel({
 
         <div className="flex flex-wrap gap-2">
           {mode === 'correct' && onCancel && (
-            <Button type="button" variant="outline" className="h-14" onClick={onCancel} disabled={busy}>
+            <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
               <Undo2 className="mr-2 h-4 w-4" />
               Back
             </Button>
           )}
           {mode === 'checkin' && !alreadyReturned && (
-            <Button type="button" variant="ghost" className="h-14" onClick={() => setReleaseOpen(true)} disabled={busy}>
+            <Button type="button" variant="ghost" onClick={() => setReleaseOpen(true)} disabled={busy}>
               Wrong trimmer? Release this hanger
             </Button>
           )}

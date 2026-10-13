@@ -98,7 +98,7 @@ function LoadSection({
   const meta = LOAD_STATUS_META[load.status]
   return (
     <details open={index === 0} className="group rounded-lg border bg-card">
-      <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-12 cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
         <span className={cn('rounded-full border px-2.5 py-0.5 text-xs font-semibold', meta.pill)}>{meta.label}</span>
         <span className="text-base font-semibold">{load.batch?.name ?? 'No batch'}</span>
         <span className="text-sm text-muted-foreground">
@@ -109,7 +109,7 @@ function LoadSection({
       <div className="space-y-4 border-t px-4 py-4">
         <BatchBanner batch={load.batch} />
         {load.batch && (
-          <Button asChild variant="outline" className="h-14">
+          <Button asChild variant="outline">
             <Link href={`${BASE}/batches/${load.batch.id}`}>Open batch</Link>
           </Button>
         )}
@@ -135,7 +135,7 @@ function LoadSection({
           <EpisodeList episodes={load.episodes} />
         </div>
         {canReopen && load.status === 'reconciled' && (
-          <Button type="button" variant="outline" className="h-14" onClick={() => onReopen(load)}>
+          <Button type="button" variant="outline" onClick={() => onReopen(load)}>
             <RotateCcw className="mr-2 h-4 w-4" />
             Reopen this load
           </Button>
@@ -183,7 +183,7 @@ export function HangerDetailPanel({ lookup, onChanged, showStationLink = true }:
               </span>
             )}
           </div>
-          <p className="text-lg">{statusSentence(lookup)}</p>
+          <p className="text-base">{statusSentence(lookup)}</p>
           {hanger.notes && <p className="text-sm text-muted-foreground">Note: {hanger.notes}</p>}
           <p className="text-sm text-muted-foreground">
             {lookup.canStartLoad
@@ -193,7 +193,7 @@ export function HangerDetailPanel({ lookup, onChanged, showStationLink = true }:
                 : 'In use: finish or close the open load before starting another.'}
           </p>
           {showStationLink && access.canOperate && hanger.status !== 'lost' && (
-            <Button asChild className="h-14 text-base font-semibold">
+            <Button asChild className="font-semibold">
               <Link href={`${BASE}/station?code=${encodeURIComponent(hanger.code)}`}>Open at the trim station</Link>
             </Button>
           )}
@@ -226,7 +226,7 @@ export function HangerDetailPanel({ lookup, onChanged, showStationLink = true }:
 
       <section aria-label="Audit trail">
         <details className="rounded-lg border bg-card">
-          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2 px-4 py-3 text-lg font-semibold [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 py-3 text-lg font-semibold [&::-webkit-details-marker]:hidden">
             <History className="h-5 w-5" />
             Audit trail
             <span className="text-sm font-normal text-muted-foreground">({events.length})</span>
@@ -312,7 +312,7 @@ export function HangerDetail({ code, showStationLink }: HangerDetailProps) {
     return (
       <div className="space-y-3 rounded-lg border border-destructive/30 p-4 text-center">
         <p className="text-destructive">{error ?? 'Could not load this hanger.'}</p>
-        <Button variant="outline" className="h-14" onClick={() => void load()}>
+        <Button variant="outline" onClick={() => void load()}>
           Try again
         </Button>
       </div>

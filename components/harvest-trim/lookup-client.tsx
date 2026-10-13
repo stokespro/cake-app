@@ -75,7 +75,7 @@ export function LookupClient() {
 
       {state.kind === 'loading' && (
         <Card>
-          <CardContent className="py-8 text-center text-lg text-muted-foreground">Looking up {state.code}...</CardContent>
+          <CardContent className="py-8 text-center text-base text-muted-foreground">Looking up {state.code}...</CardContent>
         </Card>
       )}
 
@@ -83,7 +83,7 @@ export function LookupClient() {
         <Card className="border-destructive/40">
           <CardContent className="space-y-3 py-8 text-center">
             <SearchX className="mx-auto h-10 w-10 text-destructive" />
-            <p className="text-lg font-semibold">{state.message}</p>
+            <p className="text-base font-semibold">{state.message}</p>
             {state.notFound ? (
               <>
                 <p className="mx-auto max-w-md text-muted-foreground">
@@ -91,7 +91,7 @@ export function LookupClient() {
                   import it.
                 </p>
                 {access.canOperate && (
-                  <Button asChild className="h-14">
+                  <Button asChild>
                     <Link href={`${BASE}/hangers`}>Import hanger IDs</Link>
                   </Button>
                 )}
@@ -100,7 +100,7 @@ export function LookupClient() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-14"
+               
                 onClick={() => void lookup(state.code, 'typed')}
               >
                 Try again

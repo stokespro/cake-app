@@ -57,7 +57,7 @@ export function WeightField({
   return (
     <div className="space-y-1.5">
       <div className="flex items-end justify-between gap-2">
-        <Label htmlFor={id} className="text-base font-semibold">
+        <Label htmlFor={id}>
           {label}
         </Label>
         {onZero && (
@@ -93,7 +93,7 @@ export function WeightField({
             }
           }}
           className={cn(
-            'h-16 pr-14 text-center text-3xl font-semibold md:text-3xl',
+            'h-12 pr-14 text-center text-lg font-semibold md:text-xl',
             error && 'border-destructive focus-visible:ring-destructive'
           )}
         />

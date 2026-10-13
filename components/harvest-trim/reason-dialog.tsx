@@ -62,13 +62,13 @@ export function ReasonDialog({
         </DialogHeader>
         <ReasonPicker id="reason-dialog-reason" chips={chips} value={reason} onChange={setReason} />
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button type="button" variant="outline" className="h-14" onClick={() => onOpenChange(false)} disabled={busy}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
           <Button
             type="button"
             variant={destructive ? 'destructive' : 'default'}
-            className="h-14 text-base font-semibold"
+            className="font-semibold"
             disabled={!reasonIsValid(reason) || busy}
             onClick={confirm}
           >

@@ -60,9 +60,9 @@ export function StaffListClient() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Trimmers</h2>
+        <h2 className="text-lg font-semibold">Trimmers</h2>
         {access.canManageStaff && (
-          <Button type="button" className="h-14 px-5 text-base font-semibold" onClick={() => setAdding(true)}>
+          <Button type="button" className="h-12 px-5 text-base font-semibold" onClick={() => setAdding(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Add a trimmer
           </Button>
@@ -76,12 +76,12 @@ export function StaffListClient() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search trimmers"
           aria-label="Search trimmers"
-          className="h-14 pl-10 text-base"
+          className="pl-10"
         />
       </div>
 
       {inactiveCount > 0 && (
-        <label className="flex min-h-14 cursor-pointer items-center gap-3">
+        <label className="flex min-h-12 cursor-pointer items-center gap-3">
           <Switch checked={showInactive} onCheckedChange={setShowInactive} />
           <span className="text-base">
             Show inactive <span className="text-muted-foreground">({inactiveCount})</span>

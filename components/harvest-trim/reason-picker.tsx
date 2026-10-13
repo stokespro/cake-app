@@ -26,7 +26,7 @@ export function ReasonPicker({ id, chips, value, onChange, label = 'Reason', ton
   const onRed = tone === 'onRed'
   return (
     <div className="space-y-2">
-      <Label htmlFor={id} className={cn('text-base font-semibold', onRed && 'text-white')}>
+      <Label htmlFor={id} className={cn(onRed && 'text-white')}>
         {label} <span className={cn('text-sm font-normal', onRed ? 'text-white/80' : 'text-muted-foreground')}>(required)</span>
       </Label>
       <div className="flex flex-wrap gap-2">
@@ -39,7 +39,7 @@ export function ReasonPicker({ id, chips, value, onChange, label = 'Reason', ton
               aria-pressed={selected}
               onClick={() => onChange(chip === 'Other' ? '' : chip)}
               className={cn(
-                'h-14 rounded-lg border-2 px-4 text-base font-medium transition-colors',
+                'h-12 rounded-lg border-2 px-4 text-sm font-medium transition-colors',
                 onRed
                   ? selected
                     ? 'border-white bg-white text-red-700'
@@ -61,7 +61,7 @@ export function ReasonPicker({ id, chips, value, onChange, label = 'Reason', ton
         rows={2}
         maxLength={500}
         placeholder="Tell us what happened (at least 3 characters)"
-        className={cn('text-base', onRed && 'border-white/60 bg-white text-zinc-900')}
+        className={cn(onRed && 'border-white/60 bg-white text-zinc-900')}
       />
     </div>
   )

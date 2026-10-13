@@ -37,13 +37,13 @@ export function StationNoticeCard({ notice, onDismiss }: { notice: StationNotice
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss"
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md hover:bg-black/5"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md hover:bg-black/5"
         >
           <X className="h-5 w-5" />
         </button>
       </div>
       {notice.action && (
-        <Button type="button" className="mt-3 h-16 w-full text-lg font-bold" onClick={notice.action.onClick}>
+        <Button type="button" className="mt-3 h-12 w-full text-base font-semibold" onClick={notice.action.onClick}>
           {notice.action.label}
         </Button>
       )}

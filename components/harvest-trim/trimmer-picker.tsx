@@ -67,7 +67,7 @@ export function TrimmerPicker({ staff, selectedId, onSelect, firstId, label = 'W
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search trimmers"
             aria-label="Search trimmers"
-            className="h-14 pl-10 text-base"
+            className="pl-10"
           />
         </div>
       )}

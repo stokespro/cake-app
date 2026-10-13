@@ -162,25 +162,6 @@ export const HANGER_STATUS_META: Record<HangerStatus, { label: string; pill: str
   },
 }
 
-/** Stable strip colour per batch so a wrong-batch mistake is visible from across the room. */
-const BATCH_COLORS = [
-  'bg-emerald-600',
-  'bg-sky-600',
-  'bg-violet-600',
-  'bg-amber-600',
-  'bg-rose-600',
-  'bg-teal-600',
-  'bg-indigo-600',
-  'bg-orange-600',
-]
-
-export function batchColor(key: string | null | undefined): string {
-  if (!key) return 'bg-zinc-600'
-  let h = 0
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
-  return BATCH_COLORS[h % BATCH_COLORS.length]
-}
-
 /** Humanise an audit event type: "trim_staff_rate_changed" -> "Trim staff rate changed". */
 export function eventLabel(type: string): string {
   const t = type.replace(/_/g, ' ').trim()

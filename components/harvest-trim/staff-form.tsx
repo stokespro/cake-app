@@ -78,7 +78,7 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
   return (
     <form onSubmit={submit} className="space-y-5">
       <div className="space-y-1.5">
-        <Label htmlFor="staff-full-name" className="text-base font-semibold">
+        <Label htmlFor="staff-full-name">
           Full name
         </Label>
         <Input
@@ -87,12 +87,11 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
           onChange={(e) => setFullName(e.target.value)}
           maxLength={120}
           autoComplete="off"
-          className="h-14 text-base"
         />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="staff-display-name" className="text-base font-semibold">
+        <Label htmlFor="staff-display-name">
           Shown on buttons <span className="text-sm font-normal text-muted-foreground">(optional, e.g. a first name)</span>
         </Label>
         <Input
@@ -101,17 +100,16 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
           onChange={(e) => setDisplayName(e.target.value)}
           maxLength={60}
           autoComplete="off"
-          className="h-14 text-base"
         />
       </div>
 
       {!editing && (
         <div className="space-y-1.5">
-          <Label htmlFor="staff-rate" className="text-base font-semibold">
+          <Label htmlFor="staff-rate">
             Pay per lb of flower
           </Label>
           <div className="relative">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg text-muted-foreground">$</span>
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-muted-foreground">$</span>
             <Input
               id="staff-rate"
               type="text"
@@ -119,7 +117,7 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
               value={rate}
               onChange={(e) => RATE_KEYSTROKE.test(e.target.value) && setRate(e.target.value)}
               placeholder="0.00"
-              className="h-16 pl-9 pr-16 text-2xl font-semibold"
+              className="h-12 pl-9 pr-16 text-lg font-semibold md:text-xl"
             />
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground">/ lb</span>
           </div>
@@ -131,7 +129,7 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="staff-phone" className="text-base font-semibold">
+          <Label htmlFor="staff-phone">
             Phone
           </Label>
           <Input
@@ -141,11 +139,10 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             maxLength={40}
-            className="h-14 text-base"
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="staff-start" className="text-base font-semibold">
+          <Label htmlFor="staff-start">
             Start date
           </Label>
           <Input
@@ -153,13 +150,12 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="h-14 text-base"
           />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="staff-email" className="text-base font-semibold">
+        <Label htmlFor="staff-email">
           Email
         </Label>
         <Input
@@ -170,7 +166,6 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
           onChange={(e) => setEmail(e.target.value)}
           maxLength={200}
           autoCapitalize="none"
-          className="h-14 text-base"
         />
         {!emailValid && <p className="text-sm font-medium text-destructive">Enter a valid email address.</p>}
       </div>
@@ -181,7 +176,7 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="staff-notes" className="text-base font-semibold">
+        <Label htmlFor="staff-notes">
           Notes
         </Label>
         <Textarea
@@ -190,16 +185,15 @@ export function StaffForm({ staff, onSaved, onCancel }: StaffFormProps) {
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           maxLength={1000}
-          className="text-base"
         />
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <Button type="submit" className="h-16 text-lg font-bold" disabled={!canSave}>
+        <Button type="submit" className="h-12 text-base font-semibold" disabled={!canSave}>
           {busy ? 'Saving...' : editing ? 'Save changes' : 'Add trimmer'}
         </Button>
         {onCancel && (
-          <Button type="button" variant="outline" className="h-16 text-base" onClick={onCancel} disabled={busy}>
+          <Button type="button" variant="outline" className="h-12" onClick={onCancel} disabled={busy}>
             Cancel
           </Button>
         )}

@@ -25,7 +25,7 @@ export function NoAccess({
           <ShieldAlert className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
           <h2 className="mb-2 text-lg font-medium">{title}</h2>
           <p className="mx-auto mb-5 max-w-md text-muted-foreground">{message}</p>
-          <Button asChild variant="outline" className="h-14 px-6">
+          <Button asChild variant="outline" className="px-6">
             <Link href={backHref}>{backLabel}</Link>
           </Button>
         </div>

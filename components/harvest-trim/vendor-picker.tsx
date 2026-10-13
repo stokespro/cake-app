@@ -59,7 +59,7 @@ export function VendorPicker({ value, onChange, disabled }: VendorPickerProps) {
           placeholder="Search vendors"
           aria-label="Search vendors"
           disabled={disabled}
-          className="h-14 pl-10 text-base"
+          className="pl-10"
         />
       </div>
       {selected && (
@@ -74,7 +74,7 @@ export function VendorPicker({ value, onChange, disabled }: VendorPickerProps) {
           disabled={disabled}
           onClick={() => onChange(null)}
           className={cn(
-            'flex h-14 w-full items-center justify-between rounded-md px-3 text-left text-base',
+            'flex min-h-12 w-full items-center justify-between rounded-md px-3 text-left',
             value === null ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
           )}
         >
@@ -89,7 +89,7 @@ export function VendorPicker({ value, onChange, disabled }: VendorPickerProps) {
             disabled={disabled}
             onClick={() => onChange(v.id)}
             className={cn(
-              'flex h-14 w-full items-center justify-between gap-2 rounded-md px-3 text-left text-base',
+              'flex min-h-12 w-full items-center justify-between gap-2 rounded-md px-3 text-left',
               value === v.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
             )}
           >

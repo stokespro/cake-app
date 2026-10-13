@@ -49,17 +49,17 @@ export function LoadCard({ scan, load, canVoid, onHistory, onVoid }: LoadCardPro
           </div>
         </dl>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button type="button" variant="outline" className="h-14" onClick={onHistory}>
+          <Button type="button" variant="outline" onClick={onHistory}>
             <History className="mr-2 h-4 w-4" />
             Full history
           </Button>
           {canVoid && (
             <details className="group">
-              <summary className="flex h-14 cursor-pointer list-none items-center rounded-md border px-4 text-sm font-medium [&::-webkit-details-marker]:hidden">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center rounded-md border px-4 text-sm font-medium [&::-webkit-details-marker]:hidden">
                 More
               </summary>
               <div className="pt-2">
-                <Button type="button" variant="destructive" className="h-14" onClick={onVoid}>
+                <Button type="button" variant="destructive" onClick={onVoid}>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Void this load
                 </Button>

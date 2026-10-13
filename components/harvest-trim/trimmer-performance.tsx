@@ -27,7 +27,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   return (
     <div className="rounded-lg border bg-card p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-xl font-bold">{value}</p>
+      <p className="text-lg font-bold">{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   )
@@ -75,7 +75,7 @@ export function TrimmerPerformance({ trimmerId }: { trimmerId: string }) {
 
   return (
     <section aria-label="Performance" className="space-y-3">
-      <h3 className="text-xl font-semibold">Performance</h3>
+      <h3 className="text-lg font-semibold">Performance</h3>
       <div className="flex flex-wrap gap-2">
         {PRESETS.map((p) => (
           <button
@@ -84,7 +84,7 @@ export function TrimmerPerformance({ trimmerId }: { trimmerId: string }) {
             aria-pressed={days === p.days}
             onClick={() => preset(p.days)}
             className={cn(
-              'h-14 rounded-lg border-2 px-4 text-base font-semibold',
+              'h-12 rounded-lg border-2 px-4 text-sm font-semibold',
               days === p.days ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'
             )}
           >
@@ -104,7 +104,7 @@ export function TrimmerPerformance({ trimmerId }: { trimmerId: string }) {
               setDays(null)
               setFrom(e.target.value)
             }}
-            className="h-14 text-base"
+           
           />
         </div>
         <div className="space-y-1">
@@ -118,7 +118,7 @@ export function TrimmerPerformance({ trimmerId }: { trimmerId: string }) {
               setDays(null)
               setTo(e.target.value)
             }}
-            className="h-14 text-base"
+           
           />
         </div>
       </div>
@@ -127,7 +127,7 @@ export function TrimmerPerformance({ trimmerId }: { trimmerId: string }) {
         <Card className="border-destructive/30">
           <CardContent className="space-y-2 py-5 text-center">
             <p className="text-destructive">{error}</p>
-            <Button type="button" variant="outline" className="h-14" onClick={() => void load()}>
+            <Button type="button" variant="outline" onClick={() => void load()}>
               Try again
             </Button>
           </CardContent>
@@ -181,7 +181,7 @@ export function TrimmerPerformance({ trimmerId }: { trimmerId: string }) {
               {row.isFlowerShareOutlier && <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />}
               <div>
                 <p className="text-xs text-muted-foreground">Flower share of everything returned</p>
-                <p className="text-2xl font-bold">{pctText(row.flowerSharePct, 1)}</p>
+                <p className="text-lg font-bold">{pctText(row.flowerSharePct, 1)}</p>
                 <p className="text-sm text-muted-foreground">
                   Crew median {pctText(report?.baselineFlowerSharePct ?? null, 1)}
                   {row.flowerShareDeltaPts !== null && (

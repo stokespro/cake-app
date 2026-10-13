@@ -97,12 +97,12 @@ export function StaffDetailClient({ id }: { id: string }) {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">{trimmerName(staff)}</h2>
+          <h2 className="text-lg font-bold">{trimmerName(staff)}</h2>
           {staff.displayName && <p className="text-muted-foreground">{staff.fullName}</p>}
           <p className="mt-1 text-sm font-semibold">{staff.isActive ? 'Active' : 'Inactive'}</p>
         </div>
         {access.canOperate && (
-          <Button type="button" variant="outline" className="h-14" disabled={busy} onClick={toggleActive}>
+          <Button type="button" variant="outline" disabled={busy} onClick={toggleActive}>
             {staff.isActive ? 'Mark inactive' : 'Make active again'}
           </Button>
         )}
@@ -126,7 +126,7 @@ export function StaffDetailClient({ id }: { id: string }) {
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-lg font-semibold">Details</h3>
                 {access.canManageStaff && (
-                  <Button type="button" variant="outline" className="h-14" onClick={() => setEditing(true)}>
+                  <Button type="button" variant="outline" onClick={() => setEditing(true)}>
                     <Pencil className="mr-2 h-4 w-4" />
                     Edit
                   </Button>
@@ -157,12 +157,12 @@ export function StaffDetailClient({ id }: { id: string }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold">Pay rate</h3>
-                <p className="text-3xl font-bold">
-                  ${staff.payPerLb?.toFixed(2)} <span className="text-lg font-normal text-muted-foreground">per lb of flower</span>
+                <p className="text-2xl font-bold">
+                  ${staff.payPerLb?.toFixed(2)} <span className="text-base font-normal text-muted-foreground">per lb of flower</span>
                 </p>
               </div>
               {access.canManageStaff && !changingRate && (
-                <Button type="button" variant="outline" className="h-14" onClick={() => setChangingRate(true)}>
+                <Button type="button" variant="outline" onClick={() => setChangingRate(true)}>
                   Change rate
                 </Button>
               )}
@@ -171,11 +171,11 @@ export function StaffDetailClient({ id }: { id: string }) {
             {changingRate && (
               <div className="space-y-3 rounded-lg border p-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="new-rate" className="text-base font-semibold">
+                  <Label htmlFor="new-rate">
                     New rate
                   </Label>
                   <div className="relative">
-                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg text-muted-foreground">$</span>
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-muted-foreground">$</span>
                     <Input
                       id="new-rate"
                       type="text"
@@ -184,7 +184,7 @@ export function StaffDetailClient({ id }: { id: string }) {
                       value={newRate}
                       onChange={(e) => RATE_KEYSTROKE.test(e.target.value) && setNewRate(e.target.value)}
                       placeholder={staff.payPerLb?.toFixed(2)}
-                      className="h-16 pl-9 pr-16 text-2xl font-semibold"
+                      className="h-12 pl-9 pr-16 text-lg font-semibold md:text-xl"
                     />
                     <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground">/ lb</span>
                   </div>
@@ -194,13 +194,13 @@ export function StaffDetailClient({ id }: { id: string }) {
                   </p>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <Button type="button" className="h-14 text-base font-semibold" disabled={!rateValid || busy} onClick={saveRate}>
+                  <Button type="button" className="h-12 text-base font-semibold" disabled={!rateValid || busy} onClick={saveRate}>
                     {busy ? 'Saving...' : 'Save new rate'}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-14"
+                   
                     disabled={busy}
                     onClick={() => {
                       setChangingRate(false)
@@ -237,7 +237,7 @@ export function StaffDetailClient({ id }: { id: string }) {
 
       {/* Holding right now */}
       <section aria-label="Holding now" className="space-y-3">
-        <h3 className="text-xl font-semibold">Holding right now</h3>
+        <h3 className="text-lg font-semibold">Holding right now</h3>
         {holding.length === 0 ? (
           <Card>
             <CardContent className="py-5 text-center text-muted-foreground">No hangers out with {trimmerName(staff)}.</CardContent>
@@ -248,7 +248,7 @@ export function StaffDetailClient({ id }: { id: string }) {
               <Link
                 key={o.checkoutId}
                 href={`${access.canOperate ? `${BASE}/station` : `${BASE}/lookup`}?code=${encodeURIComponent(o.hangerCode)}`}
-                className="flex min-h-14 flex-col justify-center rounded-lg border-2 border-amber-500/50 bg-amber-500/10 px-3 py-1"
+                className="flex min-h-12 flex-col justify-center rounded-lg border-2 border-amber-500/50 bg-amber-500/10 px-3 py-1"
               >
                 <span className="font-mono text-base font-bold leading-tight">{o.hangerCode}</span>
                 <span className="text-xs text-muted-foreground">
@@ -267,7 +267,7 @@ export function StaffDetailClient({ id }: { id: string }) {
 
 function BackLink() {
   return (
-    <Button asChild variant="ghost" className="-ml-3 h-14">
+    <Button asChild variant="ghost" className="-ml-3">
       <Link href={`${BASE}/staff`}>
         <ArrowLeft className="mr-2 h-4 w-4" />
         All trimmers

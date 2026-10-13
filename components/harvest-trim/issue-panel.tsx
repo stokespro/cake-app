@@ -93,8 +93,8 @@ export function IssuePanel({ hangerCode, load, staff, onIssued, onChanged, onDir
       <CardContent className="space-y-5 pt-5">
         {isReissue ? (
           <div className="space-y-3">
-            <p className="text-xl font-bold">Reissue {hangerCode}</p>
-            <p className="rounded-lg border-2 border-violet-500/50 bg-violet-500/10 p-3 text-lg font-semibold">
+            <p className="text-lg font-bold">Reissue {hangerCode}</p>
+            <p className="rounded-lg border-2 border-violet-500/50 bg-violet-500/10 p-3 text-base font-semibold">
               {plantsText(load.remainingPlantCount)} left, {lbText(load.remainingG)} remaining{' '}
               <span className="font-normal text-muted-foreground">(was {lbText(load.dryG)} dry)</span>
             </p>
@@ -107,7 +107,7 @@ export function IssuePanel({ hangerCode, load, staff, onIssued, onChanged, onDir
           <div className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xl font-bold">Dry weight needed</p>
+                <p className="text-lg font-bold">Dry weight needed</p>
                 <p className="text-muted-foreground">
                   Still hung wet{load.wetG !== null && <> &middot; wet was <Mass g={load.wetG} /></>}.
                 </p>
@@ -129,13 +129,13 @@ export function IssuePanel({ hangerCode, load, staff, onIssued, onChanged, onDir
           <div className="space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xl font-bold">Issue {hangerCode}</p>
-                <p className="text-lg">
+                <p className="text-lg font-bold">Issue {hangerCode}</p>
+                <p className="text-base">
                   Dry weight <Mass g={load.dryG} />
                   {load.plantCount !== null && <> &middot; {plantsText(load.plantCount)}</>}
                 </p>
               </div>
-              <Button type="button" variant="outline" className="h-14" onClick={() => setFixing((f) => !f)}>
+              <Button type="button" variant="outline" onClick={() => setFixing((f) => !f)}>
                 {fixing ? 'Cancel fix' : 'Fix dry weight'}
               </Button>
             </div>
@@ -156,7 +156,7 @@ export function IssuePanel({ hangerCode, load, staff, onIssued, onChanged, onDir
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-14 w-full text-base font-semibold"
+                  className="h-12 w-full text-base font-semibold"
                   disabled={!dryP?.ok || busy}
                   onClick={saveDryOnly}
                 >
@@ -189,14 +189,14 @@ export function IssuePanel({ hangerCode, load, staff, onIssued, onChanged, onDir
               </>
             )}
           </p>
-          <Button type="button" className="h-16 w-full text-lg font-bold" disabled={!canIssue} onClick={issue}>
+          <Button type="button" className="h-14 w-full text-lg font-semibold" disabled={!canIssue} onClick={issue}>
             {busy ? 'Issuing...' : trimmerLabel ? `Issue to ${trimmerLabel}` : 'Choose a trimmer'}
           </Button>
           {isHung && (
             <Button
               type="button"
               variant="outline"
-              className="h-14 w-full"
+              className="w-full"
               disabled={!dryP?.ok || busy}
               onClick={saveDryOnly}
             >

@@ -19,7 +19,6 @@ import {
   LOAD_STATUS_META,
   LOAD_STATUS_ORDER,
   agoText,
-  batchColor,
   dateOnlyText,
   lbText,
   pctText,
@@ -128,14 +127,14 @@ export function HubClient() {
       {/* Quick actions */}
       <div className="grid gap-3 sm:grid-cols-2">
         {access.canOperate && (
-          <Button asChild className="h-16 text-lg font-bold">
+          <Button asChild className="h-12 text-base font-semibold">
             <Link href={`${BASE}/station`}>
               <ScanLine className="mr-2 h-5 w-5" />
               Open the trim station
             </Link>
           </Button>
         )}
-        <Button asChild variant="outline" className="h-16 text-lg font-semibold">
+        <Button asChild variant="outline" className="h-12 text-base font-semibold">
           <Link href={`${BASE}/lookup`}>
             <Search className="mr-2 h-5 w-5" />
             Look up a tag
@@ -166,7 +165,7 @@ export function HubClient() {
               aria-pressed={selected === c.id}
               onClick={() => choose(c.id)}
               className={cn(
-                'min-h-14 shrink-0 rounded-lg border-2 px-4 py-2 text-left transition-colors',
+                'min-h-12 shrink-0 rounded-lg border-2 px-4 py-2 text-left transition-colors',
                 selected === c.id ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background hover:bg-muted'
               )}
             >
@@ -179,7 +178,7 @@ export function HubClient() {
             aria-pressed={selected === ALL}
             onClick={() => choose(ALL)}
             className={cn(
-              'min-h-14 shrink-0 rounded-lg border-2 px-4 py-2 text-left transition-colors',
+              'min-h-12 shrink-0 rounded-lg border-2 px-4 py-2 text-left transition-colors',
               selected === ALL ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background hover:bg-muted'
             )}
           >
@@ -211,7 +210,7 @@ export function HubClient() {
           <FlaggedQueue items={board.flagged} canOperate={access.canOperate} />
 
           <section aria-label="Batches" className="space-y-3">
-            <h2 className="text-xl font-semibold">Batches</h2>
+            <h2 className="text-lg font-semibold">Batches</h2>
             {board.batches.length === 0 ? (
               <Card>
                 <CardContent className="py-6 text-center text-muted-foreground">
@@ -247,7 +246,7 @@ export function HubClient() {
 
           {board.partial.length > 0 && (
             <section aria-label="Unfinished hangers" className="space-y-3">
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-lg font-semibold">
                 Waiting to be reissued{' '}
                 <span className="text-base font-normal text-muted-foreground">({board.partial.length})</span>
               </h2>
@@ -256,10 +255,10 @@ export function HubClient() {
                   <Link
                     key={p.loadId}
                     href={`${access.canOperate ? `${BASE}/station` : `${BASE}/lookup`}?code=${encodeURIComponent(p.hangerCode)}`}
-                    className="flex min-h-16 items-center justify-between gap-3 rounded-lg border-2 border-violet-500/40 bg-violet-500/5 p-3"
+                    className="flex min-h-12 items-center justify-between gap-3 rounded-lg border-2 border-violet-500/40 bg-violet-500/5 p-3"
                   >
                     <div className="min-w-0">
-                      <p className="font-mono text-lg font-bold">{p.hangerCode}</p>
+                      <p className="font-mono text-base font-bold">{p.hangerCode}</p>
                       <p className="truncate text-sm text-muted-foreground">
                         {plantsText(p.remainingPlants)} left &middot; {lbText(p.remainingG)} &middot; {p.batchName}
                       </p>
@@ -272,7 +271,7 @@ export function HubClient() {
           )}
 
           <section aria-label="Trimmers" className="space-y-3">
-            <h2 className="text-xl font-semibold">Hangers out with trimmers</h2>
+            <h2 className="text-lg font-semibold">Hangers out with trimmers</h2>
             <TrimmersOut board={board} canOperate={access.canOperate} />
           </section>
         </>
@@ -291,10 +290,10 @@ function BatchCard({ batch }: { batch: BoardBatch }) {
         flagged > 0 ? 'border-red-500/60' : 'border-border'
       )}
     >
-      <div className={cn('flex items-center justify-between gap-2 rounded-t-[10px] px-4 py-2 text-white', batchColor(batch.id))}>
+      <div className="flex items-center justify-between gap-2 rounded-t-[10px] border-b bg-muted/50 px-4 py-2">
         <div className="min-w-0">
           <p className="truncate text-lg font-bold leading-tight">{batch.strainName ?? 'Unknown strain'}</p>
-          <p className="truncate text-sm opacity-95">{batch.name}</p>
+          <p className="truncate text-sm text-muted-foreground">{batch.name}</p>
         </div>
         <ChevronRight className="h-5 w-5 shrink-0" />
       </div>
@@ -338,7 +337,7 @@ function BatchCard({ batch }: { batch: BoardBatch }) {
 function FlaggedQueue({ items, canOperate }: { items: BoardFlagged[]; canOperate: boolean }) {
   return (
     <section aria-label="Flagged variances" className="space-y-3">
-      <h2 className="flex items-center gap-2 text-xl font-semibold">
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
         <AlertTriangle className={cn('h-5 w-5', items.length > 0 ? 'text-red-500' : 'text-muted-foreground')} />
         Flagged variances
         <span className="text-base font-normal text-muted-foreground">({items.length})</span>
@@ -355,10 +354,10 @@ function FlaggedQueue({ items, canOperate }: { items: BoardFlagged[]; canOperate
             <Link
               key={f.checkoutId}
               href={`${canOperate ? `${BASE}/station` : `${BASE}/lookup`}?code=${encodeURIComponent(f.hangerCode)}`}
-              className="flex min-h-16 items-center justify-between gap-3 rounded-lg border-2 border-red-500/60 bg-red-500/10 p-3"
+              className="flex min-h-12 items-center justify-between gap-3 rounded-lg border-2 border-red-500/60 bg-red-500/10 p-3"
             >
               <div className="min-w-0">
-                <p className="font-mono text-lg font-bold">{f.hangerCode}</p>
+                <p className="font-mono text-base font-bold">{f.hangerCode}</p>
                 <p className="truncate text-sm">
                   {f.trimmerName} &middot; {f.batchName}
                 </p>
@@ -415,7 +414,7 @@ function TrimmersOut({ board, canOperate }: { board: TrimBoard; canOperate: bool
                     <Link
                       key={o.checkoutId}
                       href={`${canOperate ? `${BASE}/station` : `${BASE}/lookup`}?code=${encodeURIComponent(o.hangerCode)}`}
-                      className="flex h-14 flex-col justify-center rounded-lg border-2 border-amber-500/50 bg-amber-500/10 px-3"
+                      className="flex min-h-12 flex-col justify-center rounded-lg border-2 border-amber-500/50 bg-amber-500/10 px-3"
                     >
                       <span className="font-mono text-base font-bold leading-none">{o.hangerCode}</span>
                       <span className="text-xs text-muted-foreground">{agoText(o.checkedOutAt)}</span>
