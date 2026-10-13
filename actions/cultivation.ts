@@ -29,10 +29,10 @@ import {
 // ---------------------------------------------------------------------------
 
 // All roles that can view cultivation (mirrors canViewSection('cultivation'))
-const VIEW_ROLES = ['admin', 'management', 'vault', 'packaging', 'standard', 'grow']
+const VIEW_ROLES = ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard', 'grow']
 
 // Roles that can complete/start tasks (mirrors canCompleteCultivation)
-const COMPLETE_ROLES = ['admin', 'management', 'vault', 'packaging', 'grow']
+const COMPLETE_ROLES = ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'grow']
 
 // Roles that can manage (create/edit/delete) cultivation data (mirrors canManageCultivation)
 const MANAGE_ROLES = ['admin', 'management']
@@ -1545,9 +1545,16 @@ export async function advanceStage(input: AdvanceStageInput): Promise<
 // End Cycle — complete or cancel an active cycle
 // ---------------------------------------------------------------------------
 
-// Cycle termination is admin-only for now. Once the trim-management module
-// ships, the trim manager role will close cycles out. (SPRO-80)
-const END_CYCLE_ROLES = ['admin']
+// Ending a cycle (complete/cancel) is open to admin and the trim manager, who
+// closes cycles out after harvest. Used ONLY by endCycle. (SPRO-80)
+// NOTE: the Phase 3 loads-closed gate (refuse to end a cycle with open hangers)
+// is not wired in yet — it depends on harvest/trim tables that don't exist.
+const END_CYCLE_ROLES = ['admin', 'trim_manager']
+
+// Editing an active cycle's milestone dates stays admin-only: cycle dates are
+// authoritative, and rewriting them must not be reachable by the trim manager.
+// Used ONLY by updateCycle — never widen this by reusing END_CYCLE_ROLES.
+const EDIT_CYCLE_ROLES = ['admin']
 
 export interface EndCycleInput {
   roomId: string
@@ -1726,9 +1733,9 @@ export interface UpdateCyclePreview {
 export async function updateCycle(input: UpdateCycleInput): Promise<
   (UpdateCyclePreview & { applied: boolean; error?: never }) | { error: string }
 > {
-  // Reuses END_CYCLE_ROLES (admin-only) — correcting cycle history carries
-  // the same blast radius as ending one.
-  const auth = await requireRole(END_CYCLE_ROLES)
+  // Admin-only (EDIT_CYCLE_ROLES), deliberately narrower than END_CYCLE_ROLES —
+  // correcting cycle history is a different power from closing a cycle out.
+  const auth = await requireRole(EDIT_CYCLE_ROLES)
   if (!auth.authorized) return { error: auth.reason }
 
   const db = await createServiceClient()

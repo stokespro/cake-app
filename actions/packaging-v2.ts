@@ -31,7 +31,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 // Roles that can access packaging actions — generous set so the shared TV
 // (packaging, vault, standard) and management/admin are never locked out.
-const PACKAGING_ROLES = ['admin', 'management', 'vault', 'packaging', 'standard'] as const
+const PACKAGING_ROLES = ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard'] as const
 
 import type {
   DashboardData,

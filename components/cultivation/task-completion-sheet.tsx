@@ -19,12 +19,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { completeTask } from '@/actions/cultivation'
 import { getSwitcherAdvancePreview } from '@/lib/cultivation/helpers'
+import { canWeighHarvest, useAuth } from '@/lib/auth-context'
+import {
+  BatchStepOutcomeNote,
+  DeclareHarvestBatchesForm,
+  type BatchStepOutcome,
+} from '@/components/harvest-trim/declare-harvest-batches-form'
 import { PHASE_CONFIG, type PipelineStage } from '@/types/cultivation'
 import type { CultivationTask } from '@/types/cultivation'
 
@@ -55,9 +69,26 @@ export function TaskCompletionSheet({
   const advanceTo = task ? getSwitcherAdvancePreview(task) : null
   const advanceLabel = advanceTo ? PHASE_CONFIG[advanceTo as PipelineStage]?.label ?? advanceTo : null
 
+  // Harvest & Trim: when this switcher advances the cycle to Harvest, the confirm step first offers to
+  // declare the batches coming out of the room (R2.5). UI only, and skippable: the advance inside
+  // completeTask stays best-effort and ungated, so a skipped or failed declare never blocks the flip.
+  const { user } = useAuth()
+  const wantsBatchStep =
+    advanceTo === 'harvest' && !!task?.room_cycle_id && !!user && canWeighHarvest(user.role)
+  const [batchStep, setBatchStep] = useState<'declare' | 'done'>('declare')
+  const [batchOutcome, setBatchOutcome] = useState<BatchStepOutcome | null>(null)
+
   useEffect(() => {
     if (!open) setConfirmingAdvance(false)
   }, [open, task?.id])
+
+  // Each confirm starts at the declare step, so a leftover outcome can't leak onto the next task.
+  useEffect(() => {
+    if (!confirmingAdvance) {
+      setBatchStep('declare')
+      setBatchOutcome(null)
+    }
+  }, [confirmingAdvance, task?.id])
 
   async function doComplete() {
     if (!task) return
@@ -78,7 +109,10 @@ export function TaskCompletionSheet({
     toast.success(
       result.advancedTo
         ? `Task completed. Advanced to ${PHASE_CONFIG[result.advancedTo as PipelineStage]?.label ?? result.advancedTo}.`
-        : 'Task completed'
+        : 'Task completed',
+      wantsBatchStep && result.advancedTo === 'harvest' && batchOutcome?.kind === 'skipped'
+        ? { description: 'No batches declared yet. Declare them in Harvest & Trim before weighing.' }
+        : undefined
     )
     setSaving(false)
     setConfirmingAdvance(false)
@@ -146,7 +180,7 @@ export function TaskCompletionSheet({
           rather than stacking on top of the sheet's own submit, so Cancel
           here leaves the sheet open (in case notes need editing) while
           Confirm proceeds straight to completion. */}
-      <AlertDialog open={confirmingAdvance} onOpenChange={setConfirmingAdvance}>
+      <AlertDialog open={confirmingAdvance && !wantsBatchStep} onOpenChange={setConfirmingAdvance}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Advance cycle to {advanceLabel}?</AlertDialogTitle>
@@ -162,6 +196,62 @@ export function TaskCompletionSheet({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Same confirmation, with the declare-batches step in front of it, when the advance is to Harvest. */}
+      <Dialog
+        open={confirmingAdvance && wantsBatchStep}
+        onOpenChange={(o) => {
+          if (!saving) setConfirmingAdvance(o)
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Advance cycle to {advanceLabel}?</DialogTitle>
+            <DialogDescription>
+              By completing this task you are also advancing this cycle to {advanceLabel}. Please confirm.
+            </DialogDescription>
+          </DialogHeader>
+
+          {batchStep === 'declare' && task?.room_cycle_id ? (
+            <div className="space-y-3">
+              <DeclareHarvestBatchesForm
+                key={task.room_cycle_id}
+                cycleId={task.room_cycle_id}
+                roomNumber={task.room?.room_number}
+                onDone={(outcome) => {
+                  setBatchOutcome(outcome)
+                  setBatchStep('done')
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-14 w-full"
+                onClick={() => setConfirmingAdvance(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <>
+              <BatchStepOutcomeNote outcome={batchOutcome} />
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => setConfirmingAdvance(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="button" onClick={doComplete} disabled={saving}>
+                  {saving ? 'Completing...' : 'Confirm'}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

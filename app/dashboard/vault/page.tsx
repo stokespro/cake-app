@@ -73,8 +73,7 @@ import {
   getBatches,
 } from '@/actions/vault'
 import type { VaultPackage, Transaction, Strain, ProductType, Batch } from '@/types/vault'
-
-const GRAMS_PER_LB = 453.592
+import { GRAMS_PER_LB } from '@/lib/units'
 
 export default function VaultPage() {
   const { user, handleSessionError } = useAuth()

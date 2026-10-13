@@ -4,9 +4,9 @@ import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 
 // Roles that can read materials (matches canViewSection 'materials' / 'packaging')
-const MATERIALS_READ_ROLES = ['admin', 'management', 'packaging', 'standard', 'vault']
+const MATERIALS_READ_ROLES = ['admin', 'management', 'packaging', 'trim_manager', 'standard', 'vault']
 // Roles that can mutate materials (packaging workers + management)
-const MATERIALS_WRITE_ROLES = ['admin', 'management', 'packaging']
+const MATERIALS_WRITE_ROLES = ['admin', 'management', 'packaging', 'trim_manager']
 
 // Types for materials
 export interface Material {

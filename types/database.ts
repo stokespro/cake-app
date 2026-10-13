@@ -3311,7 +3311,16 @@ export const Constants = {
   },
 } as const
 
-export type UserRole = 'agent' | 'management' | 'admin' | 'packaging' | 'vault' | 'grow'
+export type UserRole =
+  | 'agent'
+  | 'management'
+  | 'admin'
+  | 'packaging'
+  | 'vault'
+  | 'grow'
+  | 'sales'
+  | 'standard'
+  | 'trim_manager'
 export type TaskStatus = 'pending' | 'complete'
 export type OrderStatus = 'pending' | 'confirmed' | 'packed' | 'delivered' | 'cancelled'
 export type ContactMethod = 'phone' | 'email' | 'in-person' | 'text'

@@ -5,7 +5,7 @@ import { filterEligiblePackages } from '@/lib/inventory/package-eligibility'
 import { createServiceClient } from '@/lib/supabase/server'
 
 // Roles that can view inventory (matches canViewSection 'inventory')
-const INVENTORY_READ_ROLES = ['admin', 'management', 'vault', 'packaging', 'standard', 'sales', 'agent']
+const INVENTORY_READ_ROLES = ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard', 'sales', 'agent']
 
 export interface InventorySku {
   id: string

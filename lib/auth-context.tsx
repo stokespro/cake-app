@@ -3,6 +3,17 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { logoutAction, checkSessionAction, refreshSessionCookieAction } from '@/actions/auth';
 import { isSessionError } from '@/lib/auth/session-errors';
+// Single source of truth for the trim role sets. The server-side gates in
+// actions/trim-*.ts, actions/hangers.ts and actions/harvest-trim.ts import the
+// SAME constants, so a UI affordance can't drift from the action that backs it
+// (an earlier pass had these inlined here and the two did drift).
+import {
+  HARVEST_WEIGH_ROLES,
+  TRIM_OPS_ROLES,
+  TRIM_PAY_APPROVE_ROLES,
+  TRIM_STAFF_ADMIN_ROLES,
+  roleAllowed,
+} from '@/lib/trim/roles';
 // Canonical declaration moved to lib/auth/session-constants.ts (runtime-
 // neutral) so server-only modules (e.g. actions/auth.ts) can share the exact
 // same type instead of falling back to `string`. Re-exported below so
@@ -26,15 +37,17 @@ export function canViewSection(role: UserRole, section: string): boolean {
   const permissions: Record<string, UserRole[]> = {
     // Admin and management see everything
     vault: ['admin', 'management', 'vault', 'standard'],
-    packaging: ['admin', 'management', 'packaging', 'standard'],
+    packaging: ['admin', 'management', 'packaging', 'trim_manager', 'standard'],
     dispensaries: ['admin', 'management', 'sales', 'agent'],
     orders: ['admin', 'management', 'sales', 'agent'],
-    products: ['admin', 'management', 'vault', 'packaging', 'standard'],
+    products: ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard'],
     communications: ['admin', 'management', 'sales', 'agent'],
-    compliance: ['admin', 'management', 'vault', 'packaging'],
-    cultivation: ['admin', 'management', 'vault', 'packaging', 'standard', 'grow'],
+    compliance: ['admin', 'management', 'vault', 'packaging', 'trim_manager'],
+    cultivation: ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard', 'grow'],
+    // Harvest & Trim module. grow gets harvest weigh-in + a read-only view.
+    harvestTrim: ['admin', 'management', 'trim_manager', 'grow'],
     tasks: ['admin', 'management', 'sales', 'agent'],
-    inventory: ['admin', 'management', 'vault', 'packaging', 'standard', 'sales', 'agent'],
+    inventory: ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard', 'sales', 'agent'],
     users: ['admin'],
     finance: ['admin', 'management'],
   };
@@ -70,7 +83,7 @@ export function canManageCultivation(role: UserRole): boolean {
 }
 
 export function canCompleteCultivation(role: UserRole): boolean {
-  return ['admin', 'management', 'vault', 'packaging', 'grow'].includes(role);
+  return ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'grow'].includes(role);
 }
 
 // Reopening a completed/skipped task intentionally matches
@@ -82,21 +95,55 @@ export function canReopenCultivationTask(role: UserRole): boolean {
   return canCompleteCultivation(role);
 }
 
-// Ending a cycle (complete/cancel) is admin-only for now — mirrors
-// END_CYCLE_ROLES in actions/cultivation.ts. Once the trim-management
-// module ships, the trim manager role will close cycles out too. (SPRO-80)
+// Ending a cycle (complete/cancel) is open to admin and the trim manager —
+// mirrors END_CYCLE_ROLES in actions/cultivation.ts. (SPRO-80)
 export function canEndCultivationCycle(role: UserRole): boolean {
-  return role === 'admin';
+  return role === 'admin' || role === 'trim_manager';
 }
 
 // Editing an active cycle's milestone dates is admin-only — mirrors
-// updateCycle's role gate (reuses END_CYCLE_ROLES) in actions/cultivation.ts.
-// Identical to canEndCultivationCycle today by deliberate choice, not
-// coincidence — kept as a distinct named export so the two permissions can
-// diverge later (e.g. if a narrower "corrections" role is introduced) without
-// a call-site rename. (edit-active-cycle-dates)
+// updateCycle's role gate (EDIT_CYCLE_ROLES) in actions/cultivation.ts.
+// Deliberately narrower than canEndCultivationCycle: cycle dates are
+// authoritative and the trim manager must not be able to rewrite them.
+// (edit-active-cycle-dates)
 export function canEditCultivationCycle(role: UserRole): boolean {
   return role === 'admin';
+}
+
+// ---------------------------------------------------------------------------
+// Harvest & Trim module
+//
+// The trim manager owns the trim labour line end to end (plan R2.14/R2.15): she
+// can see dollars, set pay rates, and approve amounts owed. Do NOT narrow these
+// to hide pay from her. These delegate to lib/trim/roles.ts, which the server
+// actions' requireRole() calls use directly — so there is one definition, not a
+// UI copy that has to be kept in step by hand.
+// ---------------------------------------------------------------------------
+
+// Harvest weigh-in: grow cuts the room, so they weigh in too.
+export function canWeighHarvest(role: UserRole): boolean {
+  return roleAllowed(HARVEST_WEIGH_ROLES, role);
+}
+
+// Trim station actions (hangers, checkout, check-in, accept variances, batches).
+// grow is read-only on the module and gets no station actions.
+export function canOperateTrim(role: UserRole): boolean {
+  return roleAllowed(TRIM_OPS_ROLES, role);
+}
+
+// Dollars and pay rates on trim work.
+export function canSeeTrimPay(role: UserRole): boolean {
+  return roleAllowed(TRIM_PAY_APPROVE_ROLES, role);
+}
+
+// Hire/manage trim staff, including setting their pay-per-lb rate.
+export function canManageTrimStaff(role: UserRole): boolean {
+  return roleAllowed(TRIM_STAFF_ADMIN_ROLES, role);
+}
+
+// Approve a trimmer's amount owed (creates a bill; recording payment stays with finance).
+export function canApproveTrimPay(role: UserRole): boolean {
+  return roleAllowed(TRIM_PAY_APPROVE_ROLES, role);
 }
 
 interface AuthContextType {

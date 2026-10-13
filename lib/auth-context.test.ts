@@ -15,7 +15,19 @@
 // SPRO-13 pass 2).
 
 import { describe, expect, it, vi } from 'vitest';
-import { reconcileSessionCheck, type SessionCheckDeps } from './auth-context';
+import {
+  reconcileSessionCheck,
+  canViewSection,
+  canEndCultivationCycle,
+  canEditCultivationCycle,
+  canWeighHarvest,
+  canOperateTrim,
+  canSeeTrimPay,
+  canManageTrimStaff,
+  canApproveTrimPay,
+  type SessionCheckDeps,
+} from './auth-context';
+import { USER_ROLES } from '@/lib/auth/session-constants';
 import type { SessionCheck } from '@/lib/auth/session';
 
 const VALID_RESULT: SessionCheck = {
@@ -148,4 +160,57 @@ describe('reconcileSessionCheck', () => {
   // the stale-epoch discard covered by the tests above. Adding a
   // heartbeat-specific test here would just re-run the same assertions
   // against a fake timer with no new code path exercised.
+});
+
+describe('trim_manager permissions', () => {
+  it.each(['packaging', 'products', 'compliance', 'cultivation', 'inventory', 'harvestTrim'])(
+    'can view %s',
+    (section) => {
+      expect(canViewSection('trim_manager', section)).toBe(true);
+    }
+  );
+
+  it.each(['vault', 'finance', 'users', 'orders', 'dispensaries'])('cannot view %s', (section) => {
+    expect(canViewSection('trim_manager', section)).toBe(false);
+  });
+
+  it('is a superset of packaging for every section packaging can view', () => {
+    for (const section of ['packaging', 'products', 'compliance', 'cultivation', 'inventory']) {
+      if (canViewSection('packaging', section)) {
+        expect(canViewSection('trim_manager', section)).toBe(true);
+      }
+    }
+  });
+
+  it('harvestTrim section is visible to admin, management, trim_manager, grow only', () => {
+    const allowed = ['admin', 'management', 'trim_manager', 'grow'];
+    for (const role of USER_ROLES) {
+      expect(canViewSection(role, 'harvestTrim')).toBe(allowed.includes(role));
+    }
+  });
+
+  it('canWeighHarvest: grow can, packaging cannot', () => {
+    for (const role of USER_ROLES) {
+      expect(canWeighHarvest(role)).toBe(['admin', 'management', 'trim_manager', 'grow'].includes(role));
+    }
+  });
+
+  it.each([
+    ['canOperateTrim', canOperateTrim],
+    ['canSeeTrimPay', canSeeTrimPay],
+    ['canManageTrimStaff', canManageTrimStaff],
+    ['canApproveTrimPay', canApproveTrimPay],
+  ] as const)('%s: admin, management, trim_manager only (R2.15: trim manager sees and sets pay)', (_n, fn) => {
+    for (const role of USER_ROLES) {
+      expect(fn(role)).toBe(['admin', 'management', 'trim_manager'].includes(role));
+    }
+  });
+
+  it('canEndCultivationCycle includes trim_manager but canEditCultivationCycle stays admin-only', () => {
+    expect(canEndCultivationCycle('admin')).toBe(true);
+    expect(canEndCultivationCycle('trim_manager')).toBe(true);
+    expect(canEndCultivationCycle('management')).toBe(false);
+    expect(canEditCultivationCycle('admin')).toBe(true);
+    expect(canEditCultivationCycle('trim_manager')).toBe(false);
+  });
 });

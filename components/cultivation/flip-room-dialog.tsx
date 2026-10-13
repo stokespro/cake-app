@@ -31,6 +31,12 @@ import {
   CycleEndOutcome,
 } from '@/types/cultivation'
 import { getCycleStageLabel } from '@/lib/cultivation/helpers'
+import { canWeighHarvest, useAuth } from '@/lib/auth-context'
+import {
+  BatchStepOutcomeNote,
+  DeclareHarvestBatchesForm,
+  type BatchStepOutcome,
+} from '@/components/harvest-trim/declare-harvest-batches-form'
 import { format, addDays } from 'date-fns'
 import {
   getActiveMasterTemplates,
@@ -337,7 +343,7 @@ interface AdvanceStageDialogProps {
   room: GrowRoom | null
   activeCycles: RoomCycle[]
   onCompleted: () => void
-  /** Admin-only affordance — mirrors END_CYCLE_ROLES server-side. */
+  /** Admin / trim-manager affordance — mirrors END_CYCLE_ROLES server-side. */
   canEndCycle?: boolean
 }
 
@@ -355,6 +361,13 @@ export function AdvanceStageDialog({
   const [cancelMode, setCancelMode] = useState(false)
   const [cancelEndDate, setCancelEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [cancelReason, setCancelReason] = useState('')
+  // Harvest & Trim: the advance to Harvest gets a "declare batches" step in front of it for roles that
+  // can weigh harvest. Purely a UI step: it never blocks or alters advanceStage (the stage flip must
+  // stay unconditional or stage drift comes back), and it can be skipped.
+  const { user } = useAuth()
+  const canDeclareBatches = !!user && canWeighHarvest(user.role)
+  const [batchStep, setBatchStep] = useState<'pending' | 'declaring' | 'done'>('pending')
+  const [batchOutcome, setBatchOutcome] = useState<BatchStepOutcome | null>(null)
 
   // Unchanged from before: (re)pick the first active cycle whenever the
   // dialog is open and the active-cycles list changes (e.g. loads in after
@@ -384,6 +397,12 @@ export function AdvanceStageDialog({
     wasOpenRef.current = open
   }, [open])
 
+  // A fresh dialog, or a different cycle, starts the batch step over.
+  useEffect(() => {
+    setBatchStep('pending')
+    setBatchOutcome(null)
+  }, [open, selectedCycleId])
+
   const selectedCycle = activeCycles.find((c) => c.id === selectedCycleId)
   const currentStageIndex = selectedCycle
     ? STAGE_ORDER.indexOf(selectedCycle.current_stage as PipelineStage)
@@ -393,9 +412,17 @@ export function AdvanceStageDialog({
       ? STAGE_ORDER[currentStageIndex + 1]
       : null
 
+  const needsBatchStep = canDeclareBatches && nextStage === 'harvest' && !!selectedCycle
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!room || !selectedCycle) return
+
+    // Harvest is next and batches haven't been dealt with: show that step first instead of advancing.
+    if (needsBatchStep && batchStep === 'pending') {
+      setBatchStep('declaring')
+      return
+    }
 
     setSaving(true)
     try {
@@ -410,7 +437,12 @@ export function AdvanceStageDialog({
           toast.error(result.error)
         } else {
           const stageLabel = PHASE_CONFIG[nextStage]?.label || nextStage
-          toast.success(`${room.room_name} advanced to ${stageLabel}`)
+          toast.success(
+            `${room.room_name} advanced to ${stageLabel}`,
+            batchOutcome?.kind === 'skipped'
+              ? { description: 'No batches declared yet. Declare them in Harvest & Trim before weighing.' }
+              : undefined
+          )
           onOpenChange(false)
           onCompleted()
         }
@@ -486,21 +518,40 @@ export function AdvanceStageDialog({
     : isCompleteMode
       ? `Complete Cycle — ${room.room_name}`
       : `Advance Stage — ${room.room_name}`
+  const declaring = !cancelMode && needsBatchStep && batchStep === 'declaring'
   const dialogDescription = cancelMode
     ? 'Cancelling ends this cycle early and marks its remaining tasks as skipped.'
-    : isCompleteMode
+    : declaring
+      ? 'Before advancing to Harvest, declare the strains coming out of this room.'
+      : isCompleteMode
       ? 'This cycle has finished trim — mark it complete to close it out.'
       : 'Move an active cycle to the next stage in the pipeline.'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={declaring ? 'max-h-[90vh] overflow-y-auto' : undefined}>
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
-        {!cancelMode ? (
+        {declaring && selectedCycle ? (
+          <div className="space-y-3">
+            <DeclareHarvestBatchesForm
+              key={selectedCycle.id}
+              cycleId={selectedCycle.id}
+              roomNumber={room.room_number}
+              harvestDate={selectedCycle.harvest_date ?? null}
+              onDone={(outcome) => {
+                setBatchOutcome(outcome)
+                setBatchStep('done')
+              }}
+            />
+            <Button type="button" variant="outline" className="h-14 w-full" onClick={() => setBatchStep('pending')}>
+              Back
+            </Button>
+          </div>
+        ) : !cancelMode ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             {activeCycles.length > 1 && (
               <div className="space-y-2">
@@ -564,6 +615,8 @@ export function AdvanceStageDialog({
               </div>
             )}
 
+            {needsBatchStep && batchStep === 'done' && <BatchStepOutcomeNote outcome={batchOutcome} />}
+
             <DialogFooter className="flex-col items-stretch gap-2 sm:flex-col sm:items-stretch">
               <div className="flex justify-end gap-2">
                 <Button
@@ -579,7 +632,9 @@ export function AdvanceStageDialog({
                       ? 'Advancing...'
                       : 'Completing...'
                     : nextStage
-                      ? 'Advance Stage'
+                      ? needsBatchStep && batchStep === 'pending'
+                        ? 'Next: Declare Batches'
+                        : 'Advance Stage'
                       : 'Complete Cycle'}
                 </Button>
               </div>

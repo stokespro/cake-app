@@ -43,6 +43,7 @@ import {
   Factory,
   Warehouse,
   MapPin,
+  Scissors,
 } from 'lucide-react'
 import {
   Collapsible,
@@ -97,17 +98,20 @@ const allNavigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: CircleGauge, roles: [] },
 
   // 2. Operations group
-  // NOTE: 'grow' is included at the group level ONLY so the "Cultivation" child
-  // below is reachable — it is deliberately excluded from the "Packaging" and
-  // "Packaging (New)" children (grow role is cultivation-only, per policy).
+  // NOTE: 'grow' is included at the group level ONLY so the "Cultivation" and
+  // "Harvest & Trim" children below are reachable — it is deliberately excluded
+  // from the "Packaging" and "Packaging (New)" children. 'trim_manager' is a
+  // strict superset of 'packaging', so it appears at both levels everywhere
+  // 'packaging' does.
   {
     name: 'Operations',
     icon: Factory,
-    roles: ['standard', 'packaging', 'vault', 'management', 'admin', 'grow'],
+    roles: ['standard', 'packaging', 'trim_manager', 'vault', 'management', 'admin', 'grow'],
     children: [
-      { name: 'Packaging', href: '/dashboard/packaging', icon: Package, roles: ['standard', 'packaging', 'vault', 'management', 'admin'] },
-      { name: 'Packaging (New)', href: '/dashboard/packaging/board', icon: LayoutGrid, roles: ['packaging', 'vault', 'management', 'admin'] },
-      { name: 'Cultivation', href: '/dashboard/cultivation', icon: Sprout, roles: ['vault', 'packaging', 'standard', 'management', 'admin', 'grow'] },
+      { name: 'Packaging', href: '/dashboard/packaging', icon: Package, roles: ['standard', 'packaging', 'trim_manager', 'vault', 'management', 'admin'] },
+      { name: 'Packaging (New)', href: '/dashboard/packaging/board', icon: LayoutGrid, roles: ['packaging', 'trim_manager', 'vault', 'management', 'admin'] },
+      { name: 'Cultivation', href: '/dashboard/cultivation', icon: Sprout, roles: ['vault', 'packaging', 'trim_manager', 'standard', 'management', 'admin', 'grow'] },
+      { name: 'Harvest & Trim', href: '/dashboard/harvest-trim', icon: Scissors, roles: ['admin', 'management', 'trim_manager', 'grow'] },
     ],
   },
 
@@ -115,12 +119,12 @@ const allNavigation: NavigationItem[] = [
   {
     name: 'Inventory',
     icon: Warehouse,
-    roles: ['vault', 'packaging', 'sales', 'agent', 'standard', 'management', 'admin'],
+    roles: ['vault', 'packaging', 'trim_manager', 'sales', 'agent', 'standard', 'management', 'admin'],
     children: [
-      { name: 'Inventory', href: '/dashboard/inventory', icon: BarChart3, roles: ['vault', 'packaging', 'sales', 'agent', 'management', 'admin'] },
-      { name: 'Vault', href: '/dashboard/vault', icon: Vault, roles: ['standard', 'vault', 'packaging', 'management', 'admin'] },
-      { name: 'Products', href: '/dashboard/products', icon: Leaf, roles: ['standard', 'vault', 'packaging', 'management', 'admin'] },
-      { name: 'Materials', href: '/dashboard/materials', icon: Boxes, roles: ['packaging', 'management', 'admin'] },
+      { name: 'Inventory', href: '/dashboard/inventory', icon: BarChart3, roles: ['vault', 'packaging', 'trim_manager', 'sales', 'agent', 'management', 'admin'] },
+      { name: 'Vault', href: '/dashboard/vault', icon: Vault, roles: ['standard', 'vault', 'packaging', 'trim_manager', 'management', 'admin'] },
+      { name: 'Products', href: '/dashboard/products', icon: Leaf, roles: ['standard', 'vault', 'packaging', 'trim_manager', 'management', 'admin'] },
+      { name: 'Materials', href: '/dashboard/materials', icon: Boxes, roles: ['packaging', 'trim_manager', 'management', 'admin'] },
     ],
   },
 
@@ -146,7 +150,7 @@ const allNavigation: NavigationItem[] = [
   {
     name: 'Compliance',
     icon: ClipboardList,
-    roles: ['vault', 'packaging', 'management', 'admin'],
+    roles: ['vault', 'packaging', 'trim_manager', 'management', 'admin'],
     subItems: [
       { name: 'Compliance Log', href: '/dashboard/compliance' },
       { name: 'DEA Briefing', href: '/dashboard/compliance/dea-briefing' },

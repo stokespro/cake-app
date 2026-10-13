@@ -176,6 +176,7 @@ export default function NewUserPage() {
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="vault">Vault</SelectItem>
                   <SelectItem value="packaging">Packaging</SelectItem>
+                  <SelectItem value="trim_manager">Trim Manager</SelectItem>
                   <SelectItem value="standard">Standard</SelectItem>
                   <SelectItem value="grow">Grow</SelectItem>
                 </SelectContent>
@@ -187,6 +188,7 @@ export default function NewUserPage() {
                 <p><strong>Agent:</strong> Same access as Sales</p>
                 <p><strong>Vault:</strong> Access to Vault, Packaging, Inventory, Products</p>
                 <p><strong>Packaging:</strong> Access to Packaging, Materials, Inventory, Products</p>
+                <p><strong>Trim Manager:</strong> Everything Packaging has, plus Harvest &amp; Trim — hangers, trim staff and pay rates, approving amounts owed, and ending completed cycles</p>
                 <p><strong>Standard:</strong> Access to Vault, Packaging, Products</p>
                 <p><strong>Grow:</strong> Cultivation only — view and complete cultivation tasks, plus the cultivation wall-display monitor</p>
               </div>

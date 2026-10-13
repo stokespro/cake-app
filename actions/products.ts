@@ -5,7 +5,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import type { Product, ProductType } from '@/types/database'
 
 // Roles that can read products (matches canViewSection 'products')
-const PRODUCTS_READ_ROLES = ['admin', 'management', 'vault', 'packaging', 'standard']
+const PRODUCTS_READ_ROLES = ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard']
 // Roles that can create/edit products
 const PRODUCTS_WRITE_ROLES = ['admin', 'management']
 
