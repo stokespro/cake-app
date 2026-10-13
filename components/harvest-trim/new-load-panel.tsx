@@ -145,14 +145,14 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
     <Card>
       <CardContent className="space-y-5 pt-5">
         <div>
-          <p className="text-lg font-bold">Start a load on {scan.hanger.code}</p>
+          <p className="text-lg font-bold">{scan.hanger.code} {last ? 'has no open load' : 'has no record'}</p>
           <p className="text-muted-foreground">
             {last
               ? last.status === 'void'
                 ? 'Its last load was voided. '
                 : 'Its last load is finished. '
-              : 'This tag has never been used. '}
-            Use this for hangers that were already drying and have no weights in the system.
+              : ''}
+            Catch it up before it can be issued. Harvest-day weighing is on the Harvest tab.
           </p>
         </div>
 
@@ -197,10 +197,10 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
               ) : batches.length === 0 ? (
                 <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-medium text-amber-700 dark:text-amber-300">
                   No batches are declared on this cycle yet. Link or declare one on the{' '}
-                  <Link href="/dashboard/harvest-trim" className="underline">
-                    Overview
+                  <Link href="/dashboard/harvest-trim/harvest" className="underline">
+                    Harvest
                   </Link>{' '}
-                  first.
+                  tab first.
                 </p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">

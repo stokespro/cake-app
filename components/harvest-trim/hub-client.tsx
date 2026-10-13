@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ChevronRight, RefreshCw, ScanLine, Search } from 'lucide-react'
+import { ChevronRight, RefreshCw, ScanLine, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,23 +10,11 @@ import {
   getTrimBoard,
   listHarvestCycles,
   type BoardBatch,
-  type BoardFlagged,
   type CycleOption,
   type TrimBoard,
 } from '@/actions/harvest-trim'
 import { ErrorState } from '@/components/ui/error-state'
-import {
-  LOAD_STATUS_META,
-  LOAD_STATUS_ORDER,
-  agoText,
-  dateOnlyText,
-  lbText,
-  pctText,
-  plantsText,
-  signedGramsText,
-} from './format'
-import { DeclareBatchesCard } from './declare-batches-card'
-import { LinkBatchCard } from './link-batch-card'
+import { LOAD_STATUS_META, LOAD_STATUS_ORDER, agoText, dateOnlyText, lbText, plantsText } from './format'
 import { useRefetchOnFocus } from './use-refetch-on-focus'
 import { useTrimAccess } from './use-trim-access'
 import { useTrimRun } from './use-trim-run'
@@ -207,16 +195,26 @@ export function HubClient() {
 
       {board && (
         <>
-          <FlaggedQueue items={board.flagged} canOperate={access.canOperate} />
-
           <section aria-label="Batches" className="space-y-3">
             <h2 className="text-lg font-semibold">Batches</h2>
             {board.batches.length === 0 ? (
               <Card>
                 <CardContent className="py-6 text-center text-muted-foreground">
-                  {board.scope === 'cycle'
-                    ? 'No batches are declared on this cycle yet.'
-                    : 'No open work. Every hanger is finished.'}
+                  {board.scope === 'cycle' ? (
+                    <>
+                      No batches are declared on this cycle yet.
+                      {access.canWeigh && (
+                        <>
+                          {' '}
+                          <Link href={`${BASE}/harvest`} className="underline underline-offset-2">
+                            Declare them on the Harvest tab.
+                          </Link>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    'No open work. Every hanger is finished.'
+                  )}
                 </CardContent>
               </Card>
             ) : (
@@ -225,22 +223,6 @@ export function HubClient() {
                   <BatchCard key={b.id} batch={b} />
                 ))}
               </div>
-            )}
-            {cycle && access.canWeigh && (
-              <DeclareBatchesCard
-                key={`declare-${cycle.id}`}
-                cycle={cycle}
-                collapsed={board.batches.length > 0}
-                onDeclared={() => void loadBoard(cycle.id)}
-              />
-            )}
-            {cycle && access.canOperate && (
-              <LinkBatchCard
-                key={cycle.id}
-                cycleId={cycle.id}
-                collapsed={board.batches.length > 0}
-                onLinked={() => selected && void loadBoard(selected)}
-              />
             )}
           </section>
 
@@ -331,51 +313,6 @@ function BatchCard({ batch }: { batch: BoardBatch }) {
         )}
       </div>
     </Link>
-  )
-}
-
-function FlaggedQueue({ items, canOperate }: { items: BoardFlagged[]; canOperate: boolean }) {
-  return (
-    <section aria-label="Flagged variances" className="space-y-3">
-      <h2 className="flex items-center gap-2 text-lg font-semibold">
-        <AlertTriangle className={cn('h-5 w-5', items.length > 0 ? 'text-red-500' : 'text-muted-foreground')} />
-        Flagged variances
-        <span className="text-base font-normal text-muted-foreground">({items.length})</span>
-      </h2>
-      {items.length === 0 ? (
-        <Card>
-          <CardContent className="py-5 text-center text-muted-foreground">
-            Nothing flagged. Every returned hanger added up.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-2 md:grid-cols-2">
-          {items.map((f) => (
-            <Link
-              key={f.checkoutId}
-              href={`${canOperate ? `${BASE}/station` : `${BASE}/lookup`}?code=${encodeURIComponent(f.hangerCode)}`}
-              className="flex min-h-12 items-center justify-between gap-3 rounded-lg border-2 border-red-500/60 bg-red-500/10 p-3"
-            >
-              <div className="min-w-0">
-                <p className="font-mono text-base font-bold">{f.hangerCode}</p>
-                <p className="truncate text-sm">
-                  {f.trimmerName} &middot; {f.batchName}
-                </p>
-                <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-                  {signedGramsText(f.varianceG === null ? null : -f.varianceG)} (
-                  {pctText(f.variancePct === null ? null : -f.variancePct, 1, true)})
-                  {f.returnKind === 'unfinished' ? ' · unfinished' : ''}
-                  {f.returnedAt ? ` · ${agoText(f.returnedAt)}` : ''}
-                </p>
-              </div>
-              <span className="shrink-0 rounded-md bg-red-600 px-3 py-2 text-sm font-bold text-white">
-                {canOperate ? 'Resolve' : 'View'}
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
   )
 }
 

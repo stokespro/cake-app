@@ -67,10 +67,7 @@ export function LinkBatchCard({ cycleId, collapsed, onLinked }: LinkBatchCardPro
       <CardContent className="space-y-3 pt-5">
         <div>
           <p className="text-lg font-semibold">Link an existing batch</p>
-          <p className="text-sm text-muted-foreground">
-            For batches created before this module, so their hangers and yield show up under the right cycle. New
-            batches are declared above, or when the room advances to harvest (Cultivation).
-          </p>
+          <p className="text-sm text-muted-foreground">For batches created before this module.</p>
         </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />

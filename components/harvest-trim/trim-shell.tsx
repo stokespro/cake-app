@@ -12,11 +12,12 @@ interface NavLink {
   href: string
   label: string
   /** Hidden from roles that cannot use it. */
-  needs?: 'operate'
+  needs?: 'operate' | 'weigh'
 }
 
 const LINKS: NavLink[] = [
   { href: BASE, label: 'Overview' },
+  { href: `${BASE}/harvest`, label: 'Harvest', needs: 'weigh' },
   { href: `${BASE}/station`, label: 'Trim station', needs: 'operate' },
   { href: `${BASE}/lookup`, label: 'Look up a tag' },
   { href: `${BASE}/hangers`, label: 'Hangers' },
@@ -51,7 +52,9 @@ export function TrimShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  const links = LINKS.filter((l) => l.needs !== 'operate' || access.canOperate)
+  const links = LINKS.filter(
+    (l) => (l.needs !== 'operate' || access.canOperate) && (l.needs !== 'weigh' || access.canWeigh)
+  )
 
   return (
     <div className="space-y-4">

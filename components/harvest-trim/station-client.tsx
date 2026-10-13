@@ -231,7 +231,7 @@ function Station() {
         tone: 'warning',
         title: `${code} left flagged`,
         lines: [
-          'It is in the flagged queue on the Overview. It cannot be reissued, and pay waits, until it is resolved.',
+          'It cannot be reissued, and no pay accrues, until it is resolved.',
         ],
       })
       return
@@ -336,7 +336,7 @@ function Station() {
             finish({
               tone: 'warning',
               title: `${view.scan.hanger.code} is still flagged`,
-              lines: ['It stays in the flagged queue until someone resolves it.'],
+              lines: ['It cannot be reissued until someone resolves it.'],
             })
           }
         />

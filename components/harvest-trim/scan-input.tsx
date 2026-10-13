@@ -1,8 +1,9 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { ScanLine } from 'lucide-react'
+import { Loader2, ScanLine, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { parseHangerCodeLenient } from '@/lib/trim/hanger-code'
 import type { ScanSource } from '@/actions/hangers'
@@ -14,8 +15,11 @@ interface ScanInputProps {
   /** False pauses the scanner, e.g. while a request is in flight. */
   enabled?: boolean
   busy?: boolean
+  /** Accepted so existing call sites compile; the quiet layout no longer shows a heading. */
   label?: string
+  /** Accepted so existing call sites compile; errors use the inline alert, there is no standing helper. */
   helper?: string
+  /** Accessible name of the icon-only submit button. */
   buttonLabel?: string
 }
 
@@ -23,15 +27,13 @@ interface ScanInputProps {
  * The one way a tag enters this module. A wedge scanner works the moment the
  * page is open (no focus needed); a "type the code" box is always visible for a
  * damaged tag and forgives `42`, `h1b42` and `H1B-042` alike. The camera is a
- * later phase.
+ * later phase. Looks like the tag lookup on /dashboard/vault: one quiet row.
  */
 export function ScanInput({
   onScan,
   enabled = true,
   busy = false,
-  label = 'Scan a hanger tag',
-  helper = 'Point the scanner at the tag, or type the number below.',
-  buttonLabel = 'Go',
+  buttonLabel = 'Look up tag',
 }: ScanInputProps) {
   const [text, setText] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
@@ -61,40 +63,39 @@ export function ScanInput({
   }
 
   return (
-    <div className="rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <ScanLine className="h-6 w-6 text-primary" />
-        <p className="text-lg font-semibold">{label}</p>
-      </div>
-      <form onSubmit={submitTyped} className="flex gap-2">
-        <Input
-          ref={inputRef}
-          value={text}
-          onChange={(e) => {
-            setNotice(null)
-            setText(e.target.value)
-          }}
-          placeholder="Type a tag, e.g. 42 or H1B-042"
-          aria-label="Type a hanger code"
-          autoComplete="off"
-          autoCapitalize="characters"
-          autoCorrect="off"
-          spellCheck={false}
-          enterKeyHint="go"
-          disabled={busy}
-          className="h-12 text-lg"
-        />
-        <Button type="submit" className="h-12 min-w-24 text-base font-semibold" disabled={busy || text.trim() === ''}>
-          {busy ? '...' : buttonLabel}
-        </Button>
-      </form>
-      {notice ? (
-        <p role="alert" className="mt-3 text-sm font-medium text-destructive">
-          {notice}
-        </p>
-      ) : (
-        <p className="mt-3 text-sm text-muted-foreground">{helper}</p>
-      )}
-    </div>
+    <Card>
+      <CardContent className="py-3">
+        <form onSubmit={submitTyped} className="flex gap-2">
+          <div className="relative flex-1">
+            <ScanLine className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={inputRef}
+              value={text}
+              onChange={(e) => {
+                setNotice(null)
+                setText(e.target.value)
+              }}
+              placeholder="Scan or enter hanger tag..."
+              aria-label="Type a hanger code"
+              autoComplete="off"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="go"
+              disabled={busy}
+              className="pl-9"
+            />
+          </div>
+          <Button type="submit" aria-label={buttonLabel} disabled={busy || text.trim() === ''}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          </Button>
+        </form>
+        {notice && (
+          <p role="alert" className="mt-2 text-sm font-medium text-destructive">
+            {notice}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   )
 }

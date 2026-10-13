@@ -16,9 +16,9 @@ interface DeclareBatchesCardProps {
 }
 
 /**
- * The same declare form the cultivation dialogs show at the harvest advance, available here for when
- * that step was skipped (or the strains changed). Declaring is idempotent per cycle, so using both
- * paths is safe.
+ * The same declare form the cultivation dialogs show at the harvest advance, available on the Harvest
+ * tab for when that step was skipped (or the strains changed). Declaring is idempotent per cycle, so
+ * using both paths is safe.
  */
 export function DeclareBatchesCard({ cycle, collapsed, onDeclared }: DeclareBatchesCardProps) {
   const [open, setOpen] = useState(!collapsed)
