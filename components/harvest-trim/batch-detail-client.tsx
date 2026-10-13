@@ -10,6 +10,7 @@ import type { ScanBatch } from '@/actions/hangers'
 import { getTrimBoard, listHarvestCycles, type BoardBatch, type TrimBoard } from '@/actions/harvest-trim'
 import { getBatchLoads, getBatchYield, type BatchLoadsReport, type YieldBatchReport } from '@/actions/trim-reports'
 import { BatchBanner } from './batch-banner'
+import { BatchCloseCard } from './batch-close-card'
 import { BatchLoadsSection } from './batch-loads-report'
 import { agoText, lbText, pctText, plantsText, signedGramsText } from './format'
 import { HangerDetailSheet } from './hanger-detail-panel'
@@ -31,9 +32,9 @@ interface BatchData {
 }
 
 /**
- * Read-only batch view: where every hanger in the batch stands, the yield, and
- * what needs a decision. There is no close button; closing a batch and approving
- * pay are a later phase.
+ * Batch view: where every hanger in the batch stands, the yield, what needs a
+ * decision, and (for trim ops) closing the batch. Approving pay is its own
+ * screen, under /pay.
  */
 export function BatchDetailClient({ batchId }: { batchId: string }) {
   const access = useTrimAccess()
@@ -120,6 +121,8 @@ export function BatchDetailClient({ batchId }: { batchId: string }) {
         ) : null}
         {boardBatch && boardBatch.loads > 0 && <> &middot; {plantsText(boardBatch.plants)}</>}
       </p>
+
+      {access.canOperate && <BatchCloseCard batchId={batchId} onChanged={() => void load()} />}
 
       {/* Needs attention */}
       {(flagged.length > 0 || out.length > 0 || partial.length > 0) && (
