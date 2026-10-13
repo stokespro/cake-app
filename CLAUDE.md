@@ -123,6 +123,7 @@ cake-app started as a standalone CRM but has evolved into the unified CAKE Platf
 | `packaging` | Packaging, Materials, Inventory, Products |
 | `standard` | Vault, Packaging, Products |
 | `grow` | Cultivation (view + complete tasks), Cultivation monitor |
+| `trim_manager` | Strict superset of `packaging` (every role array containing `packaging` also contains `trim_manager` — enforced by `actions/role-parity.test.ts`), plus Harvest & Trim: hangers, trim staff and pay rates, approve amounts owed, end completed cycles. Cannot edit cycle dates or record bill payments |
 
 Permissions are enforced via helper functions in `lib/auth-context.tsx`: `canViewSection()`, `canCreateOrder()`, `canApproveOrder()`, `canEditOrder()`, `canDeleteOrder()`, `canManageUsers()`, `canAssignSales()`.
 

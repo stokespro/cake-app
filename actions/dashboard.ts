@@ -40,6 +40,7 @@ export async function getDashboardSummary(): Promise<
     'agent',
     'vault',
     'packaging',
+    'trim_manager',
     'standard',
   ])
   if (!auth.authorized) return { error: auth.reason }

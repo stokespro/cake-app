@@ -64,9 +64,10 @@ export type UserRole =
   | 'vault'
   | 'packaging'
   | 'agent'
-  | 'grow';
+  | 'grow'
+  | 'trim_manager';
 
-const USER_ROLES: readonly UserRole[] = [
+export const USER_ROLES: readonly UserRole[] = [
   'admin',
   'management',
   'sales',
@@ -75,6 +76,7 @@ const USER_ROLES: readonly UserRole[] = [
   'packaging',
   'agent',
   'grow',
+  'trim_manager',
 ];
 
 /**

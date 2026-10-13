@@ -12,7 +12,7 @@ const VAULT_WRITE_ROLES = ['admin', 'management', 'vault']
 // Roles that can access admin functions (strains/batches/product types)
 const VAULT_ADMIN_ROLES = ['admin', 'management']
 // Roles that can read inventory (broader — matches canViewSection 'inventory')
-const INVENTORY_READ_ROLES = ['admin', 'management', 'vault', 'packaging', 'standard', 'sales', 'agent']
+const INVENTORY_READ_ROLES = ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard', 'sales', 'agent']
 // Storage bucket for batch lab results (COA) PDFs — public bucket, writes only via signed upload URLs
 const LAB_RESULTS_BUCKET = 'lab-results'
 // Max COA PDF size, mirrors the storage bucket's file_size_limit

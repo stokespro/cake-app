@@ -3,7 +3,7 @@
 import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 // Roles that can access compliance (mirrors canViewSection('compliance'))
-const COMPLIANCE_ROLES = ['admin', 'management', 'vault', 'packaging'] as const
+const COMPLIANCE_ROLES = ['admin', 'management', 'vault', 'packaging', 'trim_manager'] as const
 
 // ---------------------------------------------------------------------------
 // Types

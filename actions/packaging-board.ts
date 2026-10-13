@@ -19,7 +19,7 @@ import type {
 
 // Roles that can access packaging board actions — generous set so the shared TV
 // (packaging, vault, standard) and management/admin are never locked out.
-const PACKAGING_ROLES = ['admin', 'management', 'vault', 'packaging', 'standard'] as const
+const PACKAGING_ROLES = ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard'] as const
 
 // ============================================
 // GET BOARD DATA
@@ -206,7 +206,7 @@ export async function getPackagingUsers(): Promise<PackagingUser[]> {
   const { data, error } = await supabase
     .from('users')
     .select('id, name, role')
-    .in('role', ['vault', 'packaging', 'management', 'admin'])
+    .in('role', ['vault', 'packaging', 'trim_manager', 'management', 'admin'])
     .order('name', { ascending: true })
 
   if (error) throw new Error(`Failed to fetch packaging users: ${error.message}`)
