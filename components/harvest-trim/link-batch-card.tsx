@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Link2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,8 @@ interface LinkBatchCardProps {
   cycleId: string
   /** The cycle already has batches: collapse this behind a button. */
   collapsed: boolean
+  /** The cycle is finished: the batch has to be created in vault admin first, then linked here. */
+  completed?: boolean
   onLinked: () => void
 }
 
@@ -21,7 +24,7 @@ interface LinkBatchCardProps {
  * provenance only: it writes the batch's cycle and harvest date and never
  * touches the cycle itself (cycle dates stay authoritative).
  */
-export function LinkBatchCard({ cycleId, collapsed, onLinked }: LinkBatchCardProps) {
+export function LinkBatchCard({ cycleId, collapsed, completed = false, onLinked }: LinkBatchCardProps) {
   const run = useTrimRun()
   const [open, setOpen] = useState(!collapsed)
   const [query, setQuery] = useState('')
@@ -67,7 +70,19 @@ export function LinkBatchCard({ cycleId, collapsed, onLinked }: LinkBatchCardPro
       <CardContent className="space-y-3 pt-5">
         <div>
           <p className="text-lg font-semibold">Link an existing batch</p>
-          <p className="text-sm text-muted-foreground">For batches created before this module.</p>
+          <p className="text-sm text-muted-foreground">
+            {completed ? (
+              <>
+                This cycle is finished. Create the batch in{' '}
+                <Link href="/dashboard/vault/admin" className="underline">
+                  Vault admin
+                </Link>{' '}
+                first, then link it here.
+              </>
+            ) : (
+              'For batches created before this module.'
+            )}
+          </p>
         </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
