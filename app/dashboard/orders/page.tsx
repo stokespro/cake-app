@@ -49,7 +49,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, Search, ShoppingCart, Calendar, DollarSign, Package, Truck, Edit2, Save, X, Trash2, LayoutGrid, List, ArrowUpDown, ChevronUp, ChevronDown, MoreVertical, Banknote } from 'lucide-react'
+import { Plus, Search, ShoppingCart, Calendar, DollarSign, Package, Truck, Edit2, Save, X, Trash2, LayoutGrid, List, ArrowUpDown, ChevronUp, ChevronDown, MoreVertical, Banknote, User, Clock } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -72,6 +72,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { format, parseISO } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
+import { formatOrderUpdatedAt, getAssignedRepName, UNASSIGNED_REP_LABEL } from '@/lib/orders/order-details'
 import { DatePresetFilter } from '@/components/filters/date-preset-filter'
 import {
   isWithinDateRange,
@@ -112,7 +113,7 @@ interface EditFormData {
   deductions: OrderDeductionsValue  // SPRO-148 order-level discount / credit
 }
 
-type SortField = 'order_number' | 'customer' | 'status' | 'order_date' | 'delivery_date' | 'total'
+type SortField = 'order_number' | 'customer' | 'sales_rep' | 'status' | 'order_date' | 'updated' | 'delivery_date' | 'total'
 type SortDirection = 'asc' | 'desc'
 type ViewMode = 'card' | 'table'
 
@@ -217,6 +218,7 @@ export default function OrdersPage() {
         order.customer?.license_name?.toLowerCase().includes(term) ||
         order.customer?.omma_license?.toLowerCase().includes(term) ||
         order.customer?.city?.toLowerCase().includes(term) ||
+        getAssignedRepName(order)?.toLowerCase().includes(term) ||
         order.order_number?.toLowerCase().includes(term) ||
         order.order_notes?.toLowerCase().includes(term)
       )
@@ -260,6 +262,15 @@ export default function OrdersPage() {
       let aVal: string | number | null = null
       let bVal: string | number | null = null
 
+      // Unassigned reps always sort last, whichever direction is active
+      if (sortField === 'sales_rep') {
+        const aRep = getAssignedRepName(a)
+        const bRep = getAssignedRepName(b)
+        if (!aRep && !bRep) return 0
+        if (!aRep) return 1
+        if (!bRep) return -1
+      }
+
       switch (sortField) {
         case 'order_number':
           aVal = a.order_number || ''
@@ -269,6 +280,10 @@ export default function OrdersPage() {
           aVal = a.customer?.business_name?.toLowerCase() || ''
           bVal = b.customer?.business_name?.toLowerCase() || ''
           break
+        case 'sales_rep':
+          aVal = getAssignedRepName(a)?.toLowerCase() || ''
+          bVal = getAssignedRepName(b)?.toLowerCase() || ''
+          break
         case 'status':
           aVal = STATUS_WEIGHT[a.status] ?? 99
           bVal = STATUS_WEIGHT[b.status] ?? 99
@@ -276,6 +291,10 @@ export default function OrdersPage() {
         case 'order_date':
           aVal = a.order_date ? parseLocalDate(a.order_date).getTime() : 0
           bVal = b.order_date ? parseLocalDate(b.order_date).getTime() : 0
+          break
+        case 'updated':
+          aVal = a.updated_at ? parseISO(a.updated_at).getTime() : 0
+          bVal = b.updated_at ? parseISO(b.updated_at).getTime() : 0
           break
         case 'delivery_date':
           aVal = a.requested_delivery_date ? parseLocalDate(a.requested_delivery_date).getTime() : 0
@@ -368,7 +387,18 @@ export default function OrdersPage() {
     fetchOrders()
 
     if (selectedOrder?.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus as OrderStatus })
+      // Refetch so the sheet's "Updated" timestamp (bumped by the DB trigger)
+      // is current; fall back to a local patch if the refetch fails.
+      const refreshed = await getOrder(orderId)
+      if (!refreshed.error && refreshed.data) {
+        setSelectedOrder(refreshed.data as unknown as Order)
+      } else {
+        setSelectedOrder({
+          ...selectedOrder,
+          status: newStatus as OrderStatus,
+          updated_at: new Date().toISOString(),
+        })
+      }
     }
   }
 
@@ -816,7 +846,16 @@ export default function OrdersPage() {
                     <SortIcon field="customer" />
                   </button>
                 </TableHead>
-                <TableHead className="hidden md:table-cell">Items</TableHead>
+                <TableHead className="hidden md:table-cell">
+                  <button
+                    className="flex items-center font-medium hover:text-foreground"
+                    onClick={() => toggleSort('sales_rep')}
+                  >
+                    Sales Rep
+                    <SortIcon field="sales_rep" />
+                  </button>
+                </TableHead>
+                <TableHead className="hidden xl:table-cell">Items</TableHead>
                 <TableHead>
                   <button
                     className="flex items-center font-medium hover:text-foreground"
@@ -833,6 +872,15 @@ export default function OrdersPage() {
                   >
                     Created
                     <SortIcon field="order_date" />
+                  </button>
+                </TableHead>
+                <TableHead className="hidden lg:table-cell">
+                  <button
+                    className="flex items-center font-medium hover:text-foreground"
+                    onClick={() => toggleSort('updated')}
+                  >
+                    Updated
+                    <SortIcon field="updated" />
                   </button>
                 </TableHead>
                 <TableHead className="hidden sm:table-cell">
@@ -868,18 +916,37 @@ export default function OrdersPage() {
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{order.customer?.business_name || 'Unknown'}</div>
-                    {/* Mobile: order number + delivery date as sub-text */}
-                    <div className="sm:hidden text-xs text-muted-foreground mt-0.5 space-y-0.5">
-                      {order.order_number && <span className="block">#{order.order_number}</span>}
+                    {/* Sub-text under the name; each line hides at the breakpoint of the column that replaces it
+                        (order #/delivery: sm, rep: md, updated: lg). The wrapper hides at lg, when every line is
+                        hidden, so it reserves no space. flex-col + gap (not space-y) so a hidden last child
+                        leaves no trailing margin. */}
+                    <div className="lg:hidden flex flex-col gap-0.5 text-xs text-muted-foreground mt-0.5">
+                      {order.order_number && <span className="block sm:hidden">#{order.order_number}</span>}
                       {order.requested_delivery_date && (
-                        <span className="block flex items-center gap-1">
+                        <span className="block flex items-center gap-1 sm:hidden">
                           <Truck className="h-3 w-3 inline" />
                           {' '}{format(parseLocalDate(order.requested_delivery_date), 'MMM d, yyyy')}
+                        </span>
+                      )}
+                      <span className="block flex items-center gap-1 md:hidden">
+                        <User className="h-3 w-3 inline" />
+                        {' '}
+                        {getAssignedRepName(order) ?? <span className="italic">{UNASSIGNED_REP_LABEL}</span>}
+                      </span>
+                      {formatOrderUpdatedAt(order.updated_at) && (
+                        <span className="block flex items-center gap-1 lg:hidden">
+                          <Clock className="h-3 w-3 inline" />
+                          {' '}Updated {formatOrderUpdatedAt(order.updated_at)}
                         </span>
                       )}
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
+                    {getAssignedRepName(order) ?? (
+                      <span className="text-muted-foreground">{UNASSIGNED_REP_LABEL}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell">
                     <span className="text-muted-foreground">
                       {order.order_items?.length || 0} items
                     </span>
@@ -889,6 +956,9 @@ export default function OrdersPage() {
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     {format(parseLocalDate(order.order_date), 'MMM d, yyyy')}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {formatOrderUpdatedAt(order.updated_at) ?? '—'}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     {order.requested_delivery_date
@@ -966,6 +1036,16 @@ export default function OrdersPage() {
                             <div className="flex items-center gap-1">
                               <Truck className="h-4 w-4" />
                               {format(parseLocalDate(order.requested_delivery_date), 'MMM d, yyyy')}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            <User className="h-4 w-4" />
+                            {getAssignedRepName(order) ?? <span className="italic">{UNASSIGNED_REP_LABEL}</span>}
+                          </div>
+                          {formatOrderUpdatedAt(order.updated_at) && (
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-4 w-4" />
+                              Updated {formatOrderUpdatedAt(order.updated_at)}
                             </div>
                           )}
                         </div>
@@ -1166,6 +1246,10 @@ export default function OrdersPage() {
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Customer</h3>
                 <p className="text-lg font-semibold">{selectedOrder.customer?.business_name || 'Unknown'}</p>
+                <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                  <User className="h-4 w-4" />
+                  {getAssignedRepName(selectedOrder) ?? <span className="italic">{UNASSIGNED_REP_LABEL}</span>}
+                </p>
               </div>
 
               {/* Dates */}
@@ -1184,6 +1268,13 @@ export default function OrdersPage() {
                     {selectedOrder.requested_delivery_date
                       ? format(parseLocalDate(selectedOrder.requested_delivery_date), 'MMM d, yyyy')
                       : '—'}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Updated</h3>
+                  <p className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    {formatOrderUpdatedAt(selectedOrder.updated_at, true) ?? '—'}
                   </p>
                 </div>
               </div>
@@ -1287,13 +1378,6 @@ export default function OrdersPage() {
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Notes</h3>
                   <p className="text-sm bg-muted/50 rounded-lg p-3">{selectedOrder.order_notes}</p>
-                </div>
-              )}
-
-              {/* Last Edited */}
-              {selectedOrder.last_edited_at && (
-                <div className="text-xs text-muted-foreground">
-                  Last edited: {format(parseISO(selectedOrder.last_edited_at), 'MMM d, yyyy h:mm a')}
                 </div>
               )}
 
