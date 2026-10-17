@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-10-15",
+  "lastUpdated": "2026-10-17",
   "deaRegistrationStatus": {
     "lastVerified": "2026-10-15",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -72,7 +72,7 @@
       "label": "ALJ Broader-Rescheduling — DEA Response on Discovery/Testimony Request Due October 21, 2026",
       "date": "October 21, 2026",
       "description": "ALJ Derek Julius ordered the DEA to respond by October 21, 2026 (10-page limit) to anti-rescheduling parties' joint motion requesting supplemental testimony and document discovery in the broader-rescheduling proceeding (DEA Docket No. 1362; Hearing Docket No. 26-96), per an order issued October 14, 2026. The proceeding 'remains STAYED to allow time for a response and to allow time for the tribunal to consider the pending motions.' After reviewing DEA's October 21 response, ALJ Julius will decide whether to grant limited discovery/testimony (which could delay his recommended decision), deny the request, or take an intermediate step. The April 28 Schedule III order for OMMA-licensed medical marijuana is not affected by this proceeding's stay. Source: Marijuana Moment (October 14–15, 2026); Cannabis Business Times (October 14, 2026).",
-      "urgency": "standard"
+      "urgency": "urgent"
     },
     {
       "id": "kd-ok-moratorium-expires",
@@ -114,7 +114,7 @@
       "label": "Oklahoma HB 4454 — Edibles Restrictions Take Effect",
       "date": "November 1, 2026",
       "description": "OCTOBER 5 UPDATE — OMMA CONFIRMS PRE-NOVEMBER 1 STOCK GRANDFATHERED: OMMA Executive Director Adria Berry publicly confirmed that products packaged before November 1, 2026 are not subject to immediate recall or enforcement action — existing inventory packaged before that date can sell through. Any packaging run on or after November 1 must fully comply with the new requirements. Dispensaries and processors should document the packaging date on all pre-November 1 inventory to establish grandfathering for any OMMA inspection. Sources: citizenportal.ai (OMMA enforcement notice), Radio Oklahoma News (operator confusion reporting). Oklahoma HB 4454 (signed Gov. Stitt May 7, 2026) takes effect November 1, 2026. Key restrictions: THC limited to 10mg per serving, 100mg per package (20mg per drink container); bans packaging shapes resembling humans, animals, cartoons, or commercially available candy; bans marketing that appeals to minors. Dispensaries and processors producing or selling edibles must reformulate or rebrand non-compliant products before this date.",
-      "urgency": "standard"
+      "urgency": "urgent"
     },
     {
       "id": "kd-scotus-peridot-tree-wa-response",
@@ -135,20 +135,6 @@
       "label": "TerrAscend 280E Clawback — DOJ Response Nov 19; Hearing Adjourned to December 21, 2026 (From Oct 19)",
       "date": "December 21, 2026",
       "description": "OCTOBER 8 UPDATE — HEARING ADJOURNED TO DECEMBER 21: On October 2, 2026, Judge Esther Salas (D.N.J.) signed an order granting DOJ a 45-day extension to respond to TerrAscend's motion to dismiss. Government response now due November 19, 2026. The hearing on the motion to dismiss has been adjourned from October 19 to December 21, 2026. ORIGINAL: The U.S. District Court (District of New Jersey) is hearing TerrAscend USA's motion to dismiss the IRS's lawsuit seeking return of $8.36 million in §280E refunds issued after the April 28, 2026 rescheduling. A ruling will determine whether the case proceeds to the merits — i.e., whether a court will rule on the legality of §280E refunds issued post-rescheduling. Outcome will be precedent-relevant for all Oklahoma operators who filed amended returns or pre-paid §280E refund claims.",
-      "urgency": "standard"
-    },
-    {
-      "id": "kd-dc-circuit-scheduling-order-expected-oct16",
-      "label": "D.C. Circuit — Formal Merits Briefing Scheduling Order Expected ~October 16, 2026",
-      "date": "October 16, 2026",
-      "description": "The D.C. Circuit is expected to issue a formal merits briefing scheduling order around October 16, 2026, following the parties' joint format proposals filed October 9, 2026 (Harris Sliwoski LLP projection; not a confirmed court date). The parties' joint proposal requested: petitioners' opening brief November 24, 2026; government response January 13, 2027; petitioners' reply February 5, 2027; final briefs February 19, 2027. The court's formal scheduling order will set binding deadlines in consolidated Cases 26-1106/1130/1136 challenging the April 28 Schedule III rescheduling order. Monitor cadc.uscourts.gov for the formal order. The April 28 order remains fully operative throughout this briefing period.",
-      "urgency": "standard"
-    },
-    {
-      "id": "kd-omma-eac-october16",
-      "label": "OMMA Advisory Council Meeting — October 16, 2026",
-      "date": "October 16, 2026",
-      "description": "The OMMA External Advisory Council (EAC) meets October 16, 2026 at 9:00 AM. No agenda has been posted as of October 5, 2026. Operators should monitor the OMMA website (oklahoma.gov/omma/about/omma-advisory-council.html) for the posted agenda. With HB 4454 edibles restrictions effective November 1, 2026, HB 2837 annual employee credential training effective January 1, 2027, and the OBNDD October 31 renewal deadline approaching, EAC meetings in this period are likely to address compliance guidance and enforcement priorities. Meetings are publicly accessible and livestreamed.",
       "urgency": "standard"
     }
   ],
