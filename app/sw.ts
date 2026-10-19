@@ -1,6 +1,6 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, RuntimeCaching, SerwistGlobalConfig } from "serwist";
-import { NetworkOnly, Serwist } from "serwist";
+import { CacheFirst, ExpirationPlugin, NetworkOnly, Serwist } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -52,12 +52,29 @@ const authenticatedDocumentsNetworkOnly: RuntimeCaching[] = [
   },
 ];
 
+// Self-hosted barcode decoder (public/zxing/). Deliberately NOT precached: it is
+// ~0.9 MB and only needed when someone opens the camera scanner, so it is cached
+// the first time it is fetched and served from cache after that (works offline
+// on the warehouse wifi). The filename carries the zxing-wasm version, so a
+// cached copy can never be stale; a new version is a new URL.
+const zxingWasmCacheFirst: RuntimeCaching[] = [
+  {
+    matcher({ url }) {
+      return url.pathname.startsWith("/zxing/") && url.pathname.endsWith(".wasm");
+    },
+    handler: new CacheFirst({
+      cacheName: "zxing-wasm",
+      plugins: [new ExpirationPlugin({ maxEntries: 2, maxAgeSeconds: 365 * 24 * 60 * 60 })],
+    }),
+  },
+];
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: [...authenticatedDocumentsNetworkOnly, ...defaultCache],
+  runtimeCaching: [...authenticatedDocumentsNetworkOnly, ...zxingWasmCacheFirst, ...defaultCache],
   fallbacks: {
     entries: [
       {
