@@ -1043,6 +1043,104 @@ describe('listHarvestCycles / getCycleBatches / listUnlinkedBatches', () => {
     expect(ops).toContainEqual({ method: 'in', args: ['current_stage', ['flower', 'harvest', 'dry', 'trim']] })
   })
 
+  describe('includeCompleted', () => {
+    const cycleRow = (id: string, over: Record<string, unknown>) => ({
+      id,
+      cycle_number: 6,
+      current_stage: 'trim',
+      status: 'active',
+      harvest_date: '2026-09-17',
+      dry_start: null,
+      trim_start: null,
+      actual_end_date: null,
+      room: { id: 'r', room_name: 'F6', room_number: 6 },
+      batches: [{ count: 1 }],
+      ...over,
+    })
+    const ACTIVE_A = 'aaaaaaaa-0000-4000-8000-000000000001'
+    const ACTIVE_B = 'aaaaaaaa-0000-4000-8000-000000000002'
+    const DONE_OLD = 'cccccccc-0000-4000-8000-000000000001'
+    const DONE_NEW = 'cccccccc-0000-4000-8000-000000000002'
+
+    /** Answers each room_cycles query by the status it asked for, as the database would. */
+    function installCycles(rows: { active: unknown[]; completed: unknown[] }) {
+      const db = createFakeDb((call) => {
+        const status = call.ops.find((o) => o.method === 'eq' && o.args[0] === 'status')?.args[1]
+        return { data: status === 'completed' ? rows.completed : rows.active, error: null }
+      })
+      mockCreateServiceClient.mockResolvedValue(db.client)
+      return db
+    }
+
+    it('the default call never asks for completed cycles', async () => {
+      const { calls } = installCycles({ active: [cycleRow(ACTIVE_A, {})], completed: [cycleRow(DONE_NEW, { status: 'completed' })] })
+      const result = await mod.listHarvestCycles()
+      expect(calls).toHaveLength(1)
+      expect(calls[0].ops).toContainEqual({ method: 'eq', args: ['status', 'active'] })
+      expect(result.data?.map((c: { id: string }) => c.id)).toEqual([ACTIVE_A])
+      expect(result.data?.[0]).toMatchObject({ isCompleted: false, actualEndDate: null })
+    })
+
+    it('an empty options object behaves like no argument', async () => {
+      const { calls } = installCycles({ active: [], completed: [] })
+      await mod.listHarvestCycles({})
+      expect(calls).toHaveLength(1)
+    })
+
+    it('also queries completed cycles in harvest, dry and trim, bounded to the last 120 days', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-10-14T12:00:00Z'))
+      try {
+        const { calls } = installCycles({ active: [], completed: [] })
+        await mod.listHarvestCycles({ includeCompleted: true })
+        const done = calls.find((c) => c.ops.some((o) => o.method === 'eq' && o.args[1] === 'completed'))
+        expect(done).toBeDefined()
+        expect(done!.ops).toContainEqual({ method: 'in', args: ['current_stage', ['harvest', 'dry', 'trim']] })
+        // 2026-10-14 minus 120 days
+        expect(done!.ops).toContainEqual({ method: 'gte', args: ['harvest_date', '2026-06-16'] })
+        // the active query is untouched
+        const live = calls.find((c) => c.ops.some((o) => o.method === 'eq' && o.args[1] === 'active'))
+        expect(live!.ops).toContainEqual({ method: 'in', args: ['current_stage', ['flower', 'harvest', 'dry', 'trim']] })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('flags completed cycles, carries their end date, and orders active first then newest harvest first', async () => {
+      installCycles({
+        active: [
+          cycleRow(ACTIVE_A, { harvest_date: '2026-10-29', current_stage: 'flower', room: { id: 'r2', room_name: 'F2', room_number: 2 } }),
+          cycleRow(ACTIVE_B, { harvest_date: '2026-11-05' }),
+        ],
+        completed: [
+          cycleRow(DONE_NEW, { status: 'completed', harvest_date: '2026-09-17', actual_end_date: '2026-10-09' }),
+          cycleRow(DONE_OLD, { status: 'completed', harvest_date: '2026-08-01', actual_end_date: '2026-08-20' }),
+        ],
+      })
+      const result = await mod.listHarvestCycles({ includeCompleted: true })
+      expect(result.data?.map((c: { id: string }) => c.id)).toEqual([ACTIVE_A, ACTIVE_B, DONE_NEW, DONE_OLD])
+      expect(result.data?.map((c: { isCompleted: boolean }) => c.isCompleted)).toEqual([false, false, true, true])
+      expect(result.data?.[0].actualEndDate).toBeNull()
+      expect(result.data?.[2]).toMatchObject({ roomName: 'F6', stage: 'trim', actualEndDate: '2026-10-09' })
+    })
+
+    it('a completed cycle with no recorded end date still reads as completed', async () => {
+      installCycles({ active: [], completed: [cycleRow(DONE_NEW, { status: 'completed' })] })
+      const result = await mod.listHarvestCycles({ includeCompleted: true })
+      expect(result.data?.[0]).toMatchObject({ isCompleted: true, actualEndDate: null })
+    })
+
+    it('surfaces a failure from either query', async () => {
+      const db = createFakeDb((call) => {
+        const completed = call.ops.some((o) => o.method === 'eq' && o.args[1] === 'completed')
+        return completed ? { data: null, error: { message: 'boom' } } : { data: [], error: null }
+      })
+      mockCreateServiceClient.mockResolvedValue(db.client)
+      const result = await mod.listHarvestCycles({ includeCompleted: true })
+      expect(result.success).toBe(false)
+    })
+  })
+
   it('counts a batch\'s loads by status (non-void)', async () => {
     installDb({
       tables: {

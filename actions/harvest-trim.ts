@@ -159,6 +159,13 @@ export interface CycleOption {
   roomNumber: number | null
   /** Batches already declared on this cycle; 0 drives the blocking "Declare batches" card. */
   batchCount: number
+  /**
+   * True for a cycle whose status is 'completed'. Only ever true when the caller asked for
+   * `includeCompleted`. Always set by listHarvestCycles; optional only so hand-built fixtures compile.
+   */
+  isCompleted?: boolean
+  /** The date the cycle was closed ('yyyy-MM-dd'); null while it is live. */
+  actualEndDate?: string | null
 }
 
 export interface CycleBatch {
@@ -357,6 +364,15 @@ const EPISODE_COLS =
 
 const OPEN_STATUS_FILTER = '(reconciled,void)'
 const HARVEST_STAGES = ['flower', 'harvest', 'dry', 'trim']
+const CYCLE_SELECT =
+  'id, cycle_number, current_stage, status, harvest_date, dry_start, trim_start, actual_end_date, ' +
+  'room:grow_rooms(id, room_name, room_number), batches(count)'
+/**
+ * How far back a completed cycle's harvest can be and still be offered for catch-up. Harvest to close is
+ * weeks, and the paper records are keyed in after that, so 120 days covers a late catch-up without
+ * listing the room's whole history.
+ */
+const COMPLETED_WINDOW_DAYS = 120
 
 function toEpisode(r: Row): ScanEpisode {
   return {
@@ -400,41 +416,67 @@ function toDeclared(r: Row): DeclaredBatch {
 
 // ─── Cycle and batch reads ───────────────────────────────────────────────────
 
-/** Active cycles in flower / harvest / dry / trim, for the cycle picker. */
-export async function listHarvestCycles(): Promise<ActionResult<CycleOption[]>> {
+/**
+ * Active cycles in flower / harvest / dry / trim, for the cycle picker. With `includeCompleted` it also
+ * returns completed cycles in harvest / dry / trim whose harvest date is within the last 120 days, so a
+ * harvest that already finished can still be caught up (late entry, linking a batch). Active cycles come
+ * first (soonest harvest first), then completed ones, most recent harvest first. Each carries `isCompleted`.
+ * The no-argument call is unchanged: active cycles only.
+ */
+export async function listHarvestCycles(
+  options: { includeCompleted?: boolean } = {}
+): Promise<ActionResult<CycleOption[]>> {
   const auth = await requireRole(TRIM_VIEW_ROLES)
   if (!auth.authorized) return denied(auth.reason)
 
+  const includeCompleted = options?.includeCompleted === true
+
   try {
     const db = await createServiceClient()
-    const { data, error } = await db
+    const activeQuery = db
       .from('room_cycles')
-      .select(
-        'id, cycle_number, current_stage, harvest_date, dry_start, trim_start, ' +
-          'room:grow_rooms(id, room_name, room_number), batches(count)'
-      )
+      .select(CYCLE_SELECT)
       .eq('status', 'active')
       .in('current_stage', HARVEST_STAGES)
       .order('harvest_date', { ascending: true })
-    if (error) return dbFailure('listHarvestCycles', error)
 
-    return ok(
-      many(data).map((r) => {
-        const room = one(r.room)
-        return {
-          id: String(r.id),
-          cycleNumber: num(r.cycle_number),
-          stage: String(r.current_stage),
-          harvestDate: str(r.harvest_date),
-          dryStart: str(r.dry_start),
-          trimStart: str(r.trim_start),
-          roomId: room ? String(room.id) : null,
-          roomName: room ? str(room.room_name) : null,
-          roomNumber: room ? num(room.room_number) : null,
-          batchCount: num(one(r.batches)?.count) ?? 0,
-        }
-      })
-    )
+    let completedQuery = null
+    if (includeCompleted) {
+      const cutoff = new Date(Date.now() - COMPLETED_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10)
+      completedQuery = db
+        .from('room_cycles')
+        .select(CYCLE_SELECT)
+        .eq('status', 'completed')
+        // A completed cycle never sits in flower: it was harvested, so only the post-harvest stages count.
+        .in('current_stage', HARVEST_STAGES.filter((s) => s !== 'flower'))
+        .gte('harvest_date', cutoff)
+        .order('harvest_date', { ascending: false })
+    }
+
+    const [active, completed] = await Promise.all([activeQuery, completedQuery])
+    if (active.error) return dbFailure('listHarvestCycles', active.error)
+    if (completed?.error) return dbFailure('listHarvestCycles', completed.error)
+
+    const toOption = (r: Row): CycleOption => {
+      const room = one(r.room)
+      const isCompleted = r.status === 'completed'
+      return {
+        id: String(r.id),
+        cycleNumber: num(r.cycle_number),
+        stage: String(r.current_stage),
+        harvestDate: str(r.harvest_date),
+        dryStart: str(r.dry_start),
+        trimStart: str(r.trim_start),
+        roomId: room ? String(room.id) : null,
+        roomName: room ? str(room.room_name) : null,
+        roomNumber: room ? num(room.room_number) : null,
+        batchCount: num(one(r.batches)?.count) ?? 0,
+        isCompleted,
+        actualEndDate: isCompleted ? str(r.actual_end_date) : null,
+      }
+    }
+
+    return ok([...many(active.data).map(toOption), ...many(completed?.data).map(toOption)])
   } catch (err) {
     return dbFailure('listHarvestCycles', err)
   }

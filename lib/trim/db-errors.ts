@@ -52,6 +52,10 @@ export const TRIM_CODE_MAP: Readonly<Record<string, ActionErrorCode>> = {
   ALREADY_OUT: 'ALREADY_OUT',
   BATCH_REQUIRED: 'BATCH_REQUIRED',
   DUPLICATE_NAME: 'DUPLICATE_NAME',
+  NO_VENDOR: 'NO_VENDOR',
+  ALREADY_APPROVED: 'ALREADY_APPROVED',
+  HAS_PAYMENTS: 'HAS_PAYMENTS',
+  RECONCILE: 'RECONCILE',
 }
 
 /** The two invariant indexes every action file translates (see header). */

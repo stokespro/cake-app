@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -15,6 +16,7 @@ import type { ScanResult } from '@/actions/hangers'
 import { checkDryWetRatio } from '@/lib/trim/weights'
 import { cn } from '@/lib/utils'
 import { dateOnlyText, plantsText } from './format'
+import { LinkBatchCard } from './link-batch-card'
 import { PlantStepper } from './plant-stepper'
 import { useTrimRun } from './use-trim-run'
 import { useWeightFields } from './use-weight-fields'
@@ -41,7 +43,7 @@ function readRemembered(): Remembered | null {
 
 function cycleLabel(c: CycleOption): string {
   const room = c.roomName ?? (c.roomNumber !== null ? `Room ${c.roomNumber}` : 'Room')
-  return `${room}${c.cycleNumber !== null ? ` · Cycle ${c.cycleNumber}` : ''} · ${c.stage}`
+  return `${room}${c.cycleNumber !== null ? ` · Cycle ${c.cycleNumber}` : ''}${c.isCompleted ? '' : ` · ${c.stage}`}`
 }
 
 interface NewLoadPanelProps {
@@ -69,11 +71,12 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
   const [busy, setBusy] = useState(false)
 
   const last = scan.lastClosedLoad
+  const selected = cycles?.find((c) => c.id === cycleId) ?? null
 
   useEffect(() => {
     let live = true
     void (async () => {
-      const res = await run(listHarvestCycles(), { quiet: true })
+      const res = await run(listHarvestCycles({ includeCompleted: true }), { quiet: true })
       if (!live) return
       if (!res.success) {
         setCycles([])
@@ -83,7 +86,7 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
       const remembered = readRemembered()
       const pick =
         res.data.find((c) => c.id === remembered?.cycleId) ??
-        res.data.find((c) => c.stage === 'trim' || c.stage === 'dry') ??
+        res.data.find((c) => !c.isCompleted && (c.stage === 'trim' || c.stage === 'dry')) ??
         res.data[0] ??
         null
       setCycleId(pick?.id ?? null)
@@ -183,7 +186,14 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
                         : 'border-border bg-background hover:bg-muted'
                     )}
                   >
-                    <span className="block text-base font-semibold">{cycleLabel(c)}</span>
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-base font-semibold">{cycleLabel(c)}</span>
+                      {c.isCompleted && (
+                        <Badge variant="secondary" className="shrink-0">
+                          Completed{c.actualEndDate ? ` ${dateOnlyText(c.actualEndDate)}` : ''}
+                        </Badge>
+                      )}
+                    </span>
                     <span className="block text-xs opacity-80">Harvest {dateOnlyText(c.harvestDate)}</span>
                   </button>
                 ))}
@@ -196,11 +206,17 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
                 <p className="text-muted-foreground">Loading batches...</p>
               ) : batches.length === 0 ? (
                 <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-medium text-amber-700 dark:text-amber-300">
-                  No batches are declared on this cycle yet. Link or declare one on the{' '}
-                  <Link href="/dashboard/harvest-trim/harvest" className="underline">
-                    Harvest
-                  </Link>{' '}
-                  tab first.
+                  {selected?.isCompleted ? (
+                    'No batches are linked to this finished cycle yet. Link one below.'
+                  ) : (
+                    <>
+                      No batches are declared on this cycle yet. Declare one on the{' '}
+                      <Link href="/dashboard/harvest-trim/harvest" className="underline">
+                        Harvest
+                      </Link>{' '}
+                      tab, or link one below.
+                    </>
+                  )}
                 </p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -226,6 +242,16 @@ export function NewLoadPanel({ scan, onCreated, onDirtyChange }: NewLoadPanelPro
                 </div>
               )}
             </div>
+
+            {cycleId && batches !== null && (
+              <LinkBatchCard
+                key={`link-${cycleId}`}
+                cycleId={cycleId}
+                collapsed={batches.length > 0}
+                completed={!!selected?.isCompleted}
+                onLinked={() => void loadBatches(cycleId)}
+              />
+            )}
           </>
         )}
 
