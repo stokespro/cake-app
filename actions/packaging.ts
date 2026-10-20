@@ -6,7 +6,7 @@ import type { InventoryLevel, PackagingTask, OrderWithItems } from '@/types/pack
 
 // Roles that can access packaging actions — generous set so the shared TV
 // (packaging, vault, standard) and management/admin are never locked out.
-const PACKAGING_ROLES = ['admin', 'management', 'vault', 'packaging', 'standard'] as const
+const PACKAGING_ROLES = ['admin', 'management', 'vault', 'packaging', 'trim_manager', 'standard'] as const
 
 // Get inventory levels for all SKUs
 export async function getInventoryLevels(): Promise<{

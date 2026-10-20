@@ -231,6 +231,7 @@ export default function EditUserPage() {
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="vault">Vault</SelectItem>
                   <SelectItem value="packaging">Packaging</SelectItem>
+                  <SelectItem value="trim_manager">Trim Manager</SelectItem>
                   <SelectItem value="grow">Grow</SelectItem>
                   <SelectItem value="management">Management</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
@@ -241,6 +242,7 @@ export default function EditUserPage() {
                 <p><strong>Sales/Agent:</strong> Access to Dispensaries and Orders</p>
                 <p><strong>Vault:</strong> Vault, Packaging, Inventory, Products</p>
                 <p><strong>Packaging:</strong> Packaging, Materials, Inventory, Products</p>
+                <p><strong>Trim Manager:</strong> Everything Packaging has, plus Harvest &amp; Trim — hangers, trim staff and pay rates, approving amounts owed, and ending completed cycles</p>
                 <p><strong>Grow:</strong> Cultivation only — view and complete cultivation tasks, plus the cultivation wall-display monitor</p>
                 <p><strong>Management:</strong> Full access to all sections</p>
                 <p><strong>Admin:</strong> Full system access including user management</p>

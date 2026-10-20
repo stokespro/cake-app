@@ -1,18 +1,25 @@
 'use client'
 
-import type { PackagingUser } from '@/lib/packaging/board-types'
 import { cn } from '@/lib/utils'
 
 interface WorkerSelectorProps {
-  users: PackagingUser[]
+  // Structural so PackagingUser, trim staff, etc. all satisfy it.
+  users: { id: string; name: string }[]
   selectedId: string | null
   onSelect: (userId: string, userName: string) => void
+  /** Prompt shown above the buttons. Defaults to the packaging board wording. */
+  label?: string
 }
 
-export function WorkerSelector({ users, selectedId, onSelect }: WorkerSelectorProps) {
+export function WorkerSelector({
+  users,
+  selectedId,
+  onSelect,
+  label = 'Who is doing this?',
+}: WorkerSelectorProps) {
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-muted-foreground">Who is doing this?</p>
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {users.map((user) => {
           const isSelected = user.id === selectedId

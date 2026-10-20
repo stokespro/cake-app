@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildSessionCookieOptions, isUserRole } from './session-constants';
 
 describe('isUserRole', () => {
-  it.each(['admin', 'management', 'sales', 'standard', 'vault', 'packaging', 'agent', 'grow'])(
+  it.each(['admin', 'management', 'sales', 'standard', 'vault', 'packaging', 'agent', 'grow', 'trim_manager'])(
     'accepts the known role %s',
     (role) => {
       expect(isUserRole(role)).toBe(true);

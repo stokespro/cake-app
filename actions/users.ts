@@ -1,6 +1,7 @@
 'use server'
 
 import { requireRole } from '@/lib/auth/session'
+import { isUserRole } from '@/lib/auth/session-constants'
 import { createServiceClient } from '@/lib/supabase/server'
 
 /**
@@ -146,6 +147,12 @@ export async function createUser(input: CreateUserInput): Promise<
     return { error: 'PIN must be exactly 4 digits' }
   }
 
+  // role is free text at the DB level. An unknown role would create a user
+  // who can never log in (isUserRole() fails closed at sign-in), so reject it.
+  if (!isUserRole(input.role)) {
+    return { error: 'Invalid role' }
+  }
+
   const db = await createServiceClient()
 
   // Check PIN uniqueness
@@ -217,6 +224,11 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
 > {
   const auth = await requireRole(['admin'])
   if (!auth.authorized) return { error: auth.reason }
+
+  // Same guard as createUser: a typo'd role would lock the user out.
+  if (!isUserRole(input.role)) {
+    return { error: 'Invalid role' }
+  }
 
   const newPin = input.pin?.trim()
   const isChangingPin = !!newPin
