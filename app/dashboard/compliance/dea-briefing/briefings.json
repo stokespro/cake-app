@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-10-19",
+  "lastUpdated": "2026-10-20",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-10-19",
+    "lastVerified": "2026-10-20",
     "headline": "DEA Registration Status \u2014 Oklahoma Operators",
     "tracks": [
       {
@@ -139,6 +139,19 @@
     }
   ],
   "items": [
+    {
+      "id": "nuggmd-poll-trump-cannabis-support-drops-oct20-2026",
+      "headline": "NuggMD/Marijuana Moment Poll: Trump Consumer Approval on Cannabis Drops From 73% to 48% as Rescheduling Stalls — October 20, 2026",
+      "date": "2026-10-20",
+      "summary": "A quarterly tracking poll conducted by NuggMD and published by Marijuana Moment on October 20, 2026 shows a sharp decline in marijuana consumers' approval of the Trump administration's cannabis actions as the broader rescheduling proceeding remains stayed under ALJ Julius. Consumer approval dropped to 48% from 73% the previous quarter — a 25-percentage-point decline. Thirteen percent of respondents actively disapprove, and 40% are neutral or have no opinion. The survey tracks consumers' views of the Trump administration's marijuana actions specifically; the decline is attributed in part to consumers who see the adult-use/broader rescheduling as stalled while the ALJ proceeding sits paused pending the October 21 DEA response deadline.",
+      "whyItMatters": "For CAKE as an OMMA-licensed cultivator/processor and for dispensary customers: this poll carries no direct compliance implication but is material political context. Declining consumer approval may strengthen congressional and White House pressure on the DEA to resolve the broader rescheduling proceeding — consumer political pressure on Republicans is the lever that has historically moved cannabis legislation. For Oklahoma operators evaluating when adult-use federal legalization might occur, the growing consumer frustration with rescheduling delays signals that the political cost of prolonged inaction is rising. This does NOT change OBNDD enforcement deadlines (January 1, 2027), DEA registration requirements, or the operative status of the April 28 Schedule III order for OMMA-licensed operators.",
+      "tags": ["federal", "cultivation", "dispensary"],
+      "source": {
+        "name": "Marijuana Moment — Trump Is Losing Support From Marijuana Consumers As Rescheduling Process Sees More Delays, Poll Shows (October 20, 2026)",
+        "url": "https://www.marijuanamoment.net/trump-is-losing-support-from-marijuana-consumers-as-rescheduling-process-sees-more-delays-poll-shows"
+      },
+      "pinned": false
+    },
     {
       "id": "alj-julius-oct14-orders-dea-respond-oct21-discovery",
       "headline": "ALJ Julius Orders DEA to Respond by October 21 to Opponents' Request to Reopen Rescheduling Hearing for Discovery and Testimony",
