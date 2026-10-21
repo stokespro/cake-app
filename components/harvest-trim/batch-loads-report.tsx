@@ -6,7 +6,18 @@ import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { BatchLoadEpisode, BatchLoadRow, BatchLoadsReport, BatchTrimmerRollup } from '@/actions/trim-reports'
 import type { HangerLoadStatus } from '@/types/harvest-trim'
-import { LOAD_STATUS_META, LOAD_STATUS_ORDER, agoText, moneyText, pctText, plantsText, signedGramsText, whenText } from './format'
+import {
+  LOAD_STATUS_META,
+  LOAD_STATUS_ORDER,
+  VARIANCE_LABEL,
+  VARIANCE_TONE,
+  agoText,
+  moneyText,
+  pctText,
+  plantsText,
+  signedGramsText,
+  whenText,
+} from './format'
 import { Mass } from './mass'
 
 interface BatchLoadsSectionProps {
@@ -41,14 +52,6 @@ function returnLabel(ep: BatchLoadEpisode): string {
   if (ep.status === 'released') return 'Released, not trimmed'
   return ep.returnKind === 'unfinished' ? 'Unfinished' : 'Finished'
 }
-
-const VARIANCE_TONE = {
-  flagged: 'border-red-500/50 bg-red-500/15 text-red-700 dark:text-red-300',
-  accepted: 'border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  ok: 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-300',
-} as const
-
-const VARIANCE_LABEL = { flagged: 'Flagged', accepted: 'Accepted', ok: 'In threshold' } as const
 
 /**
  * Variance as the rest of the module shows it: a loss is negative ("-419 g"). The database stores

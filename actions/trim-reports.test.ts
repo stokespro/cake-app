@@ -138,6 +138,8 @@ const GATES: Record<string, string[]> = {
   getStrainYieldHistory: TRIM_VIEW_ROLES,
   getTrimmerPerformance: TRIM_VIEW_ROLES,
   getBatchLoads: TRIM_VIEW_ROLES,
+  getTrimDayReport: TRIM_VIEW_ROLES,
+  listTrimBatchOptions: TRIM_VIEW_ROLES,
 }
 const ALL_ROLES = ['admin', 'management', 'trim_manager', 'grow', 'sales', 'agent', 'vault', 'packaging', 'standard']
 const exported = mod as unknown as Record<string, (...args: unknown[]) => Promise<Result>>
@@ -368,9 +370,17 @@ describe('getTrimmerPerformance', () => {
     await mod.getTrimmerPerformance({ ...input, trimmerId: TRIMMER })
     const ops = calls[0].ops
     expect(ops).toContainEqual({ method: 'eq', args: ['status', 'returned'] })
-    expect(ops).toContainEqual({ method: 'gte', args: ['returned_at', '2026-10-01T00:00:00.000Z'] })
-    expect(ops).toContainEqual({ method: 'lt', args: ['returned_at', '2026-11-01T00:00:00.000Z'] })
+    // America/Chicago day boundaries (CDT, UTC-5): Oct 1 00:00 local to Nov 1 00:00 local
+    expect(ops).toContainEqual({ method: 'gte', args: ['returned_at', '2026-10-01T05:00:00.000Z'] })
+    expect(ops).toContainEqual({ method: 'lt', args: ['returned_at', '2026-11-01T05:00:00.000Z'] })
     expect(ops).toContainEqual({ method: 'eq', args: ['trimmer_id', TRIMMER] })
+  })
+
+  it('draws day boundaries in America/Chicago, not UTC (winter is CST, UTC-6)', async () => {
+    const { calls } = installDb()
+    await mod.getTrimmerPerformance({ from: '2026-12-15', to: '2026-12-15' })
+    expect(calls[0].ops).toContainEqual({ method: 'gte', args: ['returned_at', '2026-12-15T06:00:00.000Z'] })
+    expect(calls[0].ops).toContainEqual({ method: 'lt', args: ['returned_at', '2026-12-16T06:00:00.000Z'] })
   })
 
   it('says so when the row cap is hit', async () => {
@@ -673,5 +683,345 @@ describe('getBatchLoads', () => {
     expect(result.success).toBe(false)
     expect(result.error).not.toMatch(/relation/)
     expect(console.error).toHaveBeenCalledWith('[harvest-trim] getBatchLoads error:', expect.anything())
+  })
+})
+
+
+// ─── getTrimDayReport ────────────────────────────────────────────────────────
+
+describe('getTrimDayReport', () => {
+  const T_ANTONIO = 'bbbbbbbb-0000-4000-8000-000000000001'
+  const T_MARIA = 'bbbbbbbb-0000-4000-8000-000000000002'
+  const T_SAM = 'bbbbbbbb-0000-4000-8000-000000000003'
+  const B_BB = '33333333-3333-4333-8333-3333333333b1'
+  const B_VZ = '33333333-3333-4333-8333-3333333333b2'
+  const input = { from: '2026-10-21', to: '2026-10-21' }
+
+  /** A trim_checkouts row as PostgREST returns it with the day report's select. */
+  function row(over: Record<string, unknown> = {}, load: Record<string, unknown> = {}) {
+    return {
+      id: `co-${Math.random()}`,
+      seq: 1,
+      load_id: `load-${Math.random()}`,
+      trimmer_id: T_ANTONIO,
+      trimmer_name: 'Antonio',
+      checked_out_at: '2026-10-21T13:05:33.783945+00:00',
+      returned_at: '2026-10-21T14:52:14.813075+00:00',
+      return_kind: 'complete',
+      issued_g: 595,
+      flower_g: 245,
+      trim_g: 99.4,
+      stems_g: 245.2,
+      processed_g: 595,
+      returned_total_g: 589.6,
+      variance_g: 5.4,
+      variance_pct: 0.908,
+      variance_status: 'ok',
+      rate_per_lb_applied: 225,
+      trim_pay_entries: { amount: 54.01 },
+      hanger_loads: {
+        batch_id: B_BB,
+        hanger: { code: 'H1B-044' },
+        batch: { name: '1001-F1-BB', strain: { name: 'Bubble Bath' } },
+        ...load,
+      },
+      ...over,
+    }
+  }
+
+  /** Antonio's 2026-10-21 (the acceptance scenario), deliberately out of order. */
+  function antonioDay() {
+    return [
+      row({ id: 'c3', load_id: 'l3', checked_out_at: '2026-10-21T16:12:47+00:00', returned_at: '2026-10-21T18:44:23+00:00',
+        issued_g: 765, flower_g: 302.7, trim_g: 163.4, stems_g: 280.7, processed_g: 765, returned_total_g: 746.8,
+        variance_g: 18.2, variance_pct: 2.379, trim_pay_entries: { amount: 66.73 } }, { hanger: { code: 'H1B-070' } }),
+      row({ id: 'c1', load_id: 'l1' }),
+      row({ id: 'c4', load_id: 'l4', checked_out_at: '2026-10-21T18:44:42+00:00', returned_at: '2026-10-21T20:18:06+00:00',
+        issued_g: 615, flower_g: 268.5, trim_g: 148.3, stems_g: 178.1, processed_g: 615, returned_total_g: 594.9,
+        variance_g: 20.1, variance_pct: 3.268, trim_pay_entries: { amount: 59.19 } },
+        { batch_id: B_VZ, hanger: { code: 'H1B-067' }, batch: { name: '1001-F1-VZ', strain: { name: 'VerZace' } } }),
+      row({ id: 'c2', load_id: 'l2', checked_out_at: '2026-10-21T14:55:17+00:00', returned_at: '2026-10-21T16:11:47+00:00',
+        issued_g: 480, flower_g: 194.2, trim_g: 95, stems_g: 179.2, processed_g: 480, returned_total_g: 468.4,
+        variance_g: 11.6, variance_pct: 2.417, trim_pay_entries: { amount: 42.81 } }, { hanger: { code: 'H1B-053' } }),
+    ]
+  }
+
+  const selectArg = (calls: Array<{ ops: Array<{ method: string; args: unknown[] }> }>) =>
+    String(calls[0].ops.find((o) => o.method === 'select')?.args[0])
+
+  it('reproduces the Antonio 2026-10-21 report: 4 hangers, totals, per-hanger rows in checkout order', async () => {
+    installDb(() => ({ data: antonioDay(), error: null }))
+    const report = (await mod.getTrimDayReport({ ...input, trimmerId: T_ANTONIO })).data!
+
+    expect(report.totals).toMatchObject({
+      episodes: 4,
+      hangers: 4,
+      issuedG: 2455,
+      flowerG: 1010.4,
+      flowerLb: 2.228, // 1010.4 / 453.59237 -> "2.23 lb" on screen
+      trimG: 506.1,
+      stemsG: 883.2,
+      returnedTotalG: 2399.7,
+      flowerSharePct: 42.11,
+      flowerYieldPct: 41.16,
+      varianceG: 55.3, // database sign: issued minus accounted for
+      variancePct: 2.253, // 55.3 / 2455
+      flaggedReturns: 0,
+      payAmount: 222.74,
+    })
+    expect(report.episodes.map((e: { hangerCode: string }) => e.hangerCode)).toEqual(['H1B-044', 'H1B-053', 'H1B-070', 'H1B-067'])
+    expect(report.episodes[0]).toEqual({
+      checkoutId: 'c1',
+      seq: 1,
+      hangerCode: 'H1B-044',
+      loadId: 'l1',
+      batchId: B_BB,
+      batchName: '1001-F1-BB',
+      strainName: 'Bubble Bath',
+      trimmerId: T_ANTONIO,
+      trimmerName: 'Antonio',
+      checkedOutAt: '2026-10-21T13:05:33.783945+00:00',
+      returnedAt: '2026-10-21T14:52:14.813075+00:00',
+      turnaroundHours: 1.78,
+      issuedG: 595,
+      flowerG: 245,
+      trimG: 99.4,
+      stemsG: 245.2,
+      returnedTotalG: 589.6,
+      varianceG: 5.4,
+      variancePct: 0.908,
+      varianceStatus: 'ok',
+      returnKind: 'complete',
+      ratePerLb: 225,
+      payAmount: 54.01,
+    })
+    expect(report.episodes[3]).toMatchObject({ hangerCode: 'H1B-067', batchName: '1001-F1-VZ', strainName: 'VerZace', batchId: B_VZ })
+  })
+
+  it('scopes the query to returned episodes in the Chicago day, with one round trip', async () => {
+    const { calls } = installDb()
+    await mod.getTrimDayReport(input)
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({ kind: 'from', name: 'trim_checkouts' })
+    expect(calls[0].ops).toContainEqual({ method: 'eq', args: ['status', 'returned'] })
+    expect(calls[0].ops).toContainEqual({ method: 'gte', args: ['returned_at', '2026-10-21T05:00:00.000Z'] })
+    expect(calls[0].ops).toContainEqual({ method: 'lt', args: ['returned_at', '2026-10-22T05:00:00.000Z'] })
+    expect(calls[0].ops).toContainEqual({ method: 'limit', args: [1000] })
+    expect(selectArg(calls)).toContain('hanger_loads!inner(batch_id')
+    expect(selectArg(calls)).not.toMatch(/(^|[,(]\s*)\*/)
+  })
+
+  it('batch filter goes through hanger_loads.batch_id and does not touch the trimmer column', async () => {
+    const { calls } = installDb()
+    await mod.getTrimDayReport({ ...input, batchId: B_BB })
+    expect(calls[0].ops).toContainEqual({ method: 'eq', args: ['hanger_loads.batch_id', B_BB] })
+    expect(calls[0].ops.filter((o) => o.method === 'eq').map((o) => o.args[0])).not.toContain('trimmer_id')
+  })
+
+  it('trimmer filter narrows totals, trimmers and episodes but NOT the query: baseline and rank stay crew-wide', async () => {
+    const crewRows = [
+      ...antonioDay(),
+      row({ id: 'm1', load_id: 'lm1', trimmer_id: T_MARIA, trimmer_name: 'Maria', flower_g: 1500, trim_g: 800, stems_g: 200, returned_total_g: 2500, issued_g: 2500, processed_g: 2500, variance_g: 0, variance_pct: 0, trim_pay_entries: { amount: 744.06 } }, { hanger: { code: 'H1B-001' } }),
+      row({ id: 's1', load_id: 'ls1', trimmer_id: T_SAM, trimmer_name: 'Sam', flower_g: 2250, trim_g: 150, stems_g: 100, returned_total_g: 2500, issued_g: 2500, processed_g: 2500, variance_g: 0, variance_pct: 0, trim_pay_entries: { amount: 1116.09 } }, { hanger: { code: 'H1B-002' } }),
+    ]
+    const { calls } = installDb(() => ({ data: crewRows, error: null }))
+    const report = (await mod.getTrimDayReport({ ...input, trimmerId: T_ANTONIO })).data!
+
+    expect(calls[0].ops.filter((o) => o.method === 'eq').map((o) => o.args[0])).not.toContain('trimmer_id')
+    expect(report.episodes).toHaveLength(4)
+    expect(report.episodes.every((e: { trimmerId: string }) => e.trimmerId === T_ANTONIO)).toBe(true)
+    expect(report.totals).toMatchObject({ episodes: 4, hangers: 4, flowerG: 1010.4, payAmount: 222.74 })
+    expect(report.trimmers.map((t: { trimmerName: string }) => t.trimmerName)).toEqual(['Antonio'])
+    // the crew is whole, ranked by flower: Sam 2250, Maria 1500, Antonio 1010.4
+    expect(report.crew.map((t: { trimmerName: string; rank: number }) => [t.trimmerName, t.rank])).toEqual([['Sam', 1], ['Maria', 2], ['Antonio', 3]])
+    expect(report.trimmers[0].rank).toBe(3)
+    // baseline = median of the eligible (>= 2000 g returned) trimmers' shares: Antonio 42.1%, Maria 60%, Sam 90% -> 60
+    expect(report.baselineFlowerSharePct).toBe(60)
+    expect(report.trimmers[0]).toMatchObject({ flowerShareDeltaPts: -17.89, isFlowerShareOutlier: true })
+  })
+
+  it('without a trimmer filter, trimmers and crew are the same ranking', async () => {
+    installDb(() => ({ data: antonioDay(), error: null }))
+    const report = (await mod.getTrimDayReport(input)).data!
+    expect(report.trimmers).toEqual(report.crew)
+    expect(report.trimmers[0]).toMatchObject({ rank: 1, trimmerName: 'Antonio', episodes: 4, hangers: 4, flowerG: 1010.4, payAmount: 222.74 })
+  })
+
+  it('tied flower grams share a rank', async () => {
+    installDb(() => ({
+      data: [
+        row({ trimmer_id: T_MARIA, trimmer_name: 'Maria', load_id: 'a' }),
+        row({ trimmer_id: T_SAM, trimmer_name: 'Sam', load_id: 'b' }),
+        row({ trimmer_id: T_ANTONIO, trimmer_name: 'Antonio', load_id: 'c', flower_g: 100 }),
+      ],
+      error: null,
+    }))
+    const crew = (await mod.getTrimDayReport(input)).data!.crew
+    expect(crew.map((t: { rank: number }) => t.rank)).toEqual([1, 1, 3])
+  })
+
+  it('uses the same trimmer rollup and baseline as getTrimmerPerformance (one implementation)', async () => {
+    const data = antonioDay()
+    installDb(() => ({ data, error: null }))
+    const day = (await mod.getTrimDayReport(input)).data!
+    const perf = (await mod.getTrimmerPerformance(input)).data!
+    expect(day.baselineFlowerSharePct).toBe(perf.baselineFlowerSharePct)
+    // the day report's crew row is the performance row plus rank and the issued / yield / variance totals
+    expect(day.crew[0]).toMatchObject(perf.rows[0])
+    expect(day.crew[0]).toMatchObject({ rank: 1, issuedG: 2455, flowerYieldPct: 41.16, varianceG: 55.3, variancePct: 2.253 })
+  })
+
+  it('counts flagged and accepted returns, and a flagged return has no pay line', async () => {
+    installDb(() => ({
+      data: [
+        row({ load_id: 'a', variance_status: 'flagged', trim_pay_entries: null }),
+        row({ load_id: 'b', variance_status: 'accepted' }),
+        row({ load_id: 'c' }),
+      ],
+      error: null,
+    }))
+    const report = (await mod.getTrimDayReport(input)).data!
+    expect(report.totals.flaggedReturns).toBe(2)
+    expect(report.totals.payAmount).toBe(108.02)
+    expect(report.episodes.find((e: { varianceStatus: string; payAmount: number | null }) => e.varianceStatus === 'flagged')?.payAmount).toBeNull()
+  })
+
+  it('counts a hanger once however many episodes returned that day', async () => {
+    installDb(() => ({
+      data: [row({ load_id: 'same', seq: 1, return_kind: 'unfinished' }), row({ load_id: 'same', seq: 2 })],
+      error: null,
+    }))
+    const { totals, episodes } = (await mod.getTrimDayReport(input)).data!
+    expect(totals).toMatchObject({ episodes: 2, hangers: 1 })
+    expect(episodes.map((e: { seq: number }) => e.seq)).toEqual([1, 2])
+    expect(episodes[0].returnKind).toBe('unfinished')
+  })
+
+  it.each(['admin', 'management', 'trim_manager'])('%s sees rates and pay', async (role) => {
+    asRole(role)
+    const { calls } = installDb(() => ({ data: antonioDay(), error: null }))
+    const report = (await mod.getTrimDayReport(input)).data!
+    expect(selectArg(calls)).toContain('trim_pay_entries(amount)')
+    expect(selectArg(calls)).toContain('rate_per_lb_applied')
+    expect(report.moneyVisible).toBe(true)
+    expect(report.totals.payAmount).toBe(222.74)
+    expect(report.crew[0].payAmount).toBe(222.74)
+    expect(report.episodes[0]).toMatchObject({ ratePerLb: 225, payAmount: 54.01 })
+  })
+
+  it('strips every dollar and rate for grow, and does not even select the money columns', async () => {
+    asRole('grow')
+    const { calls } = installDb(() => ({ data: antonioDay(), error: null }))
+    const result = await mod.getTrimDayReport(input)
+    expect(result.success).toBe(true)
+    expect(selectArg(calls)).not.toContain('trim_pay_entries')
+    expect(selectArg(calls)).not.toContain('rate_per_lb_applied')
+
+    const report = result.data!
+    expect(report.moneyVisible).toBe(false)
+    expect(report.totals.payAmount).toBeNull()
+    for (const t of [...report.trimmers, ...report.crew]) expect(t.payAmount).toBeNull()
+    for (const e of report.episodes) {
+      expect(e.payAmount).toBeNull()
+      expect(e.ratePerLb).toBeNull()
+    }
+    // the fake hands back money regardless; none of it may reach the caller
+    const json = JSON.stringify(report)
+    for (const leaked of ['54.01', '42.81', '66.73', '59.19', '222.74', 'trim_pay_entries', 'rate_per_lb']) {
+      expect(json).not.toContain(leaked)
+    }
+    // weights are not money
+    expect(report.totals.flowerG).toBe(1010.4)
+  })
+
+  it('an empty day is an empty report, not an error', async () => {
+    installDb()
+    expect(await mod.getTrimDayReport(input)).toMatchObject({
+      success: true,
+      data: {
+        truncated: false,
+        baselineFlowerSharePct: null,
+        trimmers: [],
+        crew: [],
+        episodes: [],
+        totals: { episodes: 0, hangers: 0, issuedG: 0, flowerG: 0, flowerSharePct: null, flowerYieldPct: null, variancePct: null, varianceG: 0 },
+      },
+    })
+  })
+
+  it('says so when the row cap is hit', async () => {
+    installDb(() => ({ data: Array.from({ length: 1000 }, () => row()), error: null }))
+    expect((await mod.getTrimDayReport(input)).data?.truncated).toBe(true)
+  })
+
+  it('echoes the filters and the range', async () => {
+    installDb()
+    const report = (await mod.getTrimDayReport({ from: '2026-10-15', to: '2026-10-21', trimmerId: T_ANTONIO, batchId: B_BB })).data!
+    expect(report).toMatchObject({ from: '2026-10-15', to: '2026-10-21', trimmerId: T_ANTONIO, batchId: B_BB })
+    expect((await mod.getTrimDayReport(input)).data).toMatchObject({ trimmerId: null, batchId: null })
+  })
+
+  it.each([
+    ['missing input', undefined as never],
+    ['missing dates', {} as never],
+    ['bad from', { from: '10/21/2026', to: '2026-10-21' }],
+    ['impossible date', { from: '2026-02-30', to: '2026-03-01' }],
+    ['to before from', { from: '2026-10-22', to: '2026-10-21' }],
+    ['range over a year', { from: '2025-01-01', to: '2026-10-21' }],
+    ['bad trimmer id', { ...{ from: '2026-10-21', to: '2026-10-21' }, trimmerId: 'x' }],
+    ['bad batch id', { ...{ from: '2026-10-21', to: '2026-10-21' }, batchId: 'x' }],
+  ])('rejects %s before the database', async (_label, bad) => {
+    expect(await mod.getTrimDayReport(bad)).toMatchObject({ success: false, code: 'INVALID' })
+    expect(mockCreateServiceClient).not.toHaveBeenCalled()
+  })
+
+  it('accepts exactly a year', async () => {
+    installDb()
+    expect(await mod.getTrimDayReport({ from: '2025-10-21', to: '2026-10-22' })).toMatchObject({ success: true })
+  })
+
+  it('a database error is logged and returned generic', async () => {
+    installDb(() => ({ data: null, error: { code: '42P01', message: 'relation "x" does not exist' } }))
+    const result = await mod.getTrimDayReport(input)
+    expect(result.success).toBe(false)
+    expect(result.error).not.toMatch(/relation/)
+    expect(console.error).toHaveBeenCalledWith('[harvest-trim] getTrimDayReport error:', expect.anything())
+  })
+})
+
+// ─── listTrimBatchOptions ────────────────────────────────────────────────────
+
+describe('listTrimBatchOptions', () => {
+  it('lists batches that have loads, newest harvest first, capped, with one load id per batch', async () => {
+    const { calls } = installDb(() => ({
+      data: [
+        { id: BATCH, name: '1001-F1-BB', harvest_date: '2026-10-01', strain: { name: 'Bubble Bath' }, hanger_loads: [{ id: 'x' }] },
+        { id: BATCH2, name: '0901-F1-XX', harvest_date: null, strain: null, hanger_loads: [{ id: 'y' }] },
+      ],
+      error: null,
+    }))
+    const result = await mod.listTrimBatchOptions()
+    expect(result.data).toEqual([
+      { id: BATCH, name: '1001-F1-BB', strainName: 'Bubble Bath', harvestDate: '2026-10-01' },
+      { id: BATCH2, name: '0901-F1-XX', strainName: null, harvestDate: null },
+    ])
+    expect(calls).toHaveLength(1)
+    expect(calls[0].name).toBe('batches')
+    expect(String(calls[0].ops.find((o) => o.method === 'select')?.args[0])).toContain('hanger_loads!inner(id)')
+    expect(calls[0].ops).toContainEqual({ method: 'order', args: ['harvest_date', { ascending: false, nullsFirst: false }] })
+    expect(calls[0].ops).toContainEqual({ method: 'limit', args: [1, { referencedTable: 'hanger_loads' }] })
+    expect(calls[0].ops).toContainEqual({ method: 'limit', args: [200] })
+  })
+
+  it('an empty list is a success', async () => {
+    installDb()
+    expect(await mod.listTrimBatchOptions()).toMatchObject({ success: true, data: [] })
+  })
+
+  it('a database error is logged and returned generic', async () => {
+    installDb(() => ({ data: null, error: { code: '42P01', message: 'relation "x" does not exist' } }))
+    const result = await mod.listTrimBatchOptions()
+    expect(result.success).toBe(false)
+    expect(result.error).not.toMatch(/relation/)
   })
 })

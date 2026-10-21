@@ -24,6 +24,7 @@ import {
 } from '@/lib/trim/yield'
 import { dbFailure, denied, fail, invalid } from '@/lib/trim/db-errors'
 import { sumMoney } from '@/lib/trim/pay'
+import { chicagoDayRangeToUtc, daysBetween, isValidDay } from '@/lib/trim/day-range'
 import { gramsToLb, roundLb, roundTo } from '@/lib/units'
 import type {
   ActionResult,
@@ -64,12 +65,6 @@ function one(v: unknown): Row | null {
 
 function many(v: unknown): Row[] {
   return Array.isArray(v) ? (v as Row[]) : []
-}
-
-function validDate(v: unknown): v is string {
-  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false
-  const d = new Date(`${v}T00:00:00Z`)
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -141,6 +136,110 @@ export interface TrimmerPerformanceReport {
    */
   baselineFlowerSharePct: number | null
   rows: TrimmerPerformanceRow[]
+}
+
+/** A trimmer's rollup for the day report: the performance row plus a position in the crew. */
+export interface TrimDayTrimmerRow extends TrimmerPerformanceRow {
+  /** 1 = most flower. Ties share a rank. Always the position in the WHOLE crew, never within a filter. */
+  rank: number
+  issuedG: number
+  /** flower / issued, as a percentage. */
+  flowerYieldPct: number | null
+  /** Database sign (loss positive); see TrimDayEpisode.varianceG. */
+  varianceG: number
+  /** Total variance over total processed grams, as a percentage. Same sign as varianceG. */
+  variancePct: number | null
+}
+
+/** One returned custody episode: the per-hanger detail row. */
+export interface TrimDayEpisode {
+  checkoutId: string
+  seq: number
+  hangerCode: string
+  loadId: string
+  batchId: string | null
+  batchName: string | null
+  strainName: string | null
+  trimmerId: string
+  trimmerName: string
+  checkedOutAt: string | null
+  returnedAt: string | null
+  turnaroundHours: number | null
+  issuedG: number | null
+  flowerG: number | null
+  trimG: number | null
+  stemsG: number | null
+  returnedTotalG: number | null
+  /**
+   * Database sign: issued minus (flower + trim + stems + left on hanger), so a LOSS is POSITIVE. The
+   * screens flip it for display (negative = weight missing); raw here so it matches the SQL.
+   */
+  varianceG: number | null
+  /** varianceG / processed grams * 100 (the database's own denominator). Same sign as varianceG. */
+  variancePct: number | null
+  varianceStatus: VarianceStatus | null
+  returnKind: ReturnKind | null
+  /** Null unless the viewer has pay access. */
+  ratePerLb: number | null
+  /** Null unless the viewer has pay access, and null when no pay line exists yet (e.g. still flagged). */
+  payAmount: number | null
+}
+
+export interface TrimDayTotals {
+  /** Returned episodes. */
+  episodes: number
+  /** Distinct hangers (loads) those episodes belong to. */
+  hangers: number
+  issuedG: number
+  flowerG: number
+  flowerLb: number
+  trimG: number
+  stemsG: number
+  returnedTotalG: number
+  /** flower / (flower + trim + stems), as a percentage. */
+  flowerSharePct: number | null
+  /** flower / issued, as a percentage: the "what came off the hanger as flower" number. */
+  flowerYieldPct: number | null
+  /** Database sign (loss positive); see TrimDayEpisode.varianceG. */
+  varianceG: number
+  /** Total variance over total processed grams (issued minus left on hanger), as a percentage. */
+  variancePct: number | null
+  /** Episodes that tripped the flag (currently flagged or later accepted). */
+  flaggedReturns: number
+  /** Null unless the viewer has pay access. */
+  payAmount: number | null
+}
+
+export interface TrimDayReport {
+  from: string
+  to: string
+  /** Echo of the filters applied. */
+  trimmerId: string | null
+  batchId: string | null
+  /** False for roles without pay access (grow): every dollar and rate field is null. */
+  moneyVisible: boolean
+  /** The row cap was hit: narrow the range. */
+  truncated: boolean
+  /** What outliers are measured against: the crew median, ALWAYS over the whole crew (see crew). */
+  baselineFlowerSharePct: number | null
+  /** Honours the trimmer and batch filters. */
+  totals: TrimDayTotals
+  /** Per-trimmer rollups honouring the trimmer filter; rank and outlier flags come from the whole crew. */
+  trimmers: TrimDayTrimmerRow[]
+  /**
+   * The WHOLE crew for the date range and batch, never narrowed by trimmerId, so a single trimmer's
+   * view can still show where they sit. Equals `trimmers` when no trimmer is selected.
+   */
+  crew: TrimDayTrimmerRow[]
+  /** The per-hanger detail, oldest checkout first. */
+  episodes: TrimDayEpisode[]
+}
+
+export interface TrimBatchOption {
+  id: string
+  name: string
+  strainName: string | null
+  harvestDate: string | null
 }
 
 export interface BatchLoadEpisode {
@@ -237,6 +336,7 @@ const OUTLIER_DELTA_PTS = 10
 const OUTLIER_MIN_RETURNED_G = 2000
 const PERFORMANCE_ROW_CAP = 1000
 const MAX_RANGE_DAYS = 366
+const BATCH_OPTIONS_CAP = 200
 const DEFAULT_HISTORY_LIMIT = 10
 const MAX_HISTORY_LIMIT = 50
 
@@ -632,9 +732,149 @@ export async function getBatchLoads(batchId: string): Promise<ActionResult<Batch
 
 // ─── Trimmer performance ─────────────────────────────────────────────────────
 
+/** Columns the per-trimmer rollup reads (plus `trim_pay_entries(amount)` for roles with pay access). */
+const ROLLUP_COLS =
+  'trimmer_id, trimmer_name, load_id, checked_out_at, returned_at, flower_g, trim_g, stems_g, processed_g, ' +
+  'returned_total_g, variance_pct, variance_status'
+
 /**
- * Per-trimmer metrics for episodes RETURNED in [from, to] (inclusive dates, UTC day boundaries).
- * `trimmerId` narrows to one person. Dollars appear only for roles with pay access.
+ * Validate an inclusive local-day range and convert it to UTC instants. "A day" is a calendar day in
+ * America/Chicago (lib/trim/day-range.ts), the same for every report in this module. Returns an error
+ * message, or the half-open [fromIso, toExclusiveIso) bounds.
+ */
+function resolveDayRange(from: unknown, to: unknown): { error: string } | { fromIso: string; toExclusiveIso: string } {
+  if (!isValidDay(from) || !isValidDay(to)) return { error: 'Dates must be YYYY-MM-DD.' }
+  if (to < from) return { error: 'The end date is before the start date.' }
+  if (daysBetween(from, to) > MAX_RANGE_DAYS) return { error: 'Choose a range of a year or less.' }
+  const range = chicagoDayRangeToUtc(from, to)
+  return range ?? { error: 'Dates must be YYYY-MM-DD.' }
+}
+
+/**
+ * The per-trimmer rollup shared by getTrimmerPerformance and getTrimDayReport, so the two cannot drift
+ * apart. `rows` are trim_checkouts rows selected with ROLLUP_COLS. Sorted by flower grams, descending.
+ * Dollars are summed only when `seesMoney`; otherwise `payAmount` is null (callers also must not have
+ * selected the money columns).
+ */
+function summarizeTrimmers(
+  rows: Row[],
+  seesMoney: boolean
+): { rows: TrimmerPerformanceRow[]; cohortFlowerSharePct: number | null; baselineFlowerSharePct: number | null } {
+  interface Acc {
+    name: string
+    episodes: number
+    loads: Set<string>
+    flower: number
+    trim: number
+    stems: number
+    total: number
+    processed: number
+    turnaroundMs: number
+    turnaroundN: number
+    varSum: number
+    absVarSum: number
+    varN: number
+    flagged: number
+    accepted: number
+    pay: number
+  }
+  const byTrimmer = new Map<string, Acc>()
+  let cohortFlower = 0
+  let cohortTotal = 0
+
+  for (const r of rows) {
+    const id = String(r.trimmer_id)
+    let a = byTrimmer.get(id)
+    if (!a) {
+      a = {
+        name: String(r.trimmer_name),
+        episodes: 0,
+        loads: new Set(),
+        flower: 0,
+        trim: 0,
+        stems: 0,
+        total: 0,
+        processed: 0,
+        turnaroundMs: 0,
+        turnaroundN: 0,
+        varSum: 0,
+        absVarSum: 0,
+        varN: 0,
+        flagged: 0,
+        accepted: 0,
+        pay: 0,
+      }
+      byTrimmer.set(id, a)
+    }
+    a.name = String(r.trimmer_name)
+    a.episodes++
+    a.loads.add(String(r.load_id))
+    const flower = num(r.flower_g) ?? 0
+    const total = num(r.returned_total_g) ?? 0
+    a.flower += flower
+    a.trim += num(r.trim_g) ?? 0
+    a.stems += num(r.stems_g) ?? 0
+    a.total += total
+    a.processed += num(r.processed_g) ?? 0
+    cohortFlower += flower
+    cohortTotal += total
+
+    const out = Date.parse(String(r.checked_out_at))
+    const back = Date.parse(String(r.returned_at))
+    if (Number.isFinite(out) && Number.isFinite(back) && back >= out) {
+      a.turnaroundMs += back - out
+      a.turnaroundN++
+    }
+    const pct = num(r.variance_pct)
+    if (pct !== null) {
+      a.varSum += pct
+      a.absVarSum += Math.abs(pct)
+      a.varN++
+    }
+    if (r.variance_status === 'flagged' || r.variance_status === 'accepted') a.flagged++
+    if (r.variance_status === 'accepted') a.accepted++
+    if (seesMoney) a.pay += num(one(r.trim_pay_entries)?.amount) ?? 0
+  }
+
+  const cohortShare = cohortTotal > 0 ? (cohortFlower / cohortTotal) * 100 : null
+  const baseline = flowerShareBaseline(byTrimmer.values())
+
+  const out: TrimmerPerformanceRow[] = [...byTrimmer.entries()].map(([trimmerId, a]) => {
+    const { sharePct: share, deltaPts: delta, isOutlier } = flowerShareVerdict(a, baseline)
+    return {
+      trimmerId,
+      trimmerName: a.name,
+      episodes: a.episodes,
+      hangers: a.loads.size,
+      flowerG: roundTo(a.flower, 2),
+      trimG: roundTo(a.trim, 2),
+      stemsG: roundTo(a.stems, 2),
+      returnedTotalG: roundTo(a.total, 2),
+      processedG: roundTo(a.processed, 2),
+      flowerSharePct: share === null ? null : roundTo(share, 2),
+      flowerShareDeltaPts: delta === null ? null : roundTo(delta, 2),
+      isFlowerShareOutlier: isOutlier,
+      avgTurnaroundHours: a.turnaroundN > 0 ? roundTo(a.turnaroundMs / a.turnaroundN / 3_600_000, 2) : null,
+      avgVariancePct: a.varN > 0 ? roundTo(a.varSum / a.varN, 3) : null,
+      avgAbsVariancePct: a.varN > 0 ? roundTo(a.absVarSum / a.varN, 3) : null,
+      flaggedReturns: a.flagged,
+      acceptedReturns: a.accepted,
+      payAmount: seesMoney ? roundTo(a.pay, 2) : null,
+    }
+  })
+  out.sort((x, y) => y.flowerG - x.flowerG)
+
+  return {
+    rows: out,
+    cohortFlowerSharePct: cohortShare === null ? null : roundTo(cohortShare, 2),
+    baselineFlowerSharePct: baseline === null ? null : roundTo(baseline, 2),
+  }
+}
+
+/**
+ * Per-trimmer metrics for episodes RETURNED in [from, to] (inclusive dates; each day is a calendar day
+ * in America/Chicago, see lib/trim/day-range.ts). `trimmerId` narrows to one person. Dollars appear
+ * only for roles with pay access.
  */
 export async function getTrimmerPerformance(input: {
   trimmerId?: string
@@ -646,26 +886,17 @@ export async function getTrimmerPerformance(input: {
   const seesMoney = roleAllowed(TRIM_PAY_APPROVE_ROLES, auth.session.role)
 
   if (input?.trimmerId !== undefined && !isUuid(input.trimmerId)) return invalid('Unknown trimmer.')
-  if (!validDate(input?.from) || !validDate(input?.to)) return invalid('Dates must be YYYY-MM-DD.')
-  const fromMs = Date.parse(`${input.from}T00:00:00Z`)
-  const toMs = Date.parse(`${input.to}T00:00:00Z`)
-  if (toMs < fromMs) return invalid('The end date is before the start date.')
-  if ((toMs - fromMs) / 86_400_000 > MAX_RANGE_DAYS) return invalid('Choose a range of a year or less.')
-  const fromIso = new Date(fromMs).toISOString()
-  const toExclusiveIso = new Date(toMs + 86_400_000).toISOString()
+  const range = resolveDayRange(input?.from, input?.to)
+  if ('error' in range) return invalid(range.error)
 
   try {
     const db = await createServiceClient()
     let query = db
       .from('trim_checkouts')
-      .select(
-        'trimmer_id, trimmer_name, load_id, checked_out_at, returned_at, flower_g, trim_g, stems_g, processed_g, ' +
-          'returned_total_g, variance_pct, variance_status' +
-          (seesMoney ? ', trim_pay_entries(amount)' : '')
-      )
+      .select(ROLLUP_COLS + (seesMoney ? ', trim_pay_entries(amount)' : ''))
       .eq('status', 'returned')
-      .gte('returned_at', fromIso)
-      .lt('returned_at', toExclusiveIso)
+      .gte('returned_at', range.fromIso)
+      .lt('returned_at', range.toExclusiveIso)
       .order('returned_at', { ascending: true })
       .limit(PERFORMANCE_ROW_CAP)
     if (input.trimmerId) query = query.eq('trimmer_id', input.trimmerId)
@@ -673,120 +904,235 @@ export async function getTrimmerPerformance(input: {
     const { data, error } = await query
     if (error) return dbFailure('getTrimmerPerformance', error)
     const rows = many(data)
-
-    interface Acc {
-      name: string
-      episodes: number
-      loads: Set<string>
-      flower: number
-      trim: number
-      stems: number
-      total: number
-      processed: number
-      turnaroundMs: number
-      turnaroundN: number
-      varSum: number
-      absVarSum: number
-      varN: number
-      flagged: number
-      accepted: number
-      pay: number
-    }
-    const byTrimmer = new Map<string, Acc>()
-    let cohortFlower = 0
-    let cohortTotal = 0
-
-    for (const r of rows) {
-      const id = String(r.trimmer_id)
-      let a = byTrimmer.get(id)
-      if (!a) {
-        a = {
-          name: String(r.trimmer_name),
-          episodes: 0,
-          loads: new Set(),
-          flower: 0,
-          trim: 0,
-          stems: 0,
-          total: 0,
-          processed: 0,
-          turnaroundMs: 0,
-          turnaroundN: 0,
-          varSum: 0,
-          absVarSum: 0,
-          varN: 0,
-          flagged: 0,
-          accepted: 0,
-          pay: 0,
-        }
-        byTrimmer.set(id, a)
-      }
-      a.name = String(r.trimmer_name)
-      a.episodes++
-      a.loads.add(String(r.load_id))
-      const flower = num(r.flower_g) ?? 0
-      const total = num(r.returned_total_g) ?? 0
-      a.flower += flower
-      a.trim += num(r.trim_g) ?? 0
-      a.stems += num(r.stems_g) ?? 0
-      a.total += total
-      a.processed += num(r.processed_g) ?? 0
-      cohortFlower += flower
-      cohortTotal += total
-
-      const out = Date.parse(String(r.checked_out_at))
-      const back = Date.parse(String(r.returned_at))
-      if (Number.isFinite(out) && Number.isFinite(back) && back >= out) {
-        a.turnaroundMs += back - out
-        a.turnaroundN++
-      }
-      const pct = num(r.variance_pct)
-      if (pct !== null) {
-        a.varSum += pct
-        a.absVarSum += Math.abs(pct)
-        a.varN++
-      }
-      if (r.variance_status === 'flagged' || r.variance_status === 'accepted') a.flagged++
-      if (r.variance_status === 'accepted') a.accepted++
-      if (seesMoney) a.pay += num(one(r.trim_pay_entries)?.amount) ?? 0
-    }
-
-    const cohortShare = cohortTotal > 0 ? (cohortFlower / cohortTotal) * 100 : null
-    const baseline = flowerShareBaseline(byTrimmer.values())
-
-    const out: TrimmerPerformanceRow[] = [...byTrimmer.entries()].map(([trimmerId, a]) => {
-      const { sharePct: share, deltaPts: delta, isOutlier } = flowerShareVerdict(a, baseline)
-      return {
-        trimmerId,
-        trimmerName: a.name,
-        episodes: a.episodes,
-        hangers: a.loads.size,
-        flowerG: roundTo(a.flower, 2),
-        trimG: roundTo(a.trim, 2),
-        stemsG: roundTo(a.stems, 2),
-        returnedTotalG: roundTo(a.total, 2),
-        processedG: roundTo(a.processed, 2),
-        flowerSharePct: share === null ? null : roundTo(share, 2),
-        flowerShareDeltaPts: delta === null ? null : roundTo(delta, 2),
-        isFlowerShareOutlier: isOutlier,
-        avgTurnaroundHours: a.turnaroundN > 0 ? roundTo(a.turnaroundMs / a.turnaroundN / 3_600_000, 2) : null,
-        avgVariancePct: a.varN > 0 ? roundTo(a.varSum / a.varN, 3) : null,
-        avgAbsVariancePct: a.varN > 0 ? roundTo(a.absVarSum / a.varN, 3) : null,
-        flaggedReturns: a.flagged,
-        acceptedReturns: a.accepted,
-        payAmount: seesMoney ? roundTo(a.pay, 2) : null,
-      }
-    })
-    out.sort((x, y) => y.flowerG - x.flowerG)
+    const summary = summarizeTrimmers(rows, seesMoney)
 
     return ok({
       from: input.from,
       to: input.to,
       truncated: rows.length >= PERFORMANCE_ROW_CAP,
-      cohortFlowerSharePct: cohortShare === null ? null : roundTo(cohortShare, 2),
-      baselineFlowerSharePct: baseline === null ? null : roundTo(baseline, 2),
-      rows: out,
+      cohortFlowerSharePct: summary.cohortFlowerSharePct,
+      baselineFlowerSharePct: summary.baselineFlowerSharePct,
+      rows: summary.rows,
     })
   } catch (err) {
     return dbFailure('getTrimmerPerformance', err)
+  }
+}
+
+// ─── Trim day report (date x batch x trimmer, with per-hanger detail) ────────
+
+const DAY_EPISODE_COLS =
+  'id, seq, load_id, trimmer_id, trimmer_name, checked_out_at, returned_at, return_kind, issued_g, flower_g, ' +
+  'trim_g, stems_g, processed_g, returned_total_g, variance_g, variance_pct, variance_status'
+/** Added only for roles with pay access. Grow never even selects them. */
+const DAY_EPISODE_MONEY_COLS = ', rate_per_lb_applied, trim_pay_entries(amount)'
+/** to-one embed; !inner so a `hanger_loads.batch_id` filter drops non-matching checkouts instead of nulling the embed. */
+const DAY_LOAD_EMBED = ', hanger_loads!inner(batch_id, hanger:hangers(code), batch:batches(name, strain:strains(name)))'
+
+/**
+ * The trim production report behind /dashboard/harvest-trim/reports: every episode RETURNED in an
+ * inclusive local-day range (America/Chicago), optionally narrowed to one batch and/or one trimmer, as
+ *   - totals    over the filtered episodes,
+ *   - trimmers  per-trimmer rollups (same shape and baseline as getTrimmerPerformance, plus a rank),
+ *   - crew      the whole crew's ranking, and
+ *   - episodes  one row per hanger return (the per-hanger detail).
+ *
+ * Trimmer filter and the crew baseline: the query is NEVER narrowed by trimmerId. The whole crew is
+ * fetched for the date range + batch, the baseline/rank/outlier flags are computed across everyone, and
+ * only then are `totals`, `trimmers` and `episodes` narrowed to the selected trimmer. Asking the
+ * database for one person would measure them against themselves (their own median) and lose the crew
+ * ranking. The cost is that the row cap applies to the crew, not the person; `truncated` says so.
+ *
+ * Dollars (ratePerLb, payAmount) are returned only to roles in TRIM_PAY_APPROVE_ROLES; for `grow` they
+ * are null and the money columns are not selected at all. That makes this the intended source for a
+ * future trimmer-facing leaderboard / TV monitor: render `crew` and ignore the money fields.
+ */
+export async function getTrimDayReport(input: {
+  from: string
+  to: string
+  trimmerId?: string
+  batchId?: string
+}): Promise<ActionResult<TrimDayReport>> {
+  const auth = await requireRole(TRIM_VIEW_ROLES)
+  if (!auth.authorized) return denied(auth.reason)
+  const seesMoney = roleAllowed(TRIM_PAY_APPROVE_ROLES, auth.session.role)
+
+  const trimmerId = input?.trimmerId ?? null
+  const batchId = input?.batchId ?? null
+  if (trimmerId !== null && !isUuid(trimmerId)) return invalid('Unknown trimmer.')
+  if (batchId !== null && !isUuid(batchId)) return invalid('Unknown batch.')
+  const range = resolveDayRange(input?.from, input?.to)
+  if ('error' in range) return invalid(range.error)
+
+  try {
+    const db = await createServiceClient()
+    let query = db
+      .from('trim_checkouts')
+      .select(DAY_EPISODE_COLS + (seesMoney ? DAY_EPISODE_MONEY_COLS : '') + DAY_LOAD_EMBED)
+      .eq('status', 'returned')
+      .gte('returned_at', range.fromIso)
+      .lt('returned_at', range.toExclusiveIso)
+      .order('returned_at', { ascending: true })
+      .limit(PERFORMANCE_ROW_CAP)
+    // Batch lives on the load: trim_checkouts -> hanger_loads.batch_id (verified against PostgREST).
+    if (batchId) query = query.eq('hanger_loads.batch_id', batchId)
+
+    const { data, error } = await query
+    if (error) return dbFailure('getTrimDayReport', error)
+    const rows = many(data)
+
+    // Crew first (everyone), so rank and baseline never depend on the trimmer filter.
+    const summary = summarizeTrimmers(rows, seesMoney)
+    const perTrimmer = new Map<string, { issued: number; variance: number; processed: number }>()
+    for (const r of rows) {
+      const id = String(r.trimmer_id)
+      const a = perTrimmer.get(id) ?? { issued: 0, variance: 0, processed: 0 }
+      a.issued += num(r.issued_g) ?? 0
+      a.variance += num(r.variance_g) ?? 0
+      a.processed += num(r.processed_g) ?? 0
+      perTrimmer.set(id, a)
+    }
+    const ranked: TrimDayTrimmerRow[] = []
+    for (const r of summary.rows) {
+      const prev = ranked[ranked.length - 1]
+      const t = perTrimmer.get(r.trimmerId) ?? { issued: 0, variance: 0, processed: 0 }
+      ranked.push({
+        ...r,
+        rank: prev && prev.flowerG === r.flowerG ? prev.rank : ranked.length + 1,
+        issuedG: roundTo(t.issued, 2),
+        flowerYieldPct: t.issued > 0 ? roundTo((r.flowerG / t.issued) * 100, 2) : null,
+        varianceG: roundTo(t.variance, 2),
+        variancePct: t.processed > 0 ? roundTo((t.variance / t.processed) * 100, 3) : null,
+      })
+    }
+    const crew = ranked
+    const trimmers = trimmerId ? ranked.filter((t) => t.trimmerId === trimmerId) : ranked
+
+    const selected = trimmerId ? rows.filter((r) => String(r.trimmer_id) === trimmerId) : rows
+
+    const episodes: TrimDayEpisode[] = selected.map((r) => {
+      const load = one(r.hanger_loads)
+      const batch = one(load?.batch)
+      const out = Date.parse(String(r.checked_out_at))
+      const back = Date.parse(String(r.returned_at))
+      return {
+        checkoutId: String(r.id),
+        seq: num(r.seq) ?? 0,
+        hangerCode: str(one(load?.hanger)?.code) ?? '',
+        loadId: String(r.load_id),
+        batchId: str(load?.batch_id),
+        batchName: str(batch?.name),
+        strainName: str(one(batch?.strain)?.name),
+        trimmerId: String(r.trimmer_id),
+        trimmerName: String(r.trimmer_name),
+        checkedOutAt: str(r.checked_out_at),
+        returnedAt: str(r.returned_at),
+        turnaroundHours:
+          Number.isFinite(out) && Number.isFinite(back) && back >= out ? roundTo((back - out) / 3_600_000, 2) : null,
+        issuedG: num(r.issued_g),
+        flowerG: num(r.flower_g),
+        trimG: num(r.trim_g),
+        stemsG: num(r.stems_g),
+        returnedTotalG: num(r.returned_total_g),
+        varianceG: num(r.variance_g),
+        variancePct: num(r.variance_pct),
+        varianceStatus: (str(r.variance_status) as VarianceStatus | null) ?? null,
+        returnKind: (str(r.return_kind) as ReturnKind | null) ?? null,
+        ratePerLb: seesMoney ? num(r.rate_per_lb_applied) : null,
+        payAmount: seesMoney ? num(one(r.trim_pay_entries)?.amount) : null,
+      }
+    })
+    episodes.sort(
+      (a, b) =>
+        (Date.parse(a.checkedOutAt ?? '') || 0) - (Date.parse(b.checkedOutAt ?? '') || 0) || a.seq - b.seq
+    )
+
+    let issued = 0
+    let flower = 0
+    let trim = 0
+    let stems = 0
+    let returnedTotal = 0
+    let variance = 0
+    let processed = 0
+    let flagged = 0
+    const loadIds = new Set<string>()
+    const amounts: number[] = []
+    for (const r of selected) {
+      loadIds.add(String(r.load_id))
+      issued += num(r.issued_g) ?? 0
+      flower += num(r.flower_g) ?? 0
+      trim += num(r.trim_g) ?? 0
+      stems += num(r.stems_g) ?? 0
+      returnedTotal += num(r.returned_total_g) ?? 0
+      variance += num(r.variance_g) ?? 0
+      processed += num(r.processed_g) ?? 0
+      if (r.variance_status === 'flagged' || r.variance_status === 'accepted') flagged++
+      const amount = seesMoney ? num(one(r.trim_pay_entries)?.amount) : null
+      if (amount !== null) amounts.push(amount)
+    }
+
+    return ok({
+      from: input.from,
+      to: input.to,
+      trimmerId,
+      batchId,
+      moneyVisible: seesMoney,
+      truncated: rows.length >= PERFORMANCE_ROW_CAP,
+      baselineFlowerSharePct: summary.baselineFlowerSharePct,
+      totals: {
+        episodes: selected.length,
+        hangers: loadIds.size,
+        issuedG: roundTo(issued, 2),
+        flowerG: roundTo(flower, 2),
+        flowerLb: roundLb(gramsToLb(flower)),
+        trimG: roundTo(trim, 2),
+        stemsG: roundTo(stems, 2),
+        returnedTotalG: roundTo(returnedTotal, 2),
+        flowerSharePct: returnedTotal > 0 ? roundTo((flower / returnedTotal) * 100, 2) : null,
+        flowerYieldPct: issued > 0 ? roundTo((flower / issued) * 100, 2) : null,
+        varianceG: roundTo(variance, 2),
+        variancePct: processed > 0 ? roundTo((variance / processed) * 100, 3) : null,
+        flaggedReturns: flagged,
+        payAmount: seesMoney ? sumMoney(amounts) : null,
+      },
+      trimmers,
+      crew,
+      episodes,
+    })
+  } catch (err) {
+    return dbFailure('getTrimDayReport', err)
+  }
+}
+
+/**
+ * Batches that have at least one hanger load, newest harvest first, for the report's batch filter.
+ * Capped at BATCH_OPTIONS_CAP: older batches fall off the list, never newer ones.
+ */
+export async function listTrimBatchOptions(): Promise<ActionResult<TrimBatchOption[]>> {
+  const auth = await requireRole(TRIM_VIEW_ROLES)
+  if (!auth.authorized) return denied(auth.reason)
+
+  try {
+    const db = await createServiceClient()
+    // !inner drops batches with no loads (the 130+ legacy batches); limit 1 on the embed keeps it to a
+    // single load id per batch rather than shipping every load.
+    const { data, error } = await db
+      .from('batches')
+      .select('id, name, harvest_date, strain:strains(name), hanger_loads!inner(id)')
+      .order('harvest_date', { ascending: false, nullsFirst: false })
+      .limit(1, { referencedTable: 'hanger_loads' })
+      .limit(BATCH_OPTIONS_CAP)
+    if (error) return dbFailure('listTrimBatchOptions', error)
+
+    return ok(
+      many(data).map((b) => ({
+        id: String(b.id),
+        name: String(b.name),
+        strainName: str(one(b.strain)?.name),
+        harvestDate: str(b.harvest_date),
+      }))
+    )
+  } catch (err) {
+    return dbFailure('listTrimBatchOptions', err)
   }
 }
