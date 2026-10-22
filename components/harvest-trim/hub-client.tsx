@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ChevronRight, RefreshCw, ScanLine, Search } from 'lucide-react'
+import { ChevronRight, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,13 +15,14 @@ import {
 } from '@/actions/harvest-trim'
 import { ErrorState } from '@/components/ui/error-state'
 import { LOAD_STATUS_META, LOAD_STATUS_ORDER, agoText, dateOnlyText, lbText, plantsText } from './format'
+import { ALL_CYCLES, hubCycles, pickHubCycle } from './hub-cycles'
 import { useRefetchOnFocus } from './use-refetch-on-focus'
 import { useTrimAccess } from './use-trim-access'
 import { useTrimRun } from './use-trim-run'
 
 const BASE = '/dashboard/harvest-trim'
 const CYCLE_KEY = 'harvest-trim-hub-cycle'
-const ALL = 'all'
+const ALL = ALL_CYCLES
 
 function cycleLabel(c: CycleOption): string {
   const room = c.roomName ?? (c.roomNumber !== null ? `Room ${c.roomNumber}` : 'Room')
@@ -72,13 +73,11 @@ export function HubClient() {
         setCycles([])
         return
       }
-      setCycles(res.data)
-      const stored = readStoredCycle()
-      const pick =
-        stored === ALL || res.data.some((c) => c.id === stored)
-          ? stored
-          : (res.data.find((c) => c.stage === 'trim') ?? res.data.find((c) => c.stage === 'dry') ?? res.data[0])?.id ??
-            ALL
+      // Only harvest/dry/trim cycles are offered here (flower stays on the Harvest page). A remembered
+      // cycle that is no longer offered falls back instead of leaving the selector on a hidden value.
+      const visible = hubCycles(res.data)
+      setCycles(visible)
+      const pick = pickHubCycle(visible, readStoredCycle())
       setSelected(pick)
     })()
     return () => {
@@ -112,24 +111,6 @@ export function HubClient() {
 
   return (
     <div className="space-y-5">
-      {/* Quick actions */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {access.canOperate && (
-          <Button asChild className="h-12 text-base font-semibold">
-            <Link href={`${BASE}/station`}>
-              <ScanLine className="mr-2 h-5 w-5" />
-              Open the trim station
-            </Link>
-          </Button>
-        )}
-        <Button asChild variant="outline" className="h-12 text-base font-semibold">
-          <Link href={`${BASE}/lookup`}>
-            <Search className="mr-2 h-5 w-5" />
-            Look up a tag
-          </Link>
-        </Button>
-      </div>
-
       {/* Cycle selector */}
       <section aria-label="Cycle" className="space-y-2">
         <div className="flex items-center justify-between gap-2">
@@ -182,7 +163,7 @@ export function HubClient() {
         )}
         {cycles.length === 0 && (
           <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
-            No cycle is in flower, harvest, dry or trim. Open work from any older cycle still shows under All open work.
+            No cycle is in harvest, dry or trim right now. Open work from any older cycle still shows under All open work.
           </p>
         )}
       </section>
