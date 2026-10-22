@@ -501,7 +501,8 @@ export function ReportDetailView({
 
       {/* Wide screens */}
       <div className="hidden rounded-lg border bg-card lg:block">
-        <Table>
+        {/* px-3 (not the default px-4) so the default nine columns fit a 1280px screen with the sidebar open. */}
+        <Table className="[&_td]:px-3 [&_th]:px-3">
           <TableHeader>
             <TableRow>
               {columns.map((key) => {
