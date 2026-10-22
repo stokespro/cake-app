@@ -224,11 +224,15 @@ export interface TrimDayReport {
   baselineFlowerSharePct: number | null
   /** Honours the trimmer and batch filters. */
   totals: TrimDayTotals
-  /** Per-trimmer rollups honouring the trimmer filter; rank and outlier flags come from the whole crew. */
+  /**
+   * Per-trimmer rollups honouring the trimmer filter; rank and outlier flags come from the whole crew.
+   * Not rendered by the reports page (see getTrimDayReport).
+   */
   trimmers: TrimDayTrimmerRow[]
   /**
    * The WHOLE crew for the date range and batch, never narrowed by trimmerId, so a single trimmer's
-   * view can still show where they sit. Equals `trimmers` when no trimmer is selected.
+   * view can still show where they sit. Equals `trimmers` when no trimmer is selected. Not rendered by
+   * the reports page; kept for the planned trimmer-facing TV leaderboard (see getTrimDayReport).
    */
   crew: TrimDayTrimmerRow[]
   /** The per-hanger detail, oldest checkout first. */
@@ -943,9 +947,14 @@ const DAY_LOAD_EMBED = ', hanger_loads!inner(batch_id, hanger:hangers(code), bat
  * database for one person would measure them against themselves (their own median) and lose the crew
  * ranking. The cost is that the row cap applies to the crew, not the person; `truncated` says so.
  *
+ * Who uses what: the reports page renders only `totals` and `episodes`. `trimmers`, `crew` and
+ * `baselineFlowerSharePct` are NOT rendered by any screen today; they are kept (they come from the same
+ * query at no extra cost, and are covered by tests) as the groundwork for the planned trimmer-facing,
+ * no-pay TV leaderboard. Do not delete them as dead code.
+ *
  * Dollars (ratePerLb, payAmount) are returned only to roles in TRIM_PAY_APPROVE_ROLES; for `grow` they
- * are null and the money columns are not selected at all. That makes this the intended source for a
- * future trimmer-facing leaderboard / TV monitor: render `crew` and ignore the money fields.
+ * are null and the money columns are not selected at all. That makes this the intended source for that
+ * leaderboard: render `crew` and ignore the money fields.
  */
 export async function getTrimDayReport(input: {
   from: string
