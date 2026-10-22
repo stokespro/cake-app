@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Ban, ScanLine } from 'lucide-react'
+import { Ban } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -262,8 +262,6 @@ function Station() {
 
       <ScanInput onScan={handleScan} enabled={!pendingScan} busy={busy} />
 
-      {view.kind === 'idle' && !notice && <IdleHelp />}
-
       {view.kind === 'loading' && (
         <Card>
           <CardContent className="py-8 text-center text-base text-muted-foreground">Looking up {view.code}...</CardContent>
@@ -387,41 +385,6 @@ function Station() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
-}
-
-function IdleHelp() {
-  return (
-    <Card>
-      <CardContent className="space-y-3 py-5">
-        <div className="flex items-center gap-2">
-          <ScanLine className="h-5 w-5 text-primary" />
-          <p className="font-semibold">One scan does the right thing</p>
-        </div>
-        <ul className="space-y-2 text-base text-muted-foreground">
-          <li>
-            <strong className="text-foreground">Free or drying tag</strong>: start a load, add the dry weight, pick the
-            trimmer.
-          </li>
-          <li>
-            <strong className="text-foreground">Dried tag</strong>: pick the trimmer to issue it.
-          </li>
-          <li>
-            <strong className="text-foreground">Tag with a trimmer</strong>: check it in as Finished or Unfinished.
-          </li>
-          <li>
-            <strong className="text-foreground">Unfinished tag</strong>: reissue it to the same or another trimmer.
-          </li>
-        </ul>
-        <p className="text-sm text-muted-foreground">
-          Not sure what a tag is? Use{' '}
-          <Link href={`${BASE}/lookup`} className="underline">
-            Look up a tag
-          </Link>
-          .
-        </p>
-      </CardContent>
-    </Card>
   )
 }
 
