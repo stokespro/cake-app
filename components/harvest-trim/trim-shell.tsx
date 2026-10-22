@@ -22,6 +22,7 @@ const LINKS: NavLink[] = [
   { href: `${BASE}/lookup`, label: 'Look up a tag' },
   { href: `${BASE}/hangers`, label: 'Hangers' },
   { href: `${BASE}/staff`, label: 'Trimmers' },
+  { href: `${BASE}/reports`, label: 'Reports' },
   { href: `${BASE}/pay-register`, label: 'Pay register', needs: 'finance' },
   { href: `${BASE}/settings`, label: 'Settings' },
 ]

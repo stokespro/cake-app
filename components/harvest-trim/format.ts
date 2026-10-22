@@ -147,6 +147,15 @@ export const LOAD_STATUS_ORDER: HangerLoadStatus[] = [
   'void',
 ]
 
+/** A returned episode's variance verdict, as a pill. Shared by the batch page and the reports page. */
+export const VARIANCE_TONE = {
+  flagged: 'border-red-500/50 bg-red-500/15 text-red-700 dark:text-red-300',
+  accepted: 'border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  ok: 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-300',
+} as const
+
+export const VARIANCE_LABEL = { flagged: 'Flagged', accepted: 'Accepted', ok: 'In threshold' } as const
+
 export const HANGER_STATUS_META: Record<HangerStatus, { label: string; pill: string }> = {
   active: {
     label: 'Active',

@@ -26,6 +26,8 @@ export type DatePresetKey =
   | 'past_due_today'
   | 'today'
   | 'yesterday'
+  | 'last_7_days'
+  | 'last_30_days'
   | 'this_week'
   | 'next_week'
   | 'next_14_days'
@@ -50,6 +52,8 @@ export const DATE_PRESET_LABELS: Record<DatePresetKey, string> = {
   past_due_today: 'Past Due & Today',
   today: 'Today',
   yesterday: 'Yesterday',
+  last_7_days: 'Last 7 Days',
+  last_30_days: 'Last 30 Days',
   this_week: 'This Week',
   next_week: 'Next Week',
   next_14_days: 'Next 14 Days',
@@ -78,6 +82,25 @@ export const CULTIVATION_TASK_DATE_PRESETS: DatePresetKey[] = [
   'this_week',
   'next_week',
   'next_14_days',
+  'custom',
+]
+
+/**
+ * Harvest & Trim reports dropdown, in display order. Trim data is historical, so nothing forward-looking
+ * (next_week, next_14_days, past_due_today). 'all' is deliberately absent: the report action needs a
+ * bounded range (at most a year) and caps its rows, so an unbounded option would error or truncate.
+ *
+ * These keys are resolved against America/Chicago's date, not the device's: see
+ * lib/trim/report-presets.ts.
+ */
+export const TRIM_REPORT_DATE_PRESETS: DatePresetKey[] = [
+  'today',
+  'yesterday',
+  'last_7_days',
+  'last_30_days',
+  'this_week',
+  'this_month',
+  'last_month',
   'custom',
 ]
 
@@ -116,6 +139,12 @@ export function resolveDatePresetRange(
       const yesterdayStr = toDateString(subDays(today, 1))
       return { dateFrom: yesterdayStr, dateTo: yesterdayStr }
     }
+    // Rolling windows. Convention: inclusive, backward-looking, and they END TODAY, so `last_7_days` is
+    // today-6 … today (7 calendar days including today) and `last_30_days` is today-29 … today.
+    case 'last_7_days':
+      return { dateFrom: toDateString(subDays(today, 6)), dateTo: todayStr }
+    case 'last_30_days':
+      return { dateFrom: toDateString(subDays(today, 29)), dateTo: todayStr }
     case 'this_week':
       return {
         dateFrom: toDateString(startOfWeek(today, WEEK_OPTIONS)),
