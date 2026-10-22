@@ -24,6 +24,7 @@ import {
 } from '@/lib/trim/yield'
 import { dbFailure, denied, fail, invalid } from '@/lib/trim/db-errors'
 import { sumMoney } from '@/lib/trim/pay'
+import { fetchAllRows } from '@/lib/trim/paging'
 import { chicagoDayRangeToUtc, daysBetween, isValidDay } from '@/lib/trim/day-range'
 import { gramsToLb, roundLb, roundTo } from '@/lib/units'
 import type {
@@ -218,7 +219,10 @@ export interface TrimDayReport {
   batchId: string | null
   /** False for roles without pay access (grow): every dollar and rate field is null. */
   moneyVisible: boolean
-  /** The row cap was hit: narrow the range. */
+  /**
+   * The safety ceiling (ROW_CEILING rows, lib/trim/paging.ts) was hit, so the figures cover only the first
+   * ROW_CEILING returns of the range: narrow it. False for every ordinary range, however many rows it has.
+   */
   truncated: boolean
   /** What outliers are measured against: the crew median, ALWAYS over the whole crew (see crew). */
   baselineFlowerSharePct: number | null
@@ -945,7 +949,7 @@ const DAY_LOAD_EMBED = ', hanger_loads!inner(batch_id, hanger:hangers(code), bat
  * fetched for the date range + batch, the baseline/rank/outlier flags are computed across everyone, and
  * only then are `totals`, `trimmers` and `episodes` narrowed to the selected trimmer. Asking the
  * database for one person would measure them against themselves (their own median) and lose the crew
- * ranking. The cost is that the row cap applies to the crew, not the person; `truncated` says so.
+ * ranking. The cost is that the ceiling applies to the crew, not the person; `truncated` says so.
  *
  * Who uses what: the reports page renders only `totals` and `episodes`. `trimmers`, `crew` and
  * `baselineFlowerSharePct` are NOT rendered by any screen today; they are kept (they come from the same
@@ -975,20 +979,38 @@ export async function getTrimDayReport(input: {
 
   try {
     const db = await createServiceClient()
-    let query = db
-      .from('trim_checkouts')
-      .select(DAY_EPISODE_COLS + (seesMoney ? DAY_EPISODE_MONEY_COLS : '') + DAY_LOAD_EMBED)
-      .eq('status', 'returned')
-      .gte('returned_at', range.fromIso)
-      .lt('returned_at', range.toExclusiveIso)
-      .order('returned_at', { ascending: true })
-      .limit(PERFORMANCE_ROW_CAP)
-    // Batch lives on the load: trim_checkouts -> hanger_loads.batch_id (verified against PostgREST).
-    if (batchId) query = query.eq('hanger_loads.batch_id', batchId)
-
-    const { data, error } = await query
-    if (error) return dbFailure('getTrimDayReport', error)
-    const rows = many(data)
+    // Paged, not capped: PostgREST silently returns at most 1,000 rows per request, so a single query would
+    // make the totals quietly wrong once a range crossed that. fetchAllRows (lib/trim/paging.ts) loops
+    // `.range()` until the filtered set is exhausted, up to ROW_CEILING (then `truncated`). The query is
+    // rebuilt per page (builders are single-use) and given a total order (returned_at, then id) so rows that
+    // share a timestamp cannot repeat or vanish across a page boundary.
+    const fetched = await fetchAllRows<Row>(async (from, to) => {
+      let query = db
+        .from('trim_checkouts')
+        .select(
+          DAY_EPISODE_COLS + (seesMoney ? DAY_EPISODE_MONEY_COLS : '') + DAY_LOAD_EMBED,
+          from === 0 ? { count: 'exact' } : undefined
+        )
+        .eq('status', 'returned')
+        .gte('returned_at', range.fromIso)
+        .lt('returned_at', range.toExclusiveIso)
+        .order('returned_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+      // Batch lives on the load: trim_checkouts -> hanger_loads.batch_id (verified against PostgREST).
+      if (batchId) query = query.eq('hanger_loads.batch_id', batchId)
+      const { data, error, count } = await query
+      return { rows: many(data), total: typeof count === 'number' ? count : null, error }
+    })
+    if (!fetched.ok) return dbFailure('getTrimDayReport', fetched.error)
+    // Belt and braces against a row shifting between pages: one episode is never counted twice.
+    const seen = new Set<string>()
+    const rows = fetched.rows.filter((r) => {
+      const id = String(r.id)
+      if (seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
 
     // Crew first (everyone), so rank and baseline never depend on the trimmer filter.
     const summary = summarizeTrimmers(rows, seesMoney)
@@ -1086,7 +1108,7 @@ export async function getTrimDayReport(input: {
       trimmerId,
       batchId,
       moneyVisible: seesMoney,
-      truncated: rows.length >= PERFORMANCE_ROW_CAP,
+      truncated: fetched.truncated,
       baselineFlowerSharePct: summary.baselineFlowerSharePct,
       totals: {
         episodes: selected.length,

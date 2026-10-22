@@ -806,7 +806,11 @@ describe('getTrimDayReport', () => {
     expect(calls[0].ops).toContainEqual({ method: 'eq', args: ['status', 'returned'] })
     expect(calls[0].ops).toContainEqual({ method: 'gte', args: ['returned_at', '2026-10-21T05:00:00.000Z'] })
     expect(calls[0].ops).toContainEqual({ method: 'lt', args: ['returned_at', '2026-10-22T05:00:00.000Z'] })
-    expect(calls[0].ops).toContainEqual({ method: 'limit', args: [1000] })
+    // Paged, not capped: the first page asks for rows 0-999 and an exact count, in a total order.
+    expect(calls[0].ops).toContainEqual({ method: 'range', args: [0, 999] })
+    expect(calls[0].ops.some((o) => o.method === 'limit')).toBe(false)
+    expect(calls[0].ops.filter((o) => o.method === 'order').map((o) => o.args[0])).toEqual(['returned_at', 'id'])
+    expect(calls[0].ops.find((o) => o.method === 'select')?.args[1]).toEqual({ count: 'exact' })
     expect(selectArg(calls)).toContain('hanger_loads!inner(batch_id')
     expect(selectArg(calls)).not.toMatch(/(^|[,(]\s*)\*/)
   })
@@ -949,9 +953,119 @@ describe('getTrimDayReport', () => {
     })
   })
 
-  it('says so when the row cap is hit', async () => {
-    installDb(() => ({ data: Array.from({ length: 1000 }, () => row()), error: null }))
-    expect((await mod.getTrimDayReport(input)).data?.truncated).toBe(true)
+  describe('paging: a range with more than 1,000 returns is read in full', () => {
+    /**
+     * PostgREST as observed against the live API: honours .range() but never returns more than 1,000 rows
+     * per request (no error, HTTP 200), and reports the exact count when the select asked for it.
+     */
+    function postgrest(all: Array<Record<string, unknown>>, maxRows = 1000) {
+      return installDb((call) => {
+        const range = call.ops.find((o) => o.method === 'range')
+        const [from, to] = range ? (range.args as [number, number]) : [0, all.length - 1]
+        const wantsCount = (call.ops.find((o) => o.method === 'select')?.args[1] as { count?: string } | undefined)?.count === 'exact'
+        return {
+          data: all.slice(from, Math.min(to + 1, from + maxRows)),
+          error: null,
+          count: wantsCount ? all.length : null,
+        }
+      })
+    }
+    /** n returns spread over a few trimmers; every row has flower 100 g, issued 500 g, pay $10.00. */
+    function manyReturns(n: number) {
+      return Array.from({ length: n }, (_, i) =>
+        row({
+          id: `c${String(i).padStart(6, '0')}`,
+          load_id: `l${i}`,
+          trimmer_id: `bbbbbbbb-0000-4000-8000-00000000000${i % 3}`,
+          trimmer_name: ['Antonio', 'Maria', 'Sam'][i % 3],
+          issued_g: 500,
+          flower_g: 100,
+          trim_g: 50,
+          stems_g: 300,
+          processed_g: 500,
+          returned_total_g: 450,
+          variance_g: 50,
+          variance_pct: 10,
+          trim_pay_entries: { amount: 10 },
+        })
+      )
+    }
+
+    it('2,500 returns: every one is counted, so the totals are right, and nothing is flagged truncated', async () => {
+      const { calls } = postgrest(manyReturns(2500))
+      const report = (await mod.getTrimDayReport({ from: '2026-09-22', to: '2026-10-21' })).data!
+      expect(report.truncated).toBe(false)
+      expect(report.episodes).toHaveLength(2500)
+      expect(report.totals).toMatchObject({ episodes: 2500, hangers: 2500, issuedG: 1_250_000, flowerG: 250_000, varianceG: 125_000, payAmount: 25_000 })
+      // 3 pages: 0-999, 1000-1999, 2000-2999; the count rides on the first only.
+      expect(calls.map((c) => c.ops.find((o) => o.method === 'range')?.args)).toEqual([[0, 999], [1000, 1999], [2000, 2999]])
+      expect(calls.map((c) => c.ops.find((o) => o.method === 'select')?.args[1])).toEqual([{ count: 'exact' }, undefined, undefined])
+    })
+
+    it('the crew and per-trimmer rollups are also over all 2,500, not the first 1,000', async () => {
+      postgrest(manyReturns(2500))
+      const report = (await mod.getTrimDayReport({ from: '2026-09-22', to: '2026-10-21' })).data!
+      const byName = Object.fromEntries(report.crew.map((t: { trimmerName: string; episodes: number }) => [t.trimmerName, t.episodes]))
+      expect(byName).toEqual({ Antonio: 834, Maria: 833, Sam: 833 })
+    })
+
+    it('a trimmer filter on a big range still sums that person over the whole range', async () => {
+      postgrest(manyReturns(2500))
+      const report = (await mod.getTrimDayReport({ from: '2026-09-22', to: '2026-10-21', trimmerId: 'bbbbbbbb-0000-4000-8000-000000000000' })).data!
+      expect(report.totals.episodes).toBe(834)
+      expect(report.totals.flowerG).toBe(83_400)
+    })
+
+    it('exactly 1,000 returns is complete (the old cap treated this as truncated)', async () => {
+      postgrest(manyReturns(1000))
+      const report = (await mod.getTrimDayReport(input)).data!
+      expect(report.truncated).toBe(false)
+      expect(report.totals.episodes).toBe(1000)
+    })
+
+    it('the same totals come back whatever the per-request cap, as long as the count is honoured', async () => {
+      postgrest(manyReturns(1500), 400)
+      expect((await mod.getTrimDayReport(input)).data!.totals.episodes).toBe(1500)
+    })
+
+    it('over the safety ceiling: the first 10,000 are used and truncated is set', async () => {
+      const { calls } = postgrest(manyReturns(10_300))
+      const report = (await mod.getTrimDayReport({ from: '2026-01-01', to: '2026-10-21' })).data!
+      expect(report.truncated).toBe(true)
+      expect(report.totals.episodes).toBe(10_000)
+      expect(calls).toHaveLength(10)
+    })
+
+    it('exactly 10,000 returns is complete, not truncated', async () => {
+      postgrest(manyReturns(10_000))
+      const report = (await mod.getTrimDayReport({ from: '2026-01-01', to: '2026-10-21' })).data!
+      expect(report.truncated).toBe(false)
+      expect(report.totals.episodes).toBe(10_000)
+    })
+
+    it('a failure on a later page fails the report; it never returns the first page as if it were everything', async () => {
+      const all = manyReturns(2500)
+      installDb((call) => {
+        const [from, to] = call.ops.find((o) => o.method === 'range')!.args as [number, number]
+        if (from > 0) return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }
+        return { data: all.slice(from, to + 1), error: null, count: all.length }
+      })
+      const res = await mod.getTrimDayReport({ from: '2026-09-22', to: '2026-10-21' })
+      expect(res.success).toBe(false)
+      expect(res.error).toBe('Something went wrong. Please try again.')
+    })
+
+    it('a row that shifts across a page boundary is not counted twice', async () => {
+      const all = manyReturns(1200)
+      installDb((call) => {
+        const [from, to] = call.ops.find((o) => o.method === 'range')!.args as [number, number]
+        // The page boundary slipped by one: the second page repeats the last row of the first.
+        const slice = from === 0 ? all.slice(0, 1000) : all.slice(from - 1, to)
+        return { data: slice, error: null, count: from === 0 ? all.length : null }
+      })
+      const report = (await mod.getTrimDayReport(input)).data!
+      expect(report.totals.episodes).toBe(new Set(report.episodes.map((e: { checkoutId: string }) => e.checkoutId)).size)
+    })
   })
 
   it('echoes the filters and the range', async () => {
