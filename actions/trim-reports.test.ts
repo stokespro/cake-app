@@ -1078,6 +1078,35 @@ describe('getTrimDayReport', () => {
       expect(onlyMaria.episodes).toHaveLength(1)
     })
 
+    it("a part-trimmed return (return_kind 'unfinished') is a RETURN: it counts in every figure, with or without open hangers about", async () => {
+      const partTrimmed = row(
+        { id: 'pt', load_id: 'lpt', return_kind: 'unfinished', issued_g: 400, flower_g: 120, trim_g: 60, stems_g: 100, processed_g: 280,
+          returned_total_g: 280, variance_g: 0, variance_pct: 0, trim_pay_entries: { amount: 59.5 } },
+        { hanger: { code: 'H1B-PT' } }
+      )
+      installDb(() => ({ data: [...antonioDay(), partTrimmed], error: null }))
+      const without = (await mod.getTrimDayReport(input)).data!
+      installDb(() => ({ data: [...antonioDay(), partTrimmed, openRow()], error: null }))
+      const withOpen = (await mod.getTrimDayReport(input)).data!
+      for (const r of [without, withOpen]) {
+        expect(r.totals).toMatchObject({ episodes: 5, hangers: 5, issuedG: 2855, flowerG: 1130.4, payAmount: 282.24 })
+        expect(r.episodes.find((e: { checkoutId: string }) => e.checkoutId === 'pt')).toMatchObject({ status: 'returned', returnKind: 'unfinished', flowerG: 120, payAmount: 59.5 })
+      }
+      expect(withOpen.totals).toEqual({ ...without.totals, inProgress: 1 })
+    })
+
+    it('option counts: `hangers` includes open work, `returnedHangers` is the returned-only count the Hangers tile agrees with', async () => {
+      installDb(() => ({ data: [...antonioDay(), openRow(), openRow({ id: 'open-m', trimmer_id: T_MARIA, trimmer_name: 'Maria', load_id: 'l-m' })], error: null }))
+      const report = (await mod.getTrimDayReport(input)).data!
+      expect(report.trimmerOptions.map((t: { name: string; hangers: number; returnedHangers: number }) => [t.name, t.hangers, t.returnedHangers])).toEqual([
+        ['Antonio', 5, 4],
+        ['Maria', 1, 0], // listed in both modes; 0 when finished only
+      ])
+      const antonio = (await mod.getTrimDayReport({ ...input, trimmerId: T_ANTONIO })).data!
+      expect(antonio.totals.hangers).toBe(report.trimmerOptions[0].returnedHangers) // "Antonio (4)" == the Hangers tile
+      expect(report.batchOptions.map((b: { hangers: number; returnedHangers: number }) => [b.hangers, b.returnedHangers])).toEqual([[5, 3], [1, 1]])
+    })
+
     it('grow: still no dollar or rate anywhere with an open row present', async () => {
       asRole('grow')
       installDb(() => ({ data: [...antonioDay(), openRow()], error: null }))
@@ -1116,8 +1145,8 @@ describe('getTrimDayReport', () => {
       installDb(() => ({ data: crewDay(), error: null }))
       const { batchOptions } = (await mod.getTrimDayReport(input)).data!
       expect(batchOptions).toEqual([
-        { id: B_BB, name: '1001-F1-BB', strainName: 'Bubble Bath', harvestDate: '2026-10-01', hangers: 4 },
-        { id: B_VZ, name: '1001-F1-VZ', strainName: 'VerZace', harvestDate: '2026-09-20', hangers: 2 },
+        { id: B_BB, name: '1001-F1-BB', strainName: 'Bubble Bath', harvestDate: '2026-10-01', hangers: 4, returnedHangers: 3 },
+        { id: B_VZ, name: '1001-F1-VZ', strainName: 'VerZace', harvestDate: '2026-09-20', hangers: 2, returnedHangers: 2 },
       ])
     })
 
@@ -1175,7 +1204,7 @@ describe('getTrimDayReport', () => {
       )
       const report = (await mod.getTrimDayReport({ ...input, trimmerId: T_STAFF_LOOKUP })).data!
       expect(opts(report.trimmerOptions)).toEqual([['Antonio', 3], ['Maria', 1], ['Sam', 2], ['Wayne', 0]])
-      expect(report.trimmerOptions.at(-1)).toEqual({ id: T_STAFF_LOOKUP, name: 'Wayne', hangers: 0 })
+      expect(report.trimmerOptions.at(-1)).toEqual({ id: T_STAFF_LOOKUP, name: 'Wayne', hangers: 0, returnedHangers: 0 })
       expect(report.episodes).toEqual([])
       expect(report.totals).toMatchObject({ episodes: 0, inProgress: 0, hangers: 0 })
       // The lookup is a small read of one staff row, made only on this path.
@@ -1198,7 +1227,7 @@ describe('getTrimDayReport', () => {
           : { data: crewDay(), error: null }
       )
       const report = (await mod.getTrimDayReport({ ...input, batchId: B_NONE })).data!
-      expect(report.batchOptions.at(-1)).toEqual({ id: B_NONE, name: '0901-F1-OLD', strainName: 'Old Strain', harvestDate: '2026-09-01', hangers: 0 })
+      expect(report.batchOptions.at(-1)).toEqual({ id: B_NONE, name: '0901-F1-OLD', strainName: 'Old Strain', harvestDate: '2026-09-01', hangers: 0, returnedHangers: 0 })
       expect(report.trimmerOptions).toEqual([]) // nobody worked a batch with nothing
       expect(report.episodes).toEqual([])
     })
@@ -1206,7 +1235,7 @@ describe('getTrimDayReport', () => {
     it('an unknown id still stays selected (named generically) rather than vanishing', async () => {
       installDb((call) => (call.name === 'trim_staff' ? { data: null, error: null } : { data: crewDay(), error: null }))
       const report = (await mod.getTrimDayReport({ ...input, trimmerId: T_STAFF_LOOKUP })).data!
-      expect(report.trimmerOptions.at(-1)).toEqual({ id: T_STAFF_LOOKUP, name: 'Unknown trimmer', hangers: 0 })
+      expect(report.trimmerOptions.at(-1)).toEqual({ id: T_STAFF_LOOKUP, name: 'Unknown trimmer', hangers: 0, returnedHangers: 0 })
     })
 
     it('a failing name lookup does not fail the report', async () => {

@@ -5,9 +5,11 @@ import {
   compareEpisodes,
   defaultSort,
   heldHours,
+  isListed,
   isOpen,
   isReturned,
   limitDisplayItems,
+  listedEpisodes,
   nextSort,
   resolveSort,
   showsSubtotals,
@@ -448,5 +450,79 @@ describe('isReturned / isOpen / heldHours', () => {
     expect(heldHours(null, Date.now())).toBeNull()
     expect(heldHours('nonsense', Date.now())).toBeNull()
     expect(heldHours(out, Date.parse('2026-10-21T12:00:00+00:00'))).toBeNull()
+  })
+})
+
+describe('Finished only: a listing filter that moves no figure', () => {
+  const open = (over: Partial<TrimDayEpisode> = {}) =>
+    ep({
+      status: 'out', returnedAt: null, flowerG: null, trimG: null, stemsG: null, returnedTotalG: null, varianceG: null,
+      variancePct: null, varianceStatus: null, returnKind: null, payAmount: null, ...over,
+    })
+  const partTrimmed = (over: Partial<TrimDayEpisode> = {}) => ep({ returnKind: 'unfinished', flowerG: 120, issuedG: 400, payAmount: 31.5, ...over })
+  const crew = [
+    ep({ loadId: 'a1', payAmount: 50 }),
+    partTrimmed({ loadId: 'a2' }),
+    open({ loadId: 'a3' }),
+    ep({ trimmerId: T_WAYNE, trimmerName: 'Wayne', loadId: 'w1', payAmount: 40 }),
+    open({ trimmerId: T_MARIA, trimmerName: 'Maria', loadId: 'm1' }),
+  ]
+  const sorted = sortEpisodes(crew, defaultSort(false))
+  const subs = (items: ReturnType<typeof buildDisplayItems>) => items.flatMap((i) => (i.kind === 'subtotal' ? [i.subtotal] : []))
+
+  it("isListed: finished only keeps status 'returned' (both return kinds) and drops 'out'; off keeps everything", () => {
+    expect(isListed(ep(), true)).toBe(true)
+    expect(isListed(partTrimmed(), true)).toBe(true) // an unfinished RETURN is a return
+    expect(isListed(open(), true)).toBe(false)
+    expect(isListed(open(), false)).toBe(true)
+    expect(isListed(partTrimmed(), false)).toBe(true)
+  })
+
+  it('listedEpisodes mirrors it and does not mutate its input', () => {
+    const before = [...crew]
+    expect(listedEpisodes(crew, true)).toHaveLength(3)
+    expect(listedEpisodes(crew, false)).toHaveLength(5)
+    expect(crew).toEqual(before)
+  })
+
+  it('an unfinished return keeps contributing flower, issued and pay to the subtotal in both modes', () => {
+    for (const finishedOnly of [true, false]) {
+      const antonio = subs(buildDisplayItems(sorted, true, finishedOnly)).find((s) => s.trimmerName === 'Antonio')!
+      expect(antonio).toMatchObject({ hangers: 2, episodes: 2, issuedG: 1000, flowerG: 370, payAmount: 81.5 })
+    }
+  })
+
+  it('subtotals are identical in both modes (in-progress count included); the only difference is the all-open block', () => {
+    const on = subs(buildDisplayItems(sorted, true, true))
+    const off = subs(buildDisplayItems(sorted, true, false))
+    expect(off.map((s) => s.trimmerName)).toEqual(['Antonio', 'Maria', 'Wayne'])
+    expect(on.map((s) => s.trimmerName)).toEqual(['Antonio', 'Wayne'])
+    expect(on).toEqual(off.filter((s) => s.trimmerName !== 'Maria'))
+    expect(on[0].inProgress).toBe(1)
+  })
+
+  it('a block of only open hangers gets no subtotal when finished only, and the dashes-and-count subtotal when off', () => {
+    const only = [open({ loadId: 'o1' }), open({ loadId: 'o2' })]
+    expect(buildDisplayItems(sortEpisodes(only, defaultSort(false)), true, true)).toEqual([])
+    const off = subs(buildDisplayItems(sortEpisodes(only, defaultSort(false)), true, false))
+    expect(off).toHaveLength(1)
+    expect(off[0]).toMatchObject({ hangers: 0, inProgress: 2, issuedG: null, flowerG: null, payAmount: null })
+  })
+
+  it('the rows listed are exactly the returned ones (finished only) or all of them (off), in the same order', () => {
+    const eps = (items: ReturnType<typeof buildDisplayItems>) => items.flatMap((i) => (i.kind === 'episode' ? [i.episode] : []))
+    expect(eps(buildDisplayItems(sorted, true, true)).map((e) => e.status)).toEqual(['returned', 'returned', 'returned'])
+    expect(eps(buildDisplayItems(sorted, true, false))).toHaveLength(5)
+    expect(eps(buildDisplayItems(sorted, true, true))).toEqual(eps(buildDisplayItems(sorted, true, false)).filter(isReturned))
+  })
+
+  it('without subtotals (another sort) it only filters the rows', () => {
+    const items = buildDisplayItems(sortEpisodes(crew, { key: 'flower', dir: 'desc' }), false, true)
+    expect(items.every((i) => i.kind === 'episode')).toBe(true)
+    expect(items).toHaveLength(3)
+  })
+
+  it('default is the old behaviour: no filtering', () => {
+    expect(buildDisplayItems(sorted, true).filter((i) => i.kind === 'episode')).toHaveLength(5)
   })
 })

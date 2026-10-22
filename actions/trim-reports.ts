@@ -280,6 +280,8 @@ export interface TrimBatchOption {
   harvestDate: string | null
   /** Distinct hangers with activity in the range (returned or checked out). 0 only for a kept selection. */
   hangers: number
+  /** The subset of `hangers` that has a returned episode: the count shown while "Finished only" is on. */
+  returnedHangers: number
 }
 
 export interface TrimTrimmerOption {
@@ -287,6 +289,8 @@ export interface TrimTrimmerOption {
   name: string
   /** Distinct hangers in the range and batch (returned or checked out). 0 only for a kept selection. */
   hangers: number
+  /** The subset of `hangers` that has a returned episode: the count shown while "Finished only" is on. */
+  returnedHangers: number
 }
 
 export interface BatchLoadEpisode {
@@ -1036,7 +1040,7 @@ function toDayEpisode(r: Row, seesMoney: boolean): TrimDayEpisode {
 
 /** Names for a selection that has no activity (so it is not among the derived options). Falls back, never throws. */
 async function lookupBatchName(db: Awaited<ReturnType<typeof createServiceClient>>, id: string): Promise<TrimBatchOption> {
-  const fallback: TrimBatchOption = { id, name: 'Unknown batch', strainName: null, harvestDate: null, hangers: 0 }
+  const fallback: TrimBatchOption = { id, name: 'Unknown batch', strainName: null, harvestDate: null, hangers: 0, returnedHangers: 0 }
   try {
     const { data, error } = await db
       .from('batches')
@@ -1045,19 +1049,19 @@ async function lookupBatchName(db: Awaited<ReturnType<typeof createServiceClient
       .maybeSingle()
     const b = error ? null : one(data)
     if (!b) return fallback
-    return { id, name: str(b.name) ?? fallback.name, strainName: str(one(b.strain)?.name), harvestDate: str(b.harvest_date), hangers: 0 }
+    return { id, name: str(b.name) ?? fallback.name, strainName: str(one(b.strain)?.name), harvestDate: str(b.harvest_date), hangers: 0, returnedHangers: 0 }
   } catch {
     return fallback
   }
 }
 
 async function lookupTrimmerName(db: Awaited<ReturnType<typeof createServiceClient>>, id: string): Promise<TrimTrimmerOption> {
-  const fallback: TrimTrimmerOption = { id, name: 'Unknown trimmer', hangers: 0 }
+  const fallback: TrimTrimmerOption = { id, name: 'Unknown trimmer', hangers: 0, returnedHangers: 0 }
   try {
     const { data, error } = await db.from('trim_staff').select('id, full_name, display_name').eq('id', id).maybeSingle()
     const t = error ? null : one(data)
     if (!t) return fallback
-    return { id, name: str(t.display_name)?.trim() || str(t.full_name) || fallback.name, hangers: 0 }
+    return { id, name: str(t.display_name)?.trim() || str(t.full_name) || fallback.name, hangers: 0, returnedHangers: 0 }
   } catch {
     return fallback
   }
@@ -1100,6 +1104,12 @@ async function lookupTrimmerName(db: Awaited<ReturnType<typeof createServiceClie
  * `episodes` narrowed to the selected trimmer. Asking the database for one person would measure them
  * against themselves (their own median) and lose the crew ranking. The ceiling therefore applies to the
  * range, not the person; `truncated` says so.
+ *
+ * The page's "Finished only" switch is NOT an input here and never will be: it is a client display preference
+ * that hides open rows from the table and picks which of two counts an option shows. This action always returns
+ * every episode, every option with both counts (`hangers` = all assigned work, `returnedHangers` = returned
+ * only), and totals over returned rows, so no toggle state can move a figure. "Finished" means status
+ * 'returned'; return_kind 'unfinished' is a part-trimmed RETURN and counts like any other.
  *
  * Who uses what: the reports page renders `totals`, `episodes` and the two option lists. `trimmers`, `crew`
  * and `baselineFlowerSharePct` are NOT rendered by any screen today; they are kept (they come from the same
@@ -1169,10 +1179,10 @@ export async function getTrimDayReport(input: {
     const byBatch = narrowByBatch(entries, batchId)
     const selectedEntries = narrowByTrimmer(byBatch, trimmerId)
     const batchOptions = withSelectedOption(deriveBatchOptions(entries), batchId, (id) => ({
-      id, name: 'Unknown batch', strainName: null, harvestDate: null, hangers: 0,
+      id, name: 'Unknown batch', strainName: null, harvestDate: null, hangers: 0, returnedHangers: 0,
     }))
     const trimmerOptions = withSelectedOption(deriveTrimmerOptions(byBatch), trimmerId, (id) => ({
-      id, name: 'Unknown trimmer', hangers: 0,
+      id, name: 'Unknown trimmer', hangers: 0, returnedHangers: 0,
     }))
     // A kept selection with no activity needs its real name (one small read, only on that path).
     if (batchId) {

@@ -27,6 +27,12 @@
 // The action pages through PostgREST until the whole range is read, so the totals below cover every return
 // in the range. Only if the safety ceiling is genuinely hit does it flag `truncated`, shown as a banner.
 // Sorting, subtotals and the column choice are client-side over those rows (report-detail.tsx).
+//
+// "Finished only" (on by default) is a per-device display preference, like the column choice: localStorage, not
+// the URL, and Clear Filters leaves it alone. It hides the open rows from the table and switches the dropdown
+// counts to returned-only (so "Antonio (4)" agrees with the Hangers tile); it never reaches the action and never
+// moves a total, subtotal or pay figure. Which options exist does not depend on it. "Finished" means the hanger
+// is back (status 'returned'); a part-trimmed return (return_kind 'unfinished') is a return and always counts.
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -40,7 +46,7 @@ import { TRIM_REPORT_DATE_PRESETS, type DatePresetKey } from '@/lib/date-filters
 import { isValidDay } from '@/lib/trim/day-range'
 import { ROW_CEILING } from '@/lib/trim/paging'
 import { resolveSort, type SortState, type UserSort } from '@/lib/trim/report-table'
-import { batchOptionLabel, emptyReportMessage, trimmerOptionLabel } from '@/lib/trim/report-options'
+import { batchOptionLabel, emptyReportMessage, optionCount, trimmerOptionLabel } from '@/lib/trim/report-options'
 import {
   hasActiveTrimFilters,
   readTrimReportFilters,
@@ -51,6 +57,7 @@ import {
 import { dateOnlyText, gramsText, lbText, moneyText, pctText, signedGramsText } from './format'
 import { ReportDetail, shownVariance } from './report-detail'
 import { Stat } from './stat'
+import { useFinishedOnly } from './use-finished-only'
 import { useTrimAccess } from './use-trim-access'
 import { useTrimRun } from './use-trim-run'
 
@@ -91,6 +98,7 @@ function Reports() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const requestId = useRef(0)
+  const [finishedOnly, setFinishedOnly] = useFinishedOnly()
 
   // Sorting. The default depends on whether one trimmer is selected (lib/trim/report-table.ts). A click is
   // remembered together with the filters it was made under, so it wins and sticks until a filter changes,
@@ -121,7 +129,7 @@ function Reports() {
   const changeCustomTo = (v: string) => preset === 'custom' && isValidDay(v) && update({ customTo: v })
 
   // Back to the page's defaults: Today, every batch, every trimmer, no custom dates. That is the bare URL.
-  // The column choice is a display preference kept in localStorage and is deliberately not touched here.
+  // The column choice and Finished only are display preferences kept in localStorage and are deliberately not touched here.
   const clearFilters = () => router.replace(pathname, { scroll: false })
 
   const load = useCallback(async () => {
@@ -186,8 +194,8 @@ function Reports() {
                 <SelectItem value={ALL}>All batches</SelectItem>
                 {batch && !batchOptions.some((b) => b.id === batch) && <SelectItem value={batch}>Selected batch</SelectItem>}
                 {batchOptions.map((b) => (
-                  <SelectItem key={b.id} value={b.id} className={cn(b.hangers === 0 && 'text-muted-foreground')}>
-                    {batchOptionLabel(b)}
+                  <SelectItem key={b.id} value={b.id} className={cn(optionCount(b, finishedOnly) === 0 && 'text-muted-foreground')}>
+                    {batchOptionLabel(b, finishedOnly)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -200,8 +208,8 @@ function Reports() {
                 <SelectItem value={ALL}>All trimmers</SelectItem>
                 {trimmer && !trimmerOptions.some((t) => t.id === trimmer) && <SelectItem value={trimmer}>Selected trimmer</SelectItem>}
                 {trimmerOptions.map((t) => (
-                  <SelectItem key={t.id} value={t.id} className={cn(t.hangers === 0 && 'text-muted-foreground')}>
-                    {trimmerOptionLabel(t)}
+                  <SelectItem key={t.id} value={t.id} className={cn(optionCount(t, finishedOnly) === 0 && 'text-muted-foreground')}>
+                    {trimmerOptionLabel(t, finishedOnly)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -257,6 +265,8 @@ function Reports() {
             sort={sort}
             onSortChange={changeSort}
             resetKey={filterSig}
+            finishedOnly={finishedOnly}
+            onFinishedOnlyChange={setFinishedOnly}
           />
         </div>
       )}

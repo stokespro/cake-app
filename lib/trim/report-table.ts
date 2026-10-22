@@ -15,6 +15,13 @@
 // total or subtotal while its flower is zero would collapse the yield percentage. Every sum below therefore
 // reads RETURNED episodes only (isReturned), and the open ones are counted separately (`inProgress`).
 //
+// "Finished only" (lib/trim/report-finished.ts) is a LISTING filter and nothing more. It decides which rows
+// are drawn (isListed, buildDisplayItems); every subtotal is still built from the whole block, so it is
+// byte-identical with the toggle on or off. A block with nothing to draw under the filter draws no subtotal
+// either (a trimmer with only open hangers would otherwise show an all-dashes "0 hangers" row). Note that
+// "finished" means status 'returned': a return with return_kind 'unfinished' is returned, so it is listed
+// and summed in both modes.
+//
 // Pure: no React, no I/O.
 
 import type { TrimDayEpisode } from '@/actions/trim-reports'
@@ -37,6 +44,16 @@ export function isReturned(e: Pick<TrimDayEpisode, 'status'>): boolean {
 /** Checked out and not yet back. */
 export function isOpen(e: Pick<TrimDayEpisode, 'status'>): boolean {
   return e.status === 'out'
+}
+
+/** Whether a row is drawn. Finished only: returned rows (either return kind). Otherwise every row, open ones too. */
+export function isListed(e: Pick<TrimDayEpisode, 'status'>, finishedOnly: boolean): boolean {
+  return !finishedOnly || isReturned(e)
+}
+
+/** The rows that are drawn. Display only: never feed this to a total. */
+export function listedEpisodes<T extends Pick<TrimDayEpisode, 'status'>>(episodes: readonly T[], finishedOnly: boolean): T[] {
+  return episodes.filter((e) => isListed(e, finishedOnly))
 }
 
 /** Hours an open hanger has been held as of `nowMs`; null when the checkout time is missing or in the future. */
@@ -228,18 +245,27 @@ export type DisplayItem =
 /**
  * The table's rows in order. With `withSubtotals` (only meaningful when the list is sorted by trimmer, so
  * each person's rows are contiguous) a subtotal item follows each consecutive run of one trimmer.
+ *
+ * `finishedOnly` hides the open rows from the listing and nothing else: the subtotal is still computed over
+ * the WHOLE block (so it is identical in both modes, "n in progress" included), and a block left with no row
+ * to show gets no subtotal.
  */
-export function buildDisplayItems(sorted: readonly TrimDayEpisode[], withSubtotals: boolean): DisplayItem[] {
+export function buildDisplayItems(sorted: readonly TrimDayEpisode[], withSubtotals: boolean, finishedOnly = false): DisplayItem[] {
   const items: DisplayItem[] = []
   let block: TrimDayEpisode[] = []
+  let listed = 0
   const flush = () => {
-    if (withSubtotals && block.length > 0) items.push({ kind: 'subtotal', subtotal: subtotalOf(block) })
+    if (withSubtotals && listed > 0) items.push({ kind: 'subtotal', subtotal: subtotalOf(block) })
     block = []
+    listed = 0
   }
   for (const e of sorted) {
     if (block.length > 0 && block[0].trimmerId !== e.trimmerId) flush()
     block.push(e)
-    items.push({ kind: 'episode', episode: e })
+    if (isListed(e, finishedOnly)) {
+      items.push({ kind: 'episode', episode: e })
+      listed++
+    }
   }
   flush()
   return items

@@ -11,6 +11,11 @@
 // Hangers still checked out are rows here too (muted, with a "Checked out" tag, plant count, issued weight and
 // how long they have been held), but they have no result figures: every such cell is the em dash, never 0 (0
 // would read as "trimmed nothing" rather than "not back yet"), and they feed no subtotal.
+//
+// The "Finished only" switch (on by default) hides those open rows from the listing. It is display-only: the
+// subtotals are built from the whole block either way (lib/trim/report-table.ts), so no figure moves when it
+// flips, and the in-progress count stays on screen. "Finished" means back (status 'returned'); a return tagged
+// "Unfinished" (part-trimmed) is a return, is listed in both modes, and counts like any other.
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -26,7 +31,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { TrimDayEpisode } from '@/actions/trim-reports'
 import { chicagoClockText } from '@/lib/trim/day-range'
@@ -40,7 +47,9 @@ import {
   buildDisplayItems,
   heldHours,
   isOpen,
+  isReturned,
   limitDisplayItems,
+  listedEpisodes,
   nextSort,
   showsSubtotals,
   sortEpisodes,
@@ -460,6 +469,9 @@ export interface ReportDetailProps {
   onSortChange: (next: SortState) => void
   /** Changes whenever the filters do; a "show more" expansion starts over then. */
   resetKey: string
+  /** Display preference: list returned hangers only. Never changes a figure (see the header comment). */
+  finishedOnly: boolean
+  onFinishedOnlyChange: (next: boolean) => void
   /** "Now" for the held-so-far time of open hangers. Defaults to a clock that ticks each minute; injectable for tests. */
   nowMs?: number
   /** Column choice. Defaults to the persisted per-device choice; injectable for tests. */
@@ -480,6 +492,8 @@ export function ReportDetailView({
   sort,
   onSortChange,
   resetKey,
+  finishedOnly,
+  onFinishedOnlyChange,
   nowMs = Date.now(),
   hidden,
   onToggle,
@@ -489,13 +503,15 @@ export function ReportDetailView({
   const sorted = useMemo(() => sortEpisodes(episodes, sort), [episodes, sort])
   const withSubtotals = showsSubtotals(sort)
   // Built over every episode, then sliced for rendering: a subtotal always covers its whole block.
-  const items = useMemo(() => buildDisplayItems(sorted, withSubtotals), [sorted, withSubtotals])
+  const items = useMemo(() => buildDisplayItems(sorted, withSubtotals, finishedOnly), [sorted, withSubtotals, finishedOnly])
 
   const [expansion, setExpansion] = useState<{ key: string; max: number }>({ key: resetKey, max: RENDER_STEP })
   const max = expansion.key === resetKey ? expansion.max : RENDER_STEP
   const shown = useMemo(() => limitDisplayItems(items, max), [items, max])
-  const total = episodes.length
+  // `total` is the rows that can be listed; `openCount` is every open hanger, listed or not, and stays visible.
+  const total = useMemo(() => listedEpisodes(episodes, finishedOnly).length, [episodes, finishedOnly])
   const openCount = useMemo(() => episodes.filter(isOpen).length, [episodes])
+  const returnedCount = useMemo(() => episodes.filter(isReturned).length, [episodes])
   const moreToShow = shown.shownEpisodes < total
   const showMore = (all: boolean) => setExpansion({ key: resetKey, max: all ? total : max + RENDER_STEP })
 
@@ -513,15 +529,31 @@ export function ReportDetailView({
         <h2 className="text-lg font-semibold">
           Hanger detail{' '}
           <span className="text-base font-normal text-muted-foreground">
-            ({total}
-            {openCount > 0 ? `, ${openCount} in progress` : ''})
+            {finishedOnly
+              ? `(${returnedCount}${openCount > 0 ? `, ${openCount} in progress not listed` : ''})`
+              : `(${total}${openCount > 0 ? `, ${openCount} in progress` : ''})`}
           </span>
         </h2>
-        <ColumnsMenu hidden={hidden} showMoney={showMoney} onToggle={onToggle} onReset={onReset} />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Switch id="trim-report-finished-only" checked={finishedOnly} onCheckedChange={onFinishedOnlyChange} />
+            <Label htmlFor="trim-report-finished-only" className="cursor-pointer text-sm font-medium">
+              Finished only
+            </Label>
+          </div>
+          <ColumnsMenu hidden={hidden} showMoney={showMoney} onToggle={onToggle} onReset={onReset} />
+        </div>
       </div>
 
+      {total === 0 && (
+        <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+          No finished hangers to list.
+          {openCount > 0 && ` ${openCount} ${openCount === 1 ? 'hanger is' : 'hangers are'} still checked out: turn off Finished only to see ${openCount === 1 ? 'it' : 'them'}.`}
+        </p>
+      )}
+
       {/* Phones and tablets have no header row to click, so sorting is a control of its own. */}
-      <div className="flex items-center gap-2 lg:hidden">
+      <div className={cn('flex items-center gap-2 lg:hidden', total === 0 && 'hidden')}>
         <Select value={sort.key} onValueChange={(v) => onSortChange({ key: v as SortKey, dir: 'asc' })}>
           <SelectTrigger aria-label="Sort by" className="flex-1">
             <SelectValue />
@@ -546,7 +578,7 @@ export function ReportDetailView({
       </div>
 
       {/* Wide screens */}
-      <div className="hidden rounded-lg border bg-card lg:block">
+      <div className={cn('hidden rounded-lg border bg-card lg:block', total === 0 && 'lg:hidden')}>
         {/* px-3 (not the default px-4) so the default nine columns fit a 1280px screen with the sidebar open. */}
         <Table className="[&_td]:px-3 [&_th]:px-3">
           <TableHeader>
@@ -616,7 +648,10 @@ export function ReportDetailView({
       <p className="text-sm text-muted-foreground">
         Variance is shown the way the station shows it: negative means weight is missing; sorting by it puts the largest
         gap first, loss or gain. Times are Central. Tap a hanger for its full history.
-        {openCount > 0 && ' Hangers still checked out are listed for reference and are not counted in any total or subtotal.'}
+        {openCount > 0 &&
+          (finishedOnly
+            ? ' Hangers still checked out are not listed while Finished only is on. They are not counted in any total or subtotal either way.'
+            : ' Hangers still checked out are listed for reference and are not counted in any total or subtotal.')}
       </p>
     </section>
   )

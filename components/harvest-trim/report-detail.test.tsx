@@ -58,6 +58,8 @@ function render(over: Partial<React.ComponentProps<typeof ReportDetailView>> = {
       sort={BY_TRIMMER}
       onSortChange={() => {}}
       resetKey="k"
+      finishedOnly={false}
+      onFinishedOnlyChange={() => {}}
       hidden={defaultHiddenColumns()}
       onToggle={() => {}}
       onReset={() => {}}
@@ -288,5 +290,139 @@ describe('checked-out (open) hangers', () => {
     expect(row).toContain('1 in progress')
     expect(row).not.toMatch(/\b0(\.0+)? ?(g|lb)\b/)
     expect(row).not.toContain('$')
+  })
+})
+
+describe('Finished only: a display toggle that moves no number', () => {
+  const NOW = Date.parse('2026-10-21T15:30:00+00:00')
+  const open = (over: Partial<TrimDayEpisode> = {}) =>
+    ep({
+      status: 'out',
+      hangerCode: 'H1B-OPEN',
+      returnedAt: null,
+      turnaroundHours: null,
+      issuedG: 700,
+      issuedPlantCount: 6,
+      flowerG: null,
+      trimG: null,
+      stemsG: null,
+      returnedTotalG: null,
+      varianceG: null,
+      variancePct: null,
+      varianceStatus: null,
+      returnKind: null,
+      payAmount: null,
+      ...over,
+    })
+  // An 'unfinished' RETURN: came back part-trimmed. It is returned, carries flower and pay, and must count.
+  const partTrimmed = () => ep({ hangerCode: 'H1B-PART', returnKind: 'unfinished', flowerG: 120, payAmount: 31.5 })
+
+  // Antonio: two full returns, one part-trimmed return, one open. Wayne: one return. Maria: ONLY an open hanger.
+  const day = [
+    ...crew,
+    partTrimmed(),
+    open(),
+    open({ trimmerId: 't-maria', trimmerName: 'Maria', hangerCode: 'H1B-MARIA' }),
+  ]
+  const on = (over: Partial<React.ComponentProps<typeof ReportDetailView>> = {}) =>
+    render({ episodes: day, nowMs: NOW, finishedOnly: true, ...over })
+  const off = (over: Partial<React.ComponentProps<typeof ReportDetailView>> = {}) =>
+    render({ episodes: day, nowMs: NOW, finishedOnly: false, ...over })
+  /** Hanger codes of the rows in the wide table, in order. */
+  const listed = (html: string) => [...table(html).matchAll(/H1B-[A-Z0-9-]+(?=<\/a>)/g)].map((m) => m[0])
+
+  it('ON lists returned rows only; OFF lists the open ones too', () => {
+    expect(listed(on())).not.toContain('H1B-OPEN')
+    expect(listed(on())).not.toContain('H1B-MARIA')
+    expect(listed(off())).toEqual(expect.arrayContaining(['H1B-OPEN', 'H1B-MARIA']))
+    expect(listed(off()).length - listed(on()).length).toBe(2)
+    expect(table(on())).not.toContain('Checked out')
+    expect(table(off())).toContain('Checked out')
+  })
+
+  it('REGRESSION: every subtotal is byte-identical with the toggle on and off, for every trimmer that has a returned row', () => {
+    const rowsOn = subtotalRows(on())
+    const rowsOff = subtotalRows(off())
+    // Maria has only an open hanger: her subtotal is the extra row OFF, and does not exist ON.
+    expect(rowsOff).toHaveLength(3)
+    expect(rowsOn).toHaveLength(2)
+    expect(rowsOn).toEqual(rowsOff.filter((r) => !r.includes('Maria')))
+    // and with Pay hidden (grow) and every column shown
+    const onGrow = subtotalRows(on({ showMoney: false, hidden: [] }))
+    const offGrow = subtotalRows(off({ showMoney: false, hidden: [] }))
+    expect(onGrow).toEqual(offGrow.filter((r) => !r.includes('Maria')))
+  })
+
+  it('the in-progress count stays on each subtotal and in the heading in both modes', () => {
+    for (const html of [on(), off()]) {
+      expect(subtotalRows(html)[0]).toContain('1 in progress') // Antonio's open hanger
+    }
+    expect(on()).toContain('(4, 2 in progress not listed)')
+    expect(off()).toContain('(6, 2 in progress)')
+  })
+
+  it('ON: a trimmer with only open hangers has no all-dashes subtotal row; OFF: it renders correctly', () => {
+    expect(subtotalRows(on()).join('')).not.toContain('Maria')
+    expect(on()).not.toContain('0 hangers')
+    const maria = subtotalRows(off()).find((r) => r.includes('Maria'))!
+    expect(maria).toContain('0 hangers')
+    expect(maria).toContain('1 in progress')
+    expect(maria).not.toMatch(/\b0(\.0+)? ?(g|lb)\b/)
+    expect(maria).not.toContain('$')
+  })
+
+  it("a part-trimmed ('unfinished') RETURN is listed, tagged and summed in BOTH modes", () => {
+    for (const html of [on(), off()]) {
+      expect(listed(html)).toContain('H1B-PART')
+      expect(table(html)).toContain('Unfinished')
+      // Antonio's subtotal includes it: 3 returned hangers, flower 250 + 250 + 120 = 620 g, pay 50 + 50 + 31.5.
+      const antonio = subtotalRows(html)[0]
+      expect(antonio).toContain('3 hangers')
+      expect(antonio).toContain('$131.50')
+    }
+  })
+
+  it('the unfinished tag and the Checked out tag are different things', () => {
+    const t = table(off())
+    expect(t.match(/Unfinished/g)).toHaveLength(1)
+    expect(t.match(/Checked out/g)).toHaveLength(2)
+  })
+
+  it('card view (phones) follows the toggle too, and its subtotals are identical', () => {
+    const cards = (html: string) => html.slice(html.indexOf('<ul'))
+    expect(cards(on())).not.toContain('H1B-OPEN')
+    expect(cards(off())).toContain('H1B-OPEN')
+    const sub = (html: string) => [...cards(html).matchAll(/<li[^>]*data-subtotal[^>]*>[\s\S]*?<\/li>/g)].map((m) => m[0])
+    expect(sub(on())).toEqual(sub(off()).filter((r) => !r.includes('Maria')))
+  })
+
+  it('the switch is a labelled control reflecting the state', () => {
+    expect(on()).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="true"/)
+    expect(off()).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="false"/)
+    expect(on()).toContain('Finished only')
+  })
+
+  it('ON with only open hangers: the switch stays reachable, no table is drawn, and it says how to see them', () => {
+    const html = render({ episodes: [open(), open({ hangerCode: 'H1B-OPEN2', loadId: 'l2' })], nowMs: NOW, finishedOnly: true })
+    expect(html).toContain('role="switch"')
+    expect(html).toContain('No finished hangers to list.')
+    expect(html).toContain('2 hangers are still checked out: turn off Finished only to see them.')
+    expect(html).not.toContain('data-subtotal')
+    expect(listed(html)).toEqual([])
+    expect(html).toContain('(0, 2 in progress not listed)')
+  })
+
+  it('grow: no dollar figure, rate or Pay in either mode', () => {
+    for (const html of [on({ showMoney: false, hidden: [] }), off({ showMoney: false, hidden: [] })]) {
+      expect(html).not.toMatch(/\$\d/)
+      expect(html).not.toContain('/lb')
+      expect(html).not.toMatch(/Pay/)
+    }
+  })
+
+  it('"Showing x of y" counts the listed rows only (the open hanger is not one of the 260)', () => {
+    const many = Array.from({ length: RENDER_STEP + 10 }, () => ep({ trimmerId: 't-a', trimmerName: 'Aaron' }))
+    const html = render({ episodes: [...many, open({ trimmerId: 't-a', trimmerName: 'Aaron' })], nowMs: NOW, finishedOnly: true, sort: { key: 'flower', dir: 'desc' } })
+    expect(html).toContain(`Showing ${RENDER_STEP} of ${RENDER_STEP + 10} hangers`)
   })
 })

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  optionCount,
   batchOptionLabel,
   deriveBatchOptions,
   deriveTrimmerOptions,
@@ -38,9 +39,9 @@ describe('deriveBatchOptions', () => {
       act({ batchId: 'b-old', batchName: '0801', strainName: null, harvestDate: null, loadId: 'd' }),
     ]
     expect(deriveBatchOptions(rows)).toEqual([
-      { id: 'b-bb', name: '1001-F1-BB', strainName: 'Bubble Bath', harvestDate: '2026-10-01', hangers: 2 },
-      { id: 'b-vz', name: '1001-F1-VZ', strainName: 'VerZace', harvestDate: '2026-09-20', hangers: 1 },
-      { id: 'b-old', name: '0801', strainName: null, harvestDate: null, hangers: 1 },
+      { id: 'b-bb', name: '1001-F1-BB', strainName: 'Bubble Bath', harvestDate: '2026-10-01', hangers: 2, returnedHangers: 2 },
+      { id: 'b-vz', name: '1001-F1-VZ', strainName: 'VerZace', harvestDate: '2026-09-20', hangers: 1, returnedHangers: 1 },
+      { id: 'b-old', name: '0801', strainName: null, harvestDate: null, hangers: 1, returnedHangers: 1 },
     ])
   })
 
@@ -58,9 +59,51 @@ describe('deriveTrimmerOptions', () => {
   it('A to Z with distinct hanger counts', () => {
     const rows = [act({ ...MARIA, loadId: 'm' }), act({ loadId: 'a1' }), act({ loadId: 'a2' }), act({ loadId: 'a2' })]
     expect(deriveTrimmerOptions(rows)).toEqual([
-      { id: 't-antonio', name: 'Antonio', hangers: 2 },
-      { id: 't-maria', name: 'Maria', hangers: 1 },
+      { id: 't-antonio', name: 'Antonio', hangers: 2, returnedHangers: 2 },
+      { id: 't-maria', name: 'Maria', hangers: 1, returnedHangers: 1 },
     ])
+  })
+})
+
+describe('option counts: all assigned work vs returned only', () => {
+  // Antonio: two returned hangers and one still out. Maria: nothing but an open hanger.
+  const rows = [
+    act({ loadId: 'a1' }),
+    act({ loadId: 'a2' }),
+    act({ loadId: 'a3', status: 'out' }),
+    act({ ...MARIA, loadId: 'm1', status: 'out' }),
+  ]
+
+  it('trimmers: `hangers` counts open work, `returnedHangers` does not', () => {
+    expect(deriveTrimmerOptions(rows).map((o) => [o.name, o.hangers, o.returnedHangers])).toEqual([
+      ['Antonio', 3, 2],
+      ['Maria', 1, 0],
+    ])
+  })
+
+  it('batches: same split', () => {
+    expect(deriveBatchOptions(rows).map((o) => [o.hangers, o.returnedHangers])).toEqual([[4, 2]])
+  })
+
+  it('the option LIST is the same whichever count is shown: a trimmer with only open work is still listed (as 0 when finished only)', () => {
+    const maria = deriveTrimmerOptions(rows).find((o) => o.id === 't-maria')!
+    expect(maria).toBeDefined()
+    expect(optionCount(maria, true)).toBe(0)
+    expect(optionCount(maria, false)).toBe(1)
+    expect(trimmerOptionLabel(maria, true)).toBe('Maria (0)')
+    expect(trimmerOptionLabel(maria, false)).toBe('Maria (1)')
+  })
+
+  it('a hanger returned once and checked out again counts once in each mode, and as returned', () => {
+    const reissued = [act({ loadId: 'x' }), act({ loadId: 'x', status: 'out' })]
+    expect(deriveTrimmerOptions(reissued)[0]).toMatchObject({ hangers: 1, returnedHangers: 1 })
+  })
+
+  it('finished-only counts agree with the Hangers tile: distinct returned hangers among the rows that selecting the option leaves', () => {
+    for (const t of deriveTrimmerOptions(rows)) {
+      const left = narrowByTrimmer(rows, t.id).filter((r) => r.status === 'returned')
+      expect(new Set(left.map((r) => r.loadId)).size).toBe(optionCount(t, true))
+    }
   })
 })
 
@@ -106,10 +149,10 @@ describe('one-way cascade: Date -> Batch -> Trimmer', () => {
 })
 
 describe('withSelectedOption: a selection is kept, not dropped', () => {
-  const list = [{ id: 'a', hangers: 3 }]
-  const make = (id: string) => ({ id, hangers: 0 })
+  const list = [{ id: 'a', hangers: 3, returnedHangers: 2 }]
+  const make = (id: string) => ({ id, hangers: 0, returnedHangers: 0 })
   it('adds the missing selection with a zero count', () => {
-    expect(withSelectedOption(list, 'z', make)).toEqual([{ id: 'a', hangers: 3 }, { id: 'z', hangers: 0 }])
+    expect(withSelectedOption(list, 'z', make)).toEqual([{ id: 'a', hangers: 3, returnedHangers: 2 }, { id: 'z', hangers: 0, returnedHangers: 0 }])
   })
   it('leaves the list alone when the selection is already there or nothing is selected', () => {
     expect(withSelectedOption(list, 'a', make)).toEqual(list)
@@ -123,23 +166,29 @@ describe('withSelectedOption: a selection is kept, not dropped', () => {
 
 describe('labels', () => {
   it('trimmer: name and count', () => {
-    expect(trimmerOptionLabel({ name: 'Antonio', hangers: 4 })).toBe('Antonio (4)')
-    expect(trimmerOptionLabel({ name: 'Antonio', hangers: 0 })).toBe('Antonio (0)')
+    expect(trimmerOptionLabel({ name: 'Antonio', hangers: 4, returnedHangers: 4 }, true)).toBe('Antonio (4)')
+    expect(trimmerOptionLabel({ name: 'Antonio', hangers: 0, returnedHangers: 0 }, true)).toBe('Antonio (0)')
   })
   it('batch: name, strain and count', () => {
-    expect(batchOptionLabel({ name: '1001-F1-BB', strainName: 'Bubble Bath', hangers: 18 })).toBe('1001-F1-BB — Bubble Bath (18)')
-    expect(batchOptionLabel({ name: '1001-F1-BB', strainName: null, hangers: 2 })).toBe('1001-F1-BB (2)')
+    expect(batchOptionLabel({ name: '1001-F1-BB', strainName: 'Bubble Bath', hangers: 18, returnedHangers: 18 }, true)).toBe('1001-F1-BB — Bubble Bath (18)')
+    expect(batchOptionLabel({ name: '1001-F1-BB', strainName: null, hangers: 2, returnedHangers: 2 }, true)).toBe('1001-F1-BB (2)')
+  })
+  it('the count follows the toggle: returned only when finished only, all assigned work otherwise', () => {
+    expect(trimmerOptionLabel({ name: 'Antonio', hangers: 17, returnedHangers: 4 }, true)).toBe('Antonio (4)')
+    expect(trimmerOptionLabel({ name: 'Antonio', hangers: 17, returnedHangers: 4 }, false)).toBe('Antonio (17)')
+    expect(batchOptionLabel({ name: '1001-F1-BB', strainName: 'Bubble Bath', hangers: 17, returnedHangers: 4 }, true)).toBe('1001-F1-BB — Bubble Bath (4)')
+    expect(batchOptionLabel({ name: '1001-F1-BB', strainName: 'Bubble Bath', hangers: 17, returnedHangers: 4 }, false)).toBe('1001-F1-BB — Bubble Bath (17)')
   })
 })
 
 describe('emptyReportMessage: says why the table is empty', () => {
   const batchOptions = [
-    { id: 'b-bb', name: '1001-F1-BB', strainName: 'Bubble Bath', harvestDate: null, hangers: 5 },
-    { id: 'b-none', name: '0901-OLD', strainName: null, harvestDate: null, hangers: 0 },
+    { id: 'b-bb', name: '1001-F1-BB', strainName: 'Bubble Bath', harvestDate: null, hangers: 5, returnedHangers: 5 },
+    { id: 'b-none', name: '0901-OLD', strainName: null, harvestDate: null, hangers: 0, returnedHangers: 0 },
   ]
   const trimmerOptions = [
-    { id: 't-antonio', name: 'Antonio', hangers: 0 },
-    { id: 't-maria', name: 'Maria', hangers: 2 },
+    { id: 't-antonio', name: 'Antonio', hangers: 0, returnedHangers: 0 },
+    { id: 't-maria', name: 'Maria', hangers: 2, returnedHangers: 2 },
   ]
   const sel = { batchId: null, trimmerId: null, batchOptions, trimmerOptions }
 

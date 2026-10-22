@@ -9,6 +9,11 @@
 //   - batch options come from the date range alone (picking a trimmer never narrows them);
 //   - trimmer options come from the date range AND the selected batch.
 //
+// Two counts per option. `hangers` is every hanger with assigned work in the range (returned or still out) and
+// decides WHICH options exist, so the list never churns when the "Finished only" toggle flips. `returnedHangers`
+// is the returned-only subset: it is the number shown while Finished only is on, and it is the same set of
+// hangers the Hangers tile counts. The toggle picks which count is displayed (optionCount) and nothing else.
+//
 // A selection that has dropped out of its list (a trimmer who did not work the newly chosen day) is kept and
 // shown with a zero count, never silently reset: widening what the viewer is looking at without saying so is
 // the failure mode this avoids (withSelectedOption, emptyReportMessage).
@@ -41,15 +46,27 @@ export function narrowByTrimmer<T extends ActivityRow>(rows: readonly T[], trimm
   return trimmerId ? rows.filter((r) => r.trimmerId === trimmerId) : [...rows]
 }
 
+interface LoadGroup<T> {
+  first: T
+  /** Every hanger with work in the group, returned or still out. */
+  loads: Set<string>
+  /** The hangers with at least one RETURNED episode (the Hangers tile's definition). */
+  returnedLoads: Set<string>
+}
+
 /** Distinct hangers (loads) per key. A hanger worked twice in the range counts once. */
-function loadsBy<T extends ActivityRow>(rows: readonly T[], key: (r: T) => string | null): Map<string, { first: T; loads: Set<string> }> {
-  const out = new Map<string, { first: T; loads: Set<string> }>()
+function loadsBy<T extends ActivityRow>(rows: readonly T[], key: (r: T) => string | null): Map<string, LoadGroup<T>> {
+  const out = new Map<string, LoadGroup<T>>()
   for (const r of rows) {
     const k = key(r)
     if (k === null) continue
-    const g = out.get(k)
-    if (g) g.loads.add(r.loadId)
-    else out.set(k, { first: r, loads: new Set([r.loadId]) })
+    let g = out.get(k)
+    if (!g) {
+      g = { first: r, loads: new Set(), returnedLoads: new Set() }
+      out.set(k, g)
+    }
+    g.loads.add(r.loadId)
+    if (r.status === 'returned') g.returnedLoads.add(r.loadId)
   }
   return out
 }
@@ -62,6 +79,7 @@ export function deriveBatchOptions(rows: readonly ActivityRow[]): TrimBatchOptio
     strainName: g.first.strainName,
     harvestDate: g.first.harvestDate,
     hangers: g.loads.size,
+    returnedHangers: g.returnedLoads.size,
   }))
   options.sort((a, b) => {
     if (a.harvestDate !== b.harvestDate) {
@@ -89,6 +107,7 @@ export function deriveTrimmerOptions(rows: readonly ActivityRow[]): TrimTrimmerO
     id,
     name: latest.get(id)?.trimmerName ?? g.first.trimmerName,
     hangers: g.loads.size,
+    returnedHangers: g.returnedLoads.size,
   }))
   options.sort((a, b) => a.name.localeCompare(b.name, 'en-US', { sensitivity: 'base' }))
   return options
@@ -109,14 +128,25 @@ export function withSelectedOption<O extends { id: string }>(
 
 // ─── Labels and copy ─────────────────────────────────────────────────────────
 
+/**
+ * The hanger count an option shows. Finished only on: returned hangers, the same set the Hangers tile counts.
+ * Off: all assigned work, open hangers included. Display only; which options exist never depends on it.
+ */
+export function optionCount(o: Pick<TrimBatchOption, 'hangers' | 'returnedHangers'>, finishedOnly: boolean): number {
+  return finishedOnly ? o.returnedHangers : o.hangers
+}
+
 /** "1001-F1-BB — Bubble Bath (18)". A selection with nothing shows "(0)". */
-export function batchOptionLabel(o: Pick<TrimBatchOption, 'name' | 'strainName' | 'hangers'>): string {
-  return `${o.name}${o.strainName ? ` — ${o.strainName}` : ''} (${o.hangers})`
+export function batchOptionLabel(
+  o: Pick<TrimBatchOption, 'name' | 'strainName' | 'hangers' | 'returnedHangers'>,
+  finishedOnly: boolean
+): string {
+  return `${o.name}${o.strainName ? ` — ${o.strainName}` : ''} (${optionCount(o, finishedOnly)})`
 }
 
 /** "Antonio (4)". */
-export function trimmerOptionLabel(o: Pick<TrimTrimmerOption, 'name' | 'hangers'>): string {
-  return `${o.name} (${o.hangers})`
+export function trimmerOptionLabel(o: Pick<TrimTrimmerOption, 'name' | 'hangers' | 'returnedHangers'>, finishedOnly: boolean): string {
+  return `${o.name} (${optionCount(o, finishedOnly)})`
 }
 
 /**
