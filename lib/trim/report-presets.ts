@@ -93,3 +93,23 @@ export function trimReportFiltersToQuery(f: TrimReportFilters): string {
   const s = q.toString()
   return s ? `?${s}` : ''
 }
+
+/**
+ * The page's default filters: today (Chicago), every batch, every trimmer. There is no "all dates" option on
+ * this page, so "cleared" means today, not unbounded. It serialises to the bare URL.
+ */
+export const DEFAULT_TRIM_REPORT_FILTERS: TrimReportFilters = {
+  preset: 'today',
+  customFrom: '',
+  customTo: '',
+  trimmer: null,
+  batch: null,
+}
+
+/**
+ * True when anything differs from the default, i.e. when "Clear Filters" has something to do. Display
+ * preferences (the column choice) are not filters and are not part of this.
+ */
+export function hasActiveTrimFilters(f: Pick<TrimReportFilters, 'preset' | 'trimmer' | 'batch'>): boolean {
+  return f.preset !== DEFAULT_TRIM_REPORT_FILTERS.preset || f.trimmer !== null || f.batch !== null
+}

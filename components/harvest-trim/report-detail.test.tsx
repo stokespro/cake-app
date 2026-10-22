@@ -13,6 +13,7 @@ function ep(over: Partial<TrimDayEpisode> = {}): TrimDayEpisode {
   n++
   return {
     checkoutId: `co-${n}`,
+    status: 'returned',
     seq: 1,
     hangerCode: `H1B-${String(n).padStart(3, '0')}`,
     loadId: `load-${n}`,
@@ -25,6 +26,7 @@ function ep(over: Partial<TrimDayEpisode> = {}): TrimDayEpisode {
     returnedAt: '2026-10-21T14:00:00+00:00',
     turnaroundHours: 1,
     issuedG: 600,
+    issuedPlantCount: 8,
     flowerG: 250,
     trimG: 100,
     stemsG: 200,
@@ -182,5 +184,109 @@ describe('totals vs rendered rows', () => {
 
   it('a short list has no "show more"', () => {
     expect(render()).not.toContain('Show all')
+  })
+})
+
+describe('checked-out (open) hangers', () => {
+  // 13:00Z checkout, "now" 15:30Z: held 2.5 hours.
+  const NOW = Date.parse('2026-10-21T15:30:00+00:00')
+  const open = (over: Partial<TrimDayEpisode> = {}) =>
+    ep({
+      status: 'out',
+      hangerCode: 'H1B-OPEN',
+      trimmerId: 't-antonio',
+      trimmerName: 'Antonio',
+      returnedAt: null,
+      turnaroundHours: null,
+      issuedG: 700,
+      issuedPlantCount: 6,
+      flowerG: null,
+      trimG: null,
+      stemsG: null,
+      returnedTotalG: null,
+      varianceG: null,
+      variancePct: null,
+      varianceStatus: null,
+      returnKind: null,
+      payAmount: null,
+      ...over,
+    })
+  const withOpen = [...crew, open()]
+  const openRowHtml = (html: string) => table(html).match(/<tr[^>]*data-open[^>]*>[\s\S]*?<\/tr>/)![0]
+  const cellsOf = (tr: string) => [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+
+  it('is a distinct row: Checked out tag, dashed/muted treatment, checkout time, held-so-far, plants and issued weight', () => {
+    const html = render({ episodes: withOpen, nowMs: NOW, hidden: [] })
+    const tr = openRowHtml(html)
+    expect(tr).toContain('Checked out')
+    expect(tr).toContain('text-muted-foreground')
+    expect(tr).toContain('H1B-OPEN')
+    expect(tr).toContain('held 2.5 h so far')
+    expect(tr).toContain('6 plants')
+    expect(tr).toContain('700 g')
+    expect(tr).toMatch(/→ —/) // no return time yet
+  })
+
+  it('every result cell is the em dash, never a zero', () => {
+    const tr = openRowHtml(render({ episodes: withOpen, nowMs: NOW, hidden: [] }))
+    const cells = cellsOf(tr)
+    // Hanger, Batch, Trimmer, Out -> in, Issued, Flower, Trim, Stems, Variance, Status, Pay
+    expect(cells).toHaveLength(11)
+    expect(cells.slice(5)).toEqual(['—', '—', '—', '—', '—', '—'])
+    expect(tr).not.toMatch(/\b0(\.0+)? ?(g|lb)\b/)
+    expect(tr).not.toContain('$')
+  })
+
+  it('does not change a returned row or any subtotal figure; the block just says how many are in progress', () => {
+    const base = subtotalRows(render({ episodes: crew }))
+    const html = render({ episodes: withOpen, nowMs: NOW })
+    const rows = subtotalRows(html)
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toContain('1 in progress')
+    expect(rows[0]).toContain('2 hangers') // Antonio's two returned hangers; the open one is not a third
+    const strip = (r: string) => r.replace(/<span[^>]*>1 in progress<\/span>/, '')
+    expect(strip(rows[0])).toBe(base[0])
+    expect(rows[1]).toBe(base[1])
+    expect(rows[1]).not.toContain('in progress')
+  })
+
+  it('heading and footnote say how many are in progress', () => {
+    const html = render({ episodes: withOpen, nowMs: NOW })
+    expect(html).toContain('4, 1 in progress')
+    expect(html).toContain('not counted in any total or subtotal')
+    expect(render()).not.toContain('in progress')
+  })
+
+  it('card view (phones): tagged, plants and issued, dashes elsewhere', () => {
+    const html = render({ episodes: withOpen, nowMs: NOW, hidden: [] })
+    const card = html.slice(html.indexOf('<ul')).match(/<li[^>]*data-open[^>]*>[\s\S]*?<\/li>/)![0]
+    expect(card).toContain('Checked out')
+    expect(card).toContain('6 plants')
+    expect(card).toContain('700 g')
+    expect(card).toContain('held 2.5 h so far')
+    expect(card).toContain('border-dashed')
+  })
+
+  it('grow: an open row adds no dollar figure, rate or Pay anywhere', () => {
+    const html = render({ episodes: withOpen, nowMs: NOW, showMoney: false, hidden: [] })
+    expect(html).not.toMatch(/\$\d/)
+    expect(html).not.toContain('/lb')
+    expect(html).not.toMatch(/Pay/)
+    expect(html).toContain('Checked out')
+  })
+
+  it('admin: an open row shows no pay and no rate', () => {
+    const tr = openRowHtml(render({ episodes: withOpen, nowMs: NOW, hidden: [] }))
+    expect(tr).not.toContain('/lb')
+    expect(tr).not.toContain('$')
+  })
+
+  it('only open hangers in a block: the subtotal shows dashes and the count, not zeros', () => {
+    const html = render({ episodes: [open()], nowMs: NOW })
+    const [row] = subtotalRows(html)
+    expect(row).toContain('0 hangers')
+    expect(row).toContain('1 in progress')
+    expect(row).not.toMatch(/\b0(\.0+)? ?(g|lb)\b/)
+    expect(row).not.toContain('$')
   })
 })

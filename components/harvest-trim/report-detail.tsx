@@ -7,6 +7,10 @@
 // This component may render only the first RENDER_STEP hangers (the rest behind "Show more"), but the
 // totals cards above and every subtotal here are computed from the whole filtered set, never the rendered
 // slice. Which columns show is lib/trim/report-columns.ts; Pay is absent (not hidden) when `showMoney` is false.
+//
+// Hangers still checked out are rows here too (muted, with a "Checked out" tag, plant count, issued weight and
+// how long they have been held), but they have no result figures: every such cell is the em dash, never 0 (0
+// would read as "trimmed nothing" rather than "not back yet"), and they feed no subtotal.
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -34,6 +38,8 @@ import {
 } from '@/lib/trim/report-columns'
 import {
   buildDisplayItems,
+  heldHours,
+  isOpen,
   limitDisplayItems,
   nextSort,
   showsSubtotals,
@@ -51,9 +57,11 @@ import {
   hoursText,
   moneyText,
   pctText,
+  plantsText,
   signedGramsText,
 } from './format'
 import { Mass } from './mass'
+import { useNow } from './use-now'
 import { useReportColumns } from './use-report-columns'
 
 const DASH = '—'
@@ -99,10 +107,23 @@ function HangerLink({ code }: { code: string }) {
 }
 
 function outIn(e: TrimDayEpisode, showDates: boolean): string {
-  return `${chicagoClockText(e.checkedOutAt, showDates)} → ${chicagoClockText(e.returnedAt, showDates)}`
+  // An open hanger has no return time yet: the em dash, not a made-up one.
+  return `${chicagoClockText(e.checkedOutAt, showDates)} → ${e.returnedAt ? chicagoClockText(e.returnedAt, showDates) : DASH}`
+}
+
+/** The line under the times: turnaround for a return, how long it has been out so far for an open hanger. */
+function elapsedNote(e: TrimDayEpisode, nowMs: number): string {
+  return isOpen(e) ? `held ${hoursText(heldHours(e.checkedOutAt, nowMs))} so far` : hoursText(e.turnaroundHours)
 }
 
 function Tags({ e }: { e: TrimDayEpisode }) {
+  if (isOpen(e)) {
+    return (
+      <span className="inline-block rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-amber-700 dark:text-amber-300">
+        Checked out
+      </span>
+    )
+  }
   if (e.returnKind !== 'unfinished') return null
   return (
     <span className="inline-block rounded-full border border-violet-500/40 bg-violet-500/15 px-2 py-0.5 text-xs font-semibold text-violet-700 dark:text-violet-300">
@@ -162,7 +183,7 @@ export function ColumnsMenu({
 
 // ─── Table pieces ────────────────────────────────────────────────────────────
 
-function EpisodeCells({ e, col, showDates }: { e: TrimDayEpisode; col: ReportColumnKey; showDates: boolean }) {
+function EpisodeCells({ e, col, showDates, nowMs }: { e: TrimDayEpisode; col: ReportColumnKey; showDates: boolean; nowMs: number }) {
   switch (col) {
     case 'hanger':
       return (
@@ -185,11 +206,18 @@ function EpisodeCells({ e, col, showDates }: { e: TrimDayEpisode; col: ReportCol
       return (
         <TableCell className="align-top whitespace-nowrap">
           {outIn(e, showDates)}
-          <span className="block text-xs text-muted-foreground">{hoursText(e.turnaroundHours)}</span>
+          <span className="block text-xs text-muted-foreground">{elapsedNote(e, nowMs)}</span>
         </TableCell>
       )
     case 'issued':
-      return <TableCell className="whitespace-nowrap text-right align-top">{gramsText(e.issuedG)}</TableCell>
+      return (
+        <TableCell className="whitespace-nowrap text-right align-top">
+          {gramsText(e.issuedG)}
+          {isOpen(e) && e.issuedPlantCount !== null && (
+            <span className="block text-xs text-muted-foreground">{plantsText(e.issuedPlantCount)}</span>
+          )}
+        </TableCell>
+      )
     case 'flower':
       return (
         <TableCell className="whitespace-nowrap align-top">
@@ -216,7 +244,7 @@ function EpisodeCells({ e, col, showDates }: { e: TrimDayEpisode; col: ReportCol
       return (
         <TableCell className="whitespace-nowrap text-right align-top">
           <span className="font-semibold">{moneyText(e.payAmount)}</span>
-          {e.ratePerLb !== null && <span className="block text-xs text-muted-foreground">{moneyText(e.ratePerLb)}/lb</span>}
+          {!isOpen(e) && e.ratePerLb !== null && <span className="block text-xs text-muted-foreground">{moneyText(e.ratePerLb)}/lb</span>}
         </TableCell>
       )
   }
@@ -243,6 +271,9 @@ function SubtotalRow({ st, columns }: { st: TrimmerSubtotal; columns: readonly R
                 <span className="block whitespace-nowrap">
                   {st.hangers} {st.hangers === 1 ? 'hanger' : 'hangers'}
                 </span>
+                {st.inProgress > 0 && (
+                  <span className="block whitespace-nowrap text-xs font-normal text-muted-foreground">{st.inProgress} in progress</span>
+                )}
               </TableHead>
             )
           case 'trimmer':
@@ -291,6 +322,7 @@ function SubtotalCard({ st, columns }: { st: TrimmerSubtotal; columns: readonly 
       <p className="text-sm font-semibold">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subtotal</span>{' '}
         {st.trimmerName} &middot; {st.hangers} {st.hangers === 1 ? 'hanger' : 'hangers'}
+        {st.inProgress > 0 && <span className="font-normal text-muted-foreground"> &middot; {st.inProgress} in progress</span>}
       </p>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         {has('issued') && (
@@ -324,7 +356,7 @@ function SubtotalCard({ st, columns }: { st: TrimmerSubtotal; columns: readonly 
   )
 }
 
-function EpisodeCard({ e, columns, showDates }: { e: TrimDayEpisode; columns: readonly ReportColumnKey[]; showDates: boolean }) {
+function EpisodeCard({ e, columns, showDates, nowMs }: { e: TrimDayEpisode; columns: readonly ReportColumnKey[]; showDates: boolean; nowMs: number }) {
   const has = (c: ReportColumnKey) => columns.includes(c)
   const identity = [
     has('batch') && (
@@ -340,7 +372,7 @@ function EpisodeCard({ e, columns, showDates }: { e: TrimDayEpisode; columns: re
     ),
   ].filter(Boolean)
   return (
-    <li className="space-y-3 rounded-lg border bg-card p-3">
+    <li data-open={isOpen(e) ? '' : undefined} className={cn('space-y-3 rounded-lg border bg-card p-3', isOpen(e) && 'border-dashed bg-muted/40')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <HangerLink code={e.hangerCode} />
@@ -360,14 +392,19 @@ function EpisodeCard({ e, columns, showDates }: { e: TrimDayEpisode; columns: re
       )}
       {has('outIn') && (
         <p className="text-sm text-muted-foreground">
-          {outIn(e, showDates)} ({hoursText(e.turnaroundHours)})
+          {outIn(e, showDates)} ({elapsedNote(e, nowMs)})
         </p>
       )}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         {has('issued') && (
           <div>
             <dt className="text-xs text-muted-foreground">Issued</dt>
-            <dd className="font-semibold">{gramsText(e.issuedG)}</dd>
+            <dd className="font-semibold">
+              {gramsText(e.issuedG)}
+              {isOpen(e) && e.issuedPlantCount !== null && (
+                <span className="block text-xs font-normal text-muted-foreground">{plantsText(e.issuedPlantCount)}</span>
+              )}
+            </dd>
           </div>
         )}
         {has('flower') && (
@@ -403,7 +440,7 @@ function EpisodeCard({ e, columns, showDates }: { e: TrimDayEpisode; columns: re
             <dt className="text-xs text-muted-foreground">Pay</dt>
             <dd className="font-semibold">
               {moneyText(e.payAmount)}
-              {e.ratePerLb !== null && <span className="text-xs font-normal text-muted-foreground"> at {moneyText(e.ratePerLb)}/lb</span>}
+              {!isOpen(e) && e.ratePerLb !== null && <span className="text-xs font-normal text-muted-foreground"> at {moneyText(e.ratePerLb)}/lb</span>}
             </dd>
           </div>
         )}
@@ -423,14 +460,17 @@ export interface ReportDetailProps {
   onSortChange: (next: SortState) => void
   /** Changes whenever the filters do; a "show more" expansion starts over then. */
   resetKey: string
+  /** "Now" for the held-so-far time of open hangers. Defaults to a clock that ticks each minute; injectable for tests. */
+  nowMs?: number
   /** Column choice. Defaults to the persisted per-device choice; injectable for tests. */
   columnState?: { hidden: readonly ReportColumnKey[]; toggle: (key: ReportColumnKey) => void; reset: () => void }
 }
 
 export function ReportDetail(props: ReportDetailProps) {
   const stored = useReportColumns()
+  const now = useNow()
   const { hidden, toggle, reset } = props.columnState ?? stored
-  return <ReportDetailView {...props} hidden={hidden} onToggle={toggle} onReset={reset} />
+  return <ReportDetailView {...props} nowMs={props.nowMs ?? now} hidden={hidden} onToggle={toggle} onReset={reset} />
 }
 
 export function ReportDetailView({
@@ -440,6 +480,7 @@ export function ReportDetailView({
   sort,
   onSortChange,
   resetKey,
+  nowMs = Date.now(),
   hidden,
   onToggle,
   onReset,
@@ -454,6 +495,7 @@ export function ReportDetailView({
   const max = expansion.key === resetKey ? expansion.max : RENDER_STEP
   const shown = useMemo(() => limitDisplayItems(items, max), [items, max])
   const total = episodes.length
+  const openCount = useMemo(() => episodes.filter(isOpen).length, [episodes])
   const moreToShow = shown.shownEpisodes < total
   const showMore = (all: boolean) => setExpansion({ key: resetKey, max: all ? total : max + RENDER_STEP })
 
@@ -462,14 +504,18 @@ export function ReportDetailView({
     item.kind === 'subtotal' ? (
       <SubtotalCard key={`s-${item.subtotal.trimmerId}`} st={item.subtotal} columns={columns} />
     ) : (
-      <EpisodeCard key={item.episode.checkoutId} e={item.episode} columns={columns} showDates={showDates} />
+      <EpisodeCard key={item.episode.checkoutId} e={item.episode} columns={columns} showDates={showDates} nowMs={nowMs} />
     )
 
   return (
     <section aria-label="Hangers" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">
-          Hanger detail <span className="text-base font-normal text-muted-foreground">({total})</span>
+          Hanger detail{' '}
+          <span className="text-base font-normal text-muted-foreground">
+            ({total}
+            {openCount > 0 ? `, ${openCount} in progress` : ''})
+          </span>
         </h2>
         <ColumnsMenu hidden={hidden} showMoney={showMoney} onToggle={onToggle} onReset={onReset} />
       </div>
@@ -536,9 +582,13 @@ export function ReportDetailView({
                   columns={columns}
                 />
               ) : (
-                <TableRow key={item.episode.checkoutId}>
+                <TableRow
+                  key={item.episode.checkoutId}
+                  data-open={isOpen(item.episode) ? '' : undefined}
+                  className={isOpen(item.episode) ? 'bg-muted/40 text-muted-foreground' : undefined}
+                >
                   {columns.map((col) => (
-                    <EpisodeCells key={col} e={item.episode} col={col} showDates={showDates} />
+                    <EpisodeCells key={col} e={item.episode} col={col} showDates={showDates} nowMs={nowMs} />
                   ))}
                 </TableRow>
               )
@@ -566,6 +616,7 @@ export function ReportDetailView({
       <p className="text-sm text-muted-foreground">
         Variance is shown the way the station shows it: negative means weight is missing; sorting by it puts the largest
         gap first, loss or gain. Times are Central. Tap a hanger for its full history.
+        {openCount > 0 && ' Hangers still checked out are listed for reference and are not counted in any total or subtotal.'}
       </p>
     </section>
   )

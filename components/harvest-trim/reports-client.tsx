@@ -2,6 +2,11 @@
 
 // Trim production report: totals cards plus the per-hanger table, filtered by date x batch x trimmer.
 //
+// The Batch and Trimmer dropdowns are not loaded separately: they come back with the report (batchOptions,
+// trimmerOptions), derived server-side from the same rows as the table, so an option with a count can never
+// return zero rows. The cascade is one-way, Date -> Batch -> Trimmer (lib/trim/report-options.ts). A selection
+// that has nothing is kept and labelled "(0)", never reset; the empty state says whose it is.
+//
 // The date filter is the app's shared <DatePresetFilter> (same control as /dashboard/orders), fed
 // TRIM_REPORT_DATE_PRESETS. Presets resolve against America/Chicago's current date, not the device's
 // (lib/trim/report-presets.ts), because the action reads the range as Chicago days.
@@ -9,6 +14,9 @@
 // All filter state lives in the URL (?preset=&from=&to=&batch=&trimmer=) so a view is linkable. The bare
 // page is "today" in Chicago. Times are shown in that zone too, so the numbers always agree with the day
 // they were filed under.
+//
+// Hangers still checked out appear in the table but in no figure: totals, yield and pay are over returned
+// hangers only, and the open ones are their own "in progress" count (actions/trim-reports.ts).
 //
 // The action also returns a per-trimmer `crew` ranking; this page deliberately does not render it (it is
 // groundwork for a trimmer-facing leaderboard, see actions/trim-reports.ts).
@@ -24,27 +32,23 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  getTrimDayReport,
-  listTrimBatchOptions,
-  type TrimBatchOption,
-  type TrimDayReport,
-} from '@/actions/trim-reports'
-import { listTrimStaff, type TrimStaffRow } from '@/actions/trim-staff'
+import { getTrimDayReport, type TrimDayReport } from '@/actions/trim-reports'
 import { DatePresetFilter } from '@/components/filters/date-preset-filter'
 import { TRIM_REPORT_DATE_PRESETS, type DatePresetKey } from '@/lib/date-filters'
 import { isValidDay } from '@/lib/trim/day-range'
 import { ROW_CEILING } from '@/lib/trim/paging'
 import { resolveSort, type SortState, type UserSort } from '@/lib/trim/report-table'
+import { batchOptionLabel, emptyReportMessage, trimmerOptionLabel } from '@/lib/trim/report-options'
 import {
+  hasActiveTrimFilters,
   readTrimReportFilters,
   resolveTrimReportRange,
   trimReportFiltersToQuery,
   type TrimReportFilters,
 } from '@/lib/trim/report-presets'
-import { dateOnlyText, gramsText, lbText, moneyText, pctText, signedGramsText, trimmerName } from './format'
+import { dateOnlyText, gramsText, lbText, moneyText, pctText, signedGramsText } from './format'
 import { ReportDetail, shownVariance } from './report-detail'
 import { Stat } from './stat'
 import { useTrimAccess } from './use-trim-access'
@@ -86,8 +90,6 @@ function Reports() {
   const [report, setReport] = useState<TrimDayReport | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [staff, setStaff] = useState<TrimStaffRow[]>([])
-  const [batches, setBatches] = useState<TrimBatchOption[]>([])
   const requestId = useRef(0)
 
   // Sorting. The default depends on whether one trimmer is selected (lib/trim/report-table.ts). A click is
@@ -118,22 +120,9 @@ function Reports() {
   const changeCustomFrom = (v: string) => preset === 'custom' && isValidDay(v) && update({ customFrom: v })
   const changeCustomTo = (v: string) => preset === 'custom' && isValidDay(v) && update({ customTo: v })
 
-  // Filter options: fetched once. A failure leaves the dropdowns at "All" and does not block the report.
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      const [staffRes, batchRes] = await Promise.all([
-        run(listTrimStaff({ includeInactive: true }), { quiet: true }),
-        run(listTrimBatchOptions(), { quiet: true }),
-      ])
-      if (cancelled) return
-      if (staffRes.success) setStaff(staffRes.data)
-      if (batchRes.success) setBatches(batchRes.data)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [run])
+  // Back to the page's defaults: Today, every batch, every trimmer, no custom dates. That is the bare URL.
+  // The column choice is a display preference kept in localStorage and is deliberately not touched here.
+  const clearFilters = () => router.replace(pathname, { scroll: false })
 
   const load = useCallback(async () => {
     const mine = ++requestId.current
@@ -156,19 +145,27 @@ function Reports() {
     void load()
   }, [load])
 
-  const trimmerOptions = useMemo(
-    () => [...staff].sort((a, b) => Number(b.isActive) - Number(a.isActive) || trimmerName(a).localeCompare(trimmerName(b))),
-    [staff]
-  )
+  const batchOptions = useMemo(() => report?.batchOptions ?? [], [report])
+  const trimmerOptions = useMemo(() => report?.trimmerOptions ?? [], [report])
   const showMoney = !!report?.moneyVisible && access.canSeePay
   const singleDay = from === to
-  const selectedStaff = trimmer ? staff.find((s) => s.id === trimmer) : undefined
-  const selectedTrimmerName = trimmer ? (selectedStaff ? trimmerName(selectedStaff) : (report?.episodes[0]?.trimmerName ?? null)) : null
+  const selectedTrimmerName = trimmer ? (trimmerOptions.find((o) => o.id === trimmer)?.name ?? null) : null
+  const hasRows = !!report && report.totals.episodes + report.totals.inProgress > 0
 
   return (
     <div className="space-y-5">
       <Card>
-        <CardContent className="space-y-3 pt-6">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Filters</CardTitle>
+            {hasActiveTrimFilters(filters) && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear Filters
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <DatePresetFilter
               value={preset}
@@ -187,10 +184,10 @@ function Reports() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All batches</SelectItem>
-                {batches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                    {b.strainName ? ` · ${b.strainName}` : ''}
+                {batch && !batchOptions.some((b) => b.id === batch) && <SelectItem value={batch}>Selected batch</SelectItem>}
+                {batchOptions.map((b) => (
+                  <SelectItem key={b.id} value={b.id} className={cn(b.hangers === 0 && 'text-muted-foreground')}>
+                    {batchOptionLabel(b)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -201,10 +198,10 @@ function Reports() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All trimmers</SelectItem>
-                {trimmerOptions.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {trimmerName(s)}
-                    {s.isActive ? '' : ' (inactive)'}
+                {trimmer && !trimmerOptions.some((t) => t.id === trimmer) && <SelectItem value={trimmer}>Selected trimmer</SelectItem>}
+                {trimmerOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id} className={cn(t.hangers === 0 && 'text-muted-foreground')}>
+                    {trimmerOptionLabel(t)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -213,7 +210,7 @@ function Reports() {
 
           <p className="text-sm text-muted-foreground">
             {selectedTrimmerName ?? 'All trimmers'} &middot; {singleDay ? dateOnlyText(from) : `${dateOnlyText(from)} to ${dateOnlyText(to)}`}
-            {' '}&middot; returns filed by Central Time day
+            {' '}&middot; returns filed by Central Time day; hangers still out by the day they went out
           </p>
         </CardContent>
       </Card>
@@ -236,21 +233,21 @@ function Reports() {
           role="alert"
           className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm font-medium text-amber-700 dark:text-amber-300"
         >
-          This range is too large: it has more than {ROW_CEILING.toLocaleString('en-US')} returns, so only the first{' '}
-          {ROW_CEILING.toLocaleString('en-US')} are included and the totals and table below are incomplete. Narrow the
+          This range is too large: it has more than {ROW_CEILING.toLocaleString('en-US')} returns and checked-out hangers, so only the
+          first {ROW_CEILING.toLocaleString('en-US')} are included and the totals, filter lists and table below are incomplete. Narrow the
           date range, or pick a batch or trimmer, for exact numbers.
         </p>
       )}
 
-      {report && !error && report.totals.episodes === 0 && (
+      {report && !error && !hasRows && (
         <Card className={cn(loading && 'opacity-60')}>
           <CardContent className="py-8 text-center text-muted-foreground">
-            No hangers were returned{trimmer || batch ? ' for these filters' : ' in this range'}.
+            {emptyReportMessage({ batchId: batch, trimmerId: trimmer, batchOptions, trimmerOptions })}
           </CardContent>
         </Card>
       )}
 
-      {report && !error && report.totals.episodes > 0 && (
+      {report && !error && hasRows && (
         <div className={cn('space-y-6', loading && 'opacity-60')}>
           <Summary report={report} showMoney={showMoney} />
           <ReportDetail
@@ -271,11 +268,24 @@ function Reports() {
 
 function Summary({ report, showMoney }: { report: TrimDayReport; showMoney: boolean }) {
   const t = report.totals
+  const inProgress = t.inProgress > 0 ? ` · ${t.inProgress} in progress` : ''
+  // Only hangers still out, nothing back yet: there are no figures to total, and zeros would read as "trimmed nothing".
+  if (t.episodes === 0) {
+    return (
+      <section aria-label="Totals" className="space-y-3">
+        <h2 className="text-lg font-semibold">Totals</h2>
+        <p className="text-sm text-muted-foreground">
+          Nothing has been returned yet{inProgress ? `: ${t.inProgress} ${t.inProgress === 1 ? 'hanger is' : 'hangers are'} still checked out` : ''}.
+          Totals count returned hangers only.
+        </p>
+      </section>
+    )
+  }
   return (
     <section aria-label="Totals" className="space-y-3">
       <h2 className="text-lg font-semibold">Totals</h2>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-        <Stat label="Hangers" sub={`${t.episodes} ${t.episodes === 1 ? 'return' : 'returns'}`}>
+        <Stat label="Hangers" sub={`${t.episodes} ${t.episodes === 1 ? 'return' : 'returns'}${inProgress}`}>
           {t.hangers}
         </Stat>
         <Stat label="Flower" sub={`${gramsText(t.flowerG)} of ${lbText(t.issuedG)} issued`}>

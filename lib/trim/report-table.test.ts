@@ -4,6 +4,9 @@ import {
   buildDisplayItems,
   compareEpisodes,
   defaultSort,
+  heldHours,
+  isOpen,
+  isReturned,
   limitDisplayItems,
   nextSort,
   resolveSort,
@@ -22,6 +25,7 @@ function ep(over: Partial<TrimDayEpisode> = {}): TrimDayEpisode {
   n++
   return {
     checkoutId: `co-${String(n).padStart(4, '0')}`,
+    status: 'returned',
     seq: 1,
     hangerCode: 'H1B-001',
     loadId: `load-${n}`,
@@ -34,6 +38,7 @@ function ep(over: Partial<TrimDayEpisode> = {}): TrimDayEpisode {
     returnedAt: '2026-10-21T14:00:00+00:00',
     turnaroundHours: 1,
     issuedG: 600,
+    issuedPlantCount: 8,
     flowerG: 250,
     trimG: 100,
     stemsG: 200,
@@ -241,6 +246,7 @@ describe('subtotals', () => {
       trimmerName: 'Antonio',
       hangers: 4,
       episodes: 4,
+      inProgress: 0,
       issuedG: 2455,
       flowerG: 1010.4, // exactly, with no floating-point dust (245 + 194.2 + 302.7 + 268.5)
       varianceG: 55.3,
@@ -308,7 +314,7 @@ describe('subtotals', () => {
     it('every episode appears exactly once, and the subtotals add up to the whole set', () => {
       const items = buildDisplayItems(sorted, true)
       expect(items.filter((i) => i.kind === 'episode')).toHaveLength(crew.length)
-      const flower = items.reduce((t, i) => (i.kind === 'subtotal' ? t + i.subtotal.flowerG : t), 0)
+      const flower = items.reduce((t, i) => (i.kind === 'subtotal' ? t + (i.subtotal.flowerG ?? 0) : t), 0)
       expect(flower).toBeCloseTo(crew.reduce((t, e) => t + (e.flowerG ?? 0), 0), 6)
     })
   })
@@ -343,5 +349,104 @@ describe('subtotals', () => {
       expect(cut.shownEpisodes).toBe(3)
       expect(cut.items).toHaveLength(3)
     })
+  })
+})
+
+
+// ─── Open (checked-out) hangers ──────────────────────────────────────────────
+
+/** A hanger still out: issued weight and plants, no results. */
+function openEp(over: Partial<TrimDayEpisode> = {}): TrimDayEpisode {
+  return ep({
+    status: 'out',
+    returnedAt: null,
+    turnaroundHours: null,
+    issuedG: 700,
+    issuedPlantCount: 6,
+    flowerG: null,
+    trimG: null,
+    stemsG: null,
+    returnedTotalG: null,
+    varianceG: null,
+    variancePct: null,
+    varianceStatus: null,
+    returnKind: null,
+    payAmount: null,
+    ...over,
+  })
+}
+
+describe('open hangers never touch a subtotal', () => {
+  const returned = [
+    ep({ loadId: 'l1', issuedG: 595, flowerG: 245, varianceG: 5.4, payAmount: 54.01 }),
+    ep({ loadId: 'l2', issuedG: 480, flowerG: 194.2, varianceG: 11.6, payAmount: 42.81 }),
+  ]
+
+  it('REGRESSION: adding an open episode changes no issued, flower, variance, pay, hanger or return figure', () => {
+    const before = subtotalOf(returned)
+    const after = subtotalOf([...returned, openEp({ loadId: 'open' })])
+    expect(after).toEqual({ ...before, inProgress: 1 })
+    expect(after).toMatchObject({ hangers: 2, episodes: 2, issuedG: 1075, flowerG: 439.2, varianceG: 17, payAmount: 96.82 })
+  })
+
+  it('REGRESSION: even an open episode that (wrongly) carries result values adds nothing', () => {
+    const poisoned = openEp({ loadId: 'bad', flowerG: 999, varianceG: 99, payAmount: 500, issuedG: 5000 })
+    expect(subtotalOf([...returned, poisoned])).toEqual({ ...subtotalOf(returned), inProgress: 1 })
+  })
+
+  it('a block that is only open hangers has no figures (null, shown as an em dash), not zeros', () => {
+    const s = subtotalOf([openEp(), openEp()])
+    expect(s).toMatchObject({ hangers: 0, episodes: 0, inProgress: 2, issuedG: null, flowerG: null, varianceG: null, payAmount: null })
+  })
+
+  it('through buildDisplayItems: every trimmer subtotal is identical with and without the open rows', () => {
+    const crew = [
+      ...returned,
+      ep({ trimmerId: T_WAYNE, trimmerName: 'Wayne', loadId: 'w1', issuedG: 1000, flowerG: 400, payAmount: 90 }),
+    ]
+    const withOpen = [...crew, openEp({ loadId: 'o1' }), openEp({ trimmerId: T_WAYNE, trimmerName: 'Wayne', loadId: 'o2', issuedG: 9000 })]
+    const subs = (xs: TrimDayEpisode[]) =>
+      buildDisplayItems(sortEpisodes(xs, { key: 'trimmer', dir: 'asc' }), true).flatMap((i) => (i.kind === 'subtotal' ? [i.subtotal] : []))
+    const strip = (xs: ReturnType<typeof subs>) => xs.map((x) => ({ ...x, inProgress: 0 }))
+    expect(strip(subs(withOpen))).toEqual(strip(subs(crew)))
+    expect(subs(withOpen).map((x) => x.inProgress)).toEqual([1, 1])
+    // the open rows are in the table, in their person's block
+    expect(buildDisplayItems(sortEpisodes(withOpen, { key: 'trimmer', dir: 'asc' }), true).filter((i) => i.kind === 'episode')).toHaveLength(5)
+  })
+})
+
+describe('open hangers in the sort', () => {
+  const done = ep({ hangerCode: 'H1B-001', flowerG: 100, varianceG: 3, variancePct: 1, varianceStatus: 'ok', payAmount: 10 })
+  const open = openEp({ hangerCode: 'H1B-002', checkedOutAt: '2026-10-21T12:00:00+00:00' })
+
+  it.each<[SortKey]>([['flower'], ['trim'], ['stems'], ['variance'], ['status'], ['pay']])(
+    'sorting by %s puts an open row last in both directions (no value to rank by)',
+    (key) => {
+      expect(sort([open, done], key, 'asc')).toEqual(['H1B-001', 'H1B-002'])
+      expect(sort([open, done], key, 'desc')).toEqual(['H1B-001', 'H1B-002'])
+    }
+  )
+
+  it('by checkout time an open row sits where it was checked out', () => {
+    expect(sort([done, open], 'outIn', 'asc')).toEqual(['H1B-002', 'H1B-001'])
+  })
+})
+
+describe('isReturned / isOpen / heldHours', () => {
+  it('classify by status; anything unrecognised is neither, so it can reach no figure', () => {
+    expect(isReturned(ep())).toBe(true)
+    expect(isOpen(ep())).toBe(false)
+    expect(isOpen(openEp())).toBe(true)
+    expect(isReturned(openEp())).toBe(false)
+    expect(isReturned({ status: 'released' as never })).toBe(false)
+    expect(isReturned({} as never)).toBe(false)
+  })
+
+  it('heldHours: elapsed hours as of now, null for a missing or future checkout', () => {
+    const out = '2026-10-21T13:00:00+00:00'
+    expect(heldHours(out, Date.parse('2026-10-21T15:30:00+00:00'))).toBe(2.5)
+    expect(heldHours(null, Date.now())).toBeNull()
+    expect(heldHours('nonsense', Date.now())).toBeNull()
+    expect(heldHours(out, Date.parse('2026-10-21T12:00:00+00:00'))).toBeNull()
   })
 })

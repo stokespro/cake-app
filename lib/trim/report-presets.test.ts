@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveDatePresetRange } from '@/lib/date-filters'
 import {
+  DEFAULT_TRIM_REPORT_FILTERS,
   chicagoReferenceDate,
+  hasActiveTrimFilters,
   readTrimReportFilters,
   resolveTrimReportRange,
   trimReportFiltersToQuery,
@@ -199,5 +201,32 @@ describe('trimReportFiltersToQuery', () => {
     expect(readTrimReportFilters(q(trimReportFiltersToQuery(f).slice(1)), now)).toEqual(f)
     const g = { ...base, preset: 'this_month' as const, batch: 'b1' }
     expect(readTrimReportFilters(q(trimReportFiltersToQuery(g).slice(1)), now)).toEqual(g)
+  })
+})
+
+describe('Clear Filters', () => {
+  it('the defaults are Today, every batch, every trimmer, and serialise to the bare URL', () => {
+    expect(DEFAULT_TRIM_REPORT_FILTERS).toEqual({ preset: 'today', customFrom: '', customTo: '', trimmer: null, batch: null })
+    expect(trimReportFiltersToQuery(DEFAULT_TRIM_REPORT_FILTERS)).toBe('')
+  })
+
+  it('is offered only when something differs from the default', () => {
+    expect(hasActiveTrimFilters(DEFAULT_TRIM_REPORT_FILTERS)).toBe(false)
+    expect(hasActiveTrimFilters(readTrimReportFilters(q('')))).toBe(false)
+    expect(hasActiveTrimFilters({ ...DEFAULT_TRIM_REPORT_FILTERS, preset: 'yesterday' })).toBe(true)
+    expect(hasActiveTrimFilters({ ...DEFAULT_TRIM_REPORT_FILTERS, preset: 'custom' })).toBe(true)
+    expect(hasActiveTrimFilters({ ...DEFAULT_TRIM_REPORT_FILTERS, batch: 'b1' })).toBe(true)
+    expect(hasActiveTrimFilters({ ...DEFAULT_TRIM_REPORT_FILTERS, trimmer: 't1' })).toBe(true)
+  })
+
+  it('a link with only a trimmer or batch is a non-default view', () => {
+    expect(hasActiveTrimFilters(readTrimReportFilters(q('trimmer=t1')))).toBe(true)
+    expect(hasActiveTrimFilters(readTrimReportFilters(q('from=2026-10-01&to=2026-10-02')))).toBe(true)
+  })
+
+  it('clearing means the bare URL: it reads back as the defaults, with the custom dates gone', () => {
+    const cleared = readTrimReportFilters(q(''))
+    expect(cleared).toEqual(DEFAULT_TRIM_REPORT_FILTERS)
+    expect(hasActiveTrimFilters(cleared)).toBe(false)
   })
 })

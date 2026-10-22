@@ -26,6 +26,14 @@ import { dbFailure, denied, fail, invalid } from '@/lib/trim/db-errors'
 import { sumMoney } from '@/lib/trim/pay'
 import { fetchAllRows } from '@/lib/trim/paging'
 import { chicagoDayRangeToUtc, daysBetween, isValidDay } from '@/lib/trim/day-range'
+import {
+  deriveBatchOptions,
+  deriveTrimmerOptions,
+  narrowByBatch,
+  narrowByTrimmer,
+  withSelectedOption,
+  type ActivityRow,
+} from '@/lib/trim/report-options'
 import { gramsToLb, roundLb, roundTo } from '@/lib/units'
 import type {
   ActionResult,
@@ -152,9 +160,16 @@ export interface TrimDayTrimmerRow extends TrimmerPerformanceRow {
   variancePct: number | null
 }
 
-/** One returned custody episode: the per-hanger detail row. */
+/**
+ * One custody episode: the per-hanger detail row. Either a finished return (`status: 'returned'`, dated by
+ * its return) or one still checked out (`status: 'out'`, dated by its checkout). An open episode has issued
+ * weight and plants and nothing else: every result field below is null for it, and it is excluded from every
+ * total, subtotal, rollup and pay figure (see getTrimDayReport).
+ */
 export interface TrimDayEpisode {
   checkoutId: string
+  /** 'returned' counts toward every figure; 'out' is shown but counts toward none. */
+  status: Extract<CheckoutStatus, 'returned' | 'out'>
   seq: number
   hangerCode: string
   loadId: string
@@ -167,6 +182,8 @@ export interface TrimDayEpisode {
   returnedAt: string | null
   turnaroundHours: number | null
   issuedG: number | null
+  /** Plants on the hanger when it went out. */
+  issuedPlantCount: number | null
   flowerG: number | null
   trimG: number | null
   stemsG: number | null
@@ -187,8 +204,13 @@ export interface TrimDayEpisode {
 }
 
 export interface TrimDayTotals {
-  /** Returned episodes. */
+  /**
+   * Returned episodes. Every figure in this object except `inProgress` is over RETURNED episodes only; the
+   * yield denominator (issuedG) in particular never includes weight that is still out.
+   */
   episodes: number
+  /** Episodes still checked out (shown in the table, counted in none of the figures here). */
+  inProgress: number
   /** Distinct hangers (loads) those episodes belong to. */
   hangers: number
   issuedG: number
@@ -239,8 +261,16 @@ export interface TrimDayReport {
    * the reports page; kept for the planned trimmer-facing TV leaderboard (see getTrimDayReport).
    */
   crew: TrimDayTrimmerRow[]
-  /** The per-hanger detail, oldest checkout first. */
+  /** The per-hanger detail, oldest checkout first: returned episodes and (unscored) checked-out ones. */
   episodes: TrimDayEpisode[]
+  /**
+   * Batches with activity in the date range, narrowed by DATE ONLY (never by trimmer or batch), newest harvest
+   * first. Derived from the same rows as the table. The selected batch is always present, with `hangers: 0`
+   * if it has none, so a selection is never silently dropped.
+   */
+  batchOptions: TrimBatchOption[]
+  /** Trimmers with activity in the date range AND the selected batch, A to Z. Selected trimmer always present. */
+  trimmerOptions: TrimTrimmerOption[]
 }
 
 export interface TrimBatchOption {
@@ -248,6 +278,15 @@ export interface TrimBatchOption {
   name: string
   strainName: string | null
   harvestDate: string | null
+  /** Distinct hangers with activity in the range (returned or checked out). 0 only for a kept selection. */
+  hangers: number
+}
+
+export interface TrimTrimmerOption {
+  id: string
+  name: string
+  /** Distinct hangers in the range and batch (returned or checked out). 0 only for a kept selection. */
+  hangers: number
 }
 
 export interface BatchLoadEpisode {
@@ -344,7 +383,6 @@ const OUTLIER_DELTA_PTS = 10
 const OUTLIER_MIN_RETURNED_G = 2000
 const PERFORMANCE_ROW_CAP = 1000
 const MAX_RANGE_DAYS = 366
-const BATCH_OPTIONS_CAP = 200
 const DEFAULT_HISTORY_LIMIT = 10
 const MAX_HISTORY_LIMIT = 50
 
@@ -930,31 +968,143 @@ export async function getTrimmerPerformance(input: {
 // ─── Trim day report (date x batch x trimmer, with per-hanger detail) ────────
 
 const DAY_EPISODE_COLS =
-  'id, seq, load_id, trimmer_id, trimmer_name, checked_out_at, returned_at, return_kind, issued_g, flower_g, ' +
+  'id, seq, status, load_id, trimmer_id, trimmer_name, checked_out_at, returned_at, return_kind, issued_g, ' +
+  'issued_plant_count, flower_g, ' +
   'trim_g, stems_g, processed_g, returned_total_g, variance_g, variance_pct, variance_status'
 /** Added only for roles with pay access. Grow never even selects them. */
 const DAY_EPISODE_MONEY_COLS = ', rate_per_lb_applied, trim_pay_entries(amount)'
-/** to-one embed; !inner so a `hanger_loads.batch_id` filter drops non-matching checkouts instead of nulling the embed. */
-const DAY_LOAD_EMBED = ', hanger_loads!inner(batch_id, hanger:hangers(code), batch:batches(name, strain:strains(name)))'
+/** to-one embed. !inner: a checkout always has its load, and it keeps the batch/hanger embeds on the row. */
+const DAY_LOAD_EMBED = ', hanger_loads!inner(batch_id, hanger:hangers(code), batch:batches(name, harvest_date, strain:strains(name)))'
+
+/** The episode row as the fixed-shape activity the dropdown logic reads. */
+function activityOf(r: Row): ActivityRow {
+  const load = one(r.hanger_loads)
+  const batch = one(load?.batch)
+  return {
+    status: String(r.status),
+    loadId: String(r.load_id),
+    batchId: str(load?.batch_id),
+    batchName: str(batch?.name),
+    strainName: str(one(batch?.strain)?.name),
+    harvestDate: str(batch?.harvest_date),
+    trimmerId: String(r.trimmer_id),
+    trimmerName: String(r.trimmer_name),
+    checkedOutAt: str(r.checked_out_at),
+  }
+}
 
 /**
- * The trim production report behind /dashboard/harvest-trim/reports: every episode RETURNED in an
- * inclusive local-day range (America/Chicago), optionally narrowed to one batch and/or one trimmer, as
- *   - totals    over the filtered episodes,
- *   - trimmers  per-trimmer rollups (same shape and baseline as getTrimmerPerformance, plus a rank),
- *   - crew      the whole crew's ranking, and
- *   - episodes  one row per hanger return (the per-hanger detail).
+ * One row as a table episode. An OPEN episode (still checked out) carries issued weight, plants and the
+ * checkout time and nothing else: every result field is forced to null here, whatever the database row holds,
+ * so no downstream code can mistake it for finished work.
+ */
+function toDayEpisode(r: Row, seesMoney: boolean): TrimDayEpisode {
+  const load = one(r.hanger_loads)
+  const batch = one(load?.batch)
+  const returned = r.status === 'returned'
+  const out = Date.parse(String(r.checked_out_at))
+  const back = Date.parse(String(r.returned_at))
+  return {
+    checkoutId: String(r.id),
+    status: returned ? 'returned' : 'out',
+    seq: num(r.seq) ?? 0,
+    hangerCode: str(one(load?.hanger)?.code) ?? '',
+    loadId: String(r.load_id),
+    batchId: str(load?.batch_id),
+    batchName: str(batch?.name),
+    strainName: str(one(batch?.strain)?.name),
+    trimmerId: String(r.trimmer_id),
+    trimmerName: String(r.trimmer_name),
+    checkedOutAt: str(r.checked_out_at),
+    returnedAt: returned ? str(r.returned_at) : null,
+    turnaroundHours:
+      returned && Number.isFinite(out) && Number.isFinite(back) && back >= out ? roundTo((back - out) / 3_600_000, 2) : null,
+    issuedG: num(r.issued_g),
+    issuedPlantCount: num(r.issued_plant_count),
+    flowerG: returned ? num(r.flower_g) : null,
+    trimG: returned ? num(r.trim_g) : null,
+    stemsG: returned ? num(r.stems_g) : null,
+    returnedTotalG: returned ? num(r.returned_total_g) : null,
+    varianceG: returned ? num(r.variance_g) : null,
+    variancePct: returned ? num(r.variance_pct) : null,
+    varianceStatus: returned ? ((str(r.variance_status) as VarianceStatus | null) ?? null) : null,
+    returnKind: returned ? ((str(r.return_kind) as ReturnKind | null) ?? null) : null,
+    ratePerLb: seesMoney ? num(r.rate_per_lb_applied) : null,
+    payAmount: returned && seesMoney ? num(one(r.trim_pay_entries)?.amount) : null,
+  }
+}
+
+/** Names for a selection that has no activity (so it is not among the derived options). Falls back, never throws. */
+async function lookupBatchName(db: Awaited<ReturnType<typeof createServiceClient>>, id: string): Promise<TrimBatchOption> {
+  const fallback: TrimBatchOption = { id, name: 'Unknown batch', strainName: null, harvestDate: null, hangers: 0 }
+  try {
+    const { data, error } = await db
+      .from('batches')
+      .select('id, name, harvest_date, strain:strains(name)')
+      .eq('id', id)
+      .maybeSingle()
+    const b = error ? null : one(data)
+    if (!b) return fallback
+    return { id, name: str(b.name) ?? fallback.name, strainName: str(one(b.strain)?.name), harvestDate: str(b.harvest_date), hangers: 0 }
+  } catch {
+    return fallback
+  }
+}
+
+async function lookupTrimmerName(db: Awaited<ReturnType<typeof createServiceClient>>, id: string): Promise<TrimTrimmerOption> {
+  const fallback: TrimTrimmerOption = { id, name: 'Unknown trimmer', hangers: 0 }
+  try {
+    const { data, error } = await db.from('trim_staff').select('id, full_name, display_name').eq('id', id).maybeSingle()
+    const t = error ? null : one(data)
+    if (!t) return fallback
+    return { id, name: str(t.display_name)?.trim() || str(t.full_name) || fallback.name, hangers: 0 }
+  } catch {
+    return fallback
+  }
+}
+
+/**
+ * The trim production report behind /dashboard/harvest-trim/reports for an inclusive local-day range
+ * (America/Chicago), optionally narrowed to one batch and/or one trimmer, as
+ *   - totals         over the filtered RETURNED episodes (plus a count of those still out),
+ *   - trimmers       per-trimmer rollups (same shape and baseline as getTrimmerPerformance, plus a rank),
+ *   - crew           the whole crew's ranking,
+ *   - episodes       one row per hanger: returns and checked-out hangers (the per-hanger detail), and
+ *   - batchOptions / trimmerOptions   what the two dropdowns offer (below).
  *
- * Trimmer filter and the crew baseline: the query is NEVER narrowed by trimmerId. The whole crew is
- * fetched for the date range + batch, the baseline/rank/outlier flags are computed across everyone, and
- * only then are `totals`, `trimmers` and `episodes` narrowed to the selected trimmer. Asking the
- * database for one person would measure them against themselves (their own median) and lose the crew
- * ranking. The cost is that the ceiling applies to the crew, not the person; `truncated` says so.
+ * Scope (one query, one pass, paged):
+ *   - RETURNED: status = 'returned' and returned_at inside the range. Dated by the return, because pay and
+ *     the figures accrue on completion.
+ *   - OPEN: status = 'out' and checked_out_at inside the range. These are work in progress, shown with their
+ *     issued weight, plants and how long they have been out. A hanger checked out on the 21st and returned on
+ *     the 22nd is therefore "in progress" on the 21st and moves to the 22nd once it is back.
+ *   - released (cancelled handoffs) is not work and is excluded.
  *
- * Who uses what: the reports page renders only `totals` and `episodes`. `trimmers`, `crew` and
- * `baselineFlowerSharePct` are NOT rendered by any screen today; they are kept (they come from the same
- * query at no extra cost, and are covered by tests) as the groundwork for the planned trimmer-facing,
- * no-pay TV leaderboard. Do not delete them as dead code.
+ * OPEN EPISODES NEVER TOUCH A FIGURE. An open episode has issued grams and no flower, trim, stems, variance
+ * or pay. If its issued grams reached the issued total while its flower stayed at zero, the yield percentage
+ * would collapse and the report would be wrong. So totals, the yield denominator, the per-trimmer rollups,
+ * the crew rank/baseline and pay are all computed over returned episodes only, and open ones are surfaced
+ * as `totals.inProgress` and as their own rows. lib/trim/report-table.ts applies the same rule to subtotals.
+ *
+ * Filtering is done in memory, not in the query, because the dropdowns need the sets BEFORE each filter:
+ *   1. fetch every episode in the date range (all batches, all trimmers),
+ *   2. batchOptions   = batches in that set                      (date only),
+ *   3. narrow to the selected batch,
+ *   4. trimmerOptions = trimmers in the batch-narrowed set       (date + batch; one-way cascade),
+ *   5. narrow to the selected trimmer.
+ * Both lists come from the same rows as the table, so an option with a count above zero can never return
+ * zero rows. A selection with no activity is kept in its list with `hangers: 0` (names looked up), never reset.
+ *
+ * Trimmer filter and the crew baseline: the whole crew is computed for the date range + batch, the
+ * baseline/rank/outlier flags are computed across everyone, and only then are `totals`, `trimmers` and
+ * `episodes` narrowed to the selected trimmer. Asking the database for one person would measure them
+ * against themselves (their own median) and lose the crew ranking. The ceiling therefore applies to the
+ * range, not the person; `truncated` says so.
+ *
+ * Who uses what: the reports page renders `totals`, `episodes` and the two option lists. `trimmers`, `crew`
+ * and `baselineFlowerSharePct` are NOT rendered by any screen today; they are kept (they come from the same
+ * rows at no extra cost, and are covered by tests) as the groundwork for the planned trimmer-facing, no-pay
+ * TV leaderboard. Do not delete them as dead code.
  *
  * Dollars (ratePerLb, payAmount) are returned only to roles in TRIM_PAY_APPROVE_ROLES; for `grow` they
  * are null and the money columns are not selected at all. That makes this the intended source for that
@@ -979,43 +1129,71 @@ export async function getTrimDayReport(input: {
 
   try {
     const db = await createServiceClient()
+    // Returned in range OR checked out and still open in range. The two ISO bounds are generated here from
+    // validated YYYY-MM-DD days (no commas or parentheses), so they are safe inside a PostgREST or() string.
+    const scope =
+      `and(status.eq.returned,returned_at.gte.${range.fromIso},returned_at.lt.${range.toExclusiveIso}),` +
+      `and(status.eq.out,checked_out_at.gte.${range.fromIso},checked_out_at.lt.${range.toExclusiveIso})`
     // Paged, not capped: PostgREST silently returns at most 1,000 rows per request, so a single query would
     // make the totals quietly wrong once a range crossed that. fetchAllRows (lib/trim/paging.ts) loops
     // `.range()` until the filtered set is exhausted, up to ROW_CEILING (then `truncated`). The query is
-    // rebuilt per page (builders are single-use) and given a total order (returned_at, then id) so rows that
-    // share a timestamp cannot repeat or vanish across a page boundary.
+    // rebuilt per page (builders are single-use) and given a total order (returned_at, then id; open rows
+    // have no return time and sort after the returns) so rows that tie cannot repeat or vanish across a page.
     const fetched = await fetchAllRows<Row>(async (from, to) => {
-      let query = db
+      const { data, error, count } = await db
         .from('trim_checkouts')
         .select(
           DAY_EPISODE_COLS + (seesMoney ? DAY_EPISODE_MONEY_COLS : '') + DAY_LOAD_EMBED,
           from === 0 ? { count: 'exact' } : undefined
         )
-        .eq('status', 'returned')
-        .gte('returned_at', range.fromIso)
-        .lt('returned_at', range.toExclusiveIso)
+        .or(scope)
         .order('returned_at', { ascending: true })
         .order('id', { ascending: true })
         .range(from, to)
-      // Batch lives on the load: trim_checkouts -> hanger_loads.batch_id (verified against PostgREST).
-      if (batchId) query = query.eq('hanger_loads.batch_id', batchId)
-      const { data, error, count } = await query
       return { rows: many(data), total: typeof count === 'number' ? count : null, error }
     })
     if (!fetched.ok) return dbFailure('getTrimDayReport', fetched.error)
     // Belt and braces against a row shifting between pages: one episode is never counted twice.
     const seen = new Set<string>()
-    const rows = fetched.rows.filter((r) => {
+    const inRange = fetched.rows.filter((r) => {
       const id = String(r.id)
       if (seen.has(id)) return false
       seen.add(id)
       return true
     })
 
+    type Entry = ActivityRow & { row: Row }
+    const entries: Entry[] = inRange.map((row) => ({ ...activityOf(row), row }))
+
+    // Dropdowns, from this same set: batches by date alone, trimmers by date + batch.
+    const byBatch = narrowByBatch(entries, batchId)
+    const selectedEntries = narrowByTrimmer(byBatch, trimmerId)
+    const batchOptions = withSelectedOption(deriveBatchOptions(entries), batchId, (id) => ({
+      id, name: 'Unknown batch', strainName: null, harvestDate: null, hangers: 0,
+    }))
+    const trimmerOptions = withSelectedOption(deriveTrimmerOptions(byBatch), trimmerId, (id) => ({
+      id, name: 'Unknown trimmer', hangers: 0,
+    }))
+    // A kept selection with no activity needs its real name (one small read, only on that path).
+    if (batchId) {
+      const i = batchOptions.findIndex((o) => o.id === batchId)
+      if (i >= 0 && batchOptions[i].hangers === 0) batchOptions[i] = await lookupBatchName(db, batchId)
+    }
+    if (trimmerId) {
+      const i = trimmerOptions.findIndex((o) => o.id === trimmerId)
+      if (i >= 0 && trimmerOptions[i].hangers === 0) trimmerOptions[i] = await lookupTrimmerName(db, trimmerId)
+    }
+
+    // From here on, FIGURES read returned rows only. `returnedCrew` is the date range + batch; `returned`
+    // is that narrowed to the trimmer. Open rows are not in either.
+    const returnedCrew = byBatch.filter((e) => e.status === 'returned').map((e) => e.row)
+    const returned = selectedEntries.filter((e) => e.status === 'returned').map((e) => e.row)
+    const openCount = selectedEntries.length - returned.length
+
     // Crew first (everyone), so rank and baseline never depend on the trimmer filter.
-    const summary = summarizeTrimmers(rows, seesMoney)
+    const summary = summarizeTrimmers(returnedCrew, seesMoney)
     const perTrimmer = new Map<string, { issued: number; variance: number; processed: number }>()
-    for (const r of rows) {
+    for (const r of returnedCrew) {
       const id = String(r.trimmer_id)
       const a = perTrimmer.get(id) ?? { issued: 0, variance: 0, processed: 0 }
       a.issued += num(r.issued_g) ?? 0
@@ -1039,40 +1217,7 @@ export async function getTrimDayReport(input: {
     const crew = ranked
     const trimmers = trimmerId ? ranked.filter((t) => t.trimmerId === trimmerId) : ranked
 
-    const selected = trimmerId ? rows.filter((r) => String(r.trimmer_id) === trimmerId) : rows
-
-    const episodes: TrimDayEpisode[] = selected.map((r) => {
-      const load = one(r.hanger_loads)
-      const batch = one(load?.batch)
-      const out = Date.parse(String(r.checked_out_at))
-      const back = Date.parse(String(r.returned_at))
-      return {
-        checkoutId: String(r.id),
-        seq: num(r.seq) ?? 0,
-        hangerCode: str(one(load?.hanger)?.code) ?? '',
-        loadId: String(r.load_id),
-        batchId: str(load?.batch_id),
-        batchName: str(batch?.name),
-        strainName: str(one(batch?.strain)?.name),
-        trimmerId: String(r.trimmer_id),
-        trimmerName: String(r.trimmer_name),
-        checkedOutAt: str(r.checked_out_at),
-        returnedAt: str(r.returned_at),
-        turnaroundHours:
-          Number.isFinite(out) && Number.isFinite(back) && back >= out ? roundTo((back - out) / 3_600_000, 2) : null,
-        issuedG: num(r.issued_g),
-        flowerG: num(r.flower_g),
-        trimG: num(r.trim_g),
-        stemsG: num(r.stems_g),
-        returnedTotalG: num(r.returned_total_g),
-        varianceG: num(r.variance_g),
-        variancePct: num(r.variance_pct),
-        varianceStatus: (str(r.variance_status) as VarianceStatus | null) ?? null,
-        returnKind: (str(r.return_kind) as ReturnKind | null) ?? null,
-        ratePerLb: seesMoney ? num(r.rate_per_lb_applied) : null,
-        payAmount: seesMoney ? num(one(r.trim_pay_entries)?.amount) : null,
-      }
-    })
+    const episodes: TrimDayEpisode[] = selectedEntries.map((e) => toDayEpisode(e.row, seesMoney))
     episodes.sort(
       (a, b) =>
         (Date.parse(a.checkedOutAt ?? '') || 0) - (Date.parse(b.checkedOutAt ?? '') || 0) || a.seq - b.seq
@@ -1088,7 +1233,7 @@ export async function getTrimDayReport(input: {
     let flagged = 0
     const loadIds = new Set<string>()
     const amounts: number[] = []
-    for (const r of selected) {
+    for (const r of returned) {
       loadIds.add(String(r.load_id))
       issued += num(r.issued_g) ?? 0
       flower += num(r.flower_g) ?? 0
@@ -1111,7 +1256,8 @@ export async function getTrimDayReport(input: {
       truncated: fetched.truncated,
       baselineFlowerSharePct: summary.baselineFlowerSharePct,
       totals: {
-        episodes: selected.length,
+        episodes: returned.length,
+        inProgress: openCount,
         hangers: loadIds.size,
         issuedG: roundTo(issued, 2),
         flowerG: roundTo(flower, 2),
@@ -1129,41 +1275,10 @@ export async function getTrimDayReport(input: {
       trimmers,
       crew,
       episodes,
+      batchOptions,
+      trimmerOptions,
     })
   } catch (err) {
     return dbFailure('getTrimDayReport', err)
-  }
-}
-
-/**
- * Batches that have at least one hanger load, newest harvest first, for the report's batch filter.
- * Capped at BATCH_OPTIONS_CAP: older batches fall off the list, never newer ones.
- */
-export async function listTrimBatchOptions(): Promise<ActionResult<TrimBatchOption[]>> {
-  const auth = await requireRole(TRIM_VIEW_ROLES)
-  if (!auth.authorized) return denied(auth.reason)
-
-  try {
-    const db = await createServiceClient()
-    // !inner drops batches with no loads (the 130+ legacy batches); limit 1 on the embed keeps it to a
-    // single load id per batch rather than shipping every load.
-    const { data, error } = await db
-      .from('batches')
-      .select('id, name, harvest_date, strain:strains(name), hanger_loads!inner(id)')
-      .order('harvest_date', { ascending: false, nullsFirst: false })
-      .limit(1, { referencedTable: 'hanger_loads' })
-      .limit(BATCH_OPTIONS_CAP)
-    if (error) return dbFailure('listTrimBatchOptions', error)
-
-    return ok(
-      many(data).map((b) => ({
-        id: String(b.id),
-        name: String(b.name),
-        strainName: str(one(b.strain)?.name),
-        harvestDate: str(b.harvest_date),
-      }))
-    )
-  } catch (err) {
-    return dbFailure('listTrimBatchOptions', err)
   }
 }

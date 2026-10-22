@@ -10,6 +10,11 @@
 // "furthest from balanced first" whether the hanger lost weight or gained it, which is the anomaly-triage
 // order (a -29.86% hanger tops the list). Grams break ties and cover rows with no percentage.
 //
+// Open (checked-out) hangers: they are rows in the table but never part of a figure. An open hanger has
+// issued weight and nothing else (no flower, trim, stems, variance or pay), so adding its issued grams to a
+// total or subtotal while its flower is zero would collapse the yield percentage. Every sum below therefore
+// reads RETURNED episodes only (isReturned), and the open ones are counted separately (`inProgress`).
+//
 // Pure: no React, no I/O.
 
 import type { TrimDayEpisode } from '@/actions/trim-reports'
@@ -22,6 +27,23 @@ export type SortDirection = 'asc' | 'desc'
 export interface SortState {
   key: SortKey
   dir: SortDirection
+}
+
+/** A finished return: the only kind of episode that contributes to a total, subtotal or pay figure. */
+export function isReturned(e: Pick<TrimDayEpisode, 'status'>): boolean {
+  return e.status === 'returned'
+}
+
+/** Checked out and not yet back. */
+export function isOpen(e: Pick<TrimDayEpisode, 'status'>): boolean {
+  return e.status === 'out'
+}
+
+/** Hours an open hanger has been held as of `nowMs`; null when the checkout time is missing or in the future. */
+export function heldHours(checkedOutAt: string | null, nowMs: number): number | null {
+  const t = time(checkedOutAt)
+  if (t === null || nowMs < t) return null
+  return (nowMs - t) / 3_600_000
 }
 
 /** Sort order of the status pill: the ones needing attention first when ascending. */
@@ -146,40 +168,55 @@ export function nextSort(current: SortState, key: SortKey): SortState {
 export interface TrimmerSubtotal {
   trimmerId: string
   trimmerName: string
-  /** Distinct hangers (loads): a hanger returned twice counts once, the same rule as the totals cards. */
+  /** Distinct hangers (loads) among RETURNED episodes: a hanger returned twice counts once, like the totals cards. */
   hangers: number
   /** Returned episodes in the block. */
   episodes: number
-  issuedG: number
-  flowerG: number
+  /** Checked-out episodes in the block. Shown beside the subtotal, never added into it. */
+  inProgress: number
+  /** The figures below are null when the block has no returned episode (nothing came back, so nothing to sum). */
+  issuedG: number | null
+  flowerG: number | null
   /** Database sign (loss positive); the screen flips it. */
-  varianceG: number
-  /** Null when the viewer has no pay access or no episode in the block has a pay line. */
+  varianceG: number | null
+  /** Null when the viewer has no pay access or no returned episode in the block has a pay line. */
   payAmount: number | null
 }
 
-/** Sum a block of episodes. Grams are rounded like the action's totals; money is summed in cents. */
+/**
+ * Sum a block of episodes. Grams are rounded like the action's totals; money is summed in cents. Only
+ * returned episodes are summed: an open one adds to `inProgress` and to nothing else.
+ */
 export function subtotalOf(block: readonly TrimDayEpisode[]): TrimmerSubtotal {
   let issued = 0
   let flower = 0
   let variance = 0
+  let inProgress = 0
+  let episodes = 0
   const loads = new Set<string>()
   const amounts: number[] = []
   for (const e of block) {
+    if (!isReturned(e)) {
+      if (isOpen(e)) inProgress++
+      continue
+    }
+    episodes++
     loads.add(e.loadId)
     issued += e.issuedG ?? 0
     flower += e.flowerG ?? 0
     variance += e.varianceG ?? 0
     if (e.payAmount !== null) amounts.push(e.payAmount)
   }
+  const any = episodes > 0
   return {
     trimmerId: block[0]?.trimmerId ?? '',
     trimmerName: block[0]?.trimmerName ?? '',
     hangers: loads.size,
-    episodes: block.length,
-    issuedG: roundTo(issued, 2),
-    flowerG: roundTo(flower, 2),
-    varianceG: roundTo(variance, 2),
+    episodes,
+    inProgress,
+    issuedG: any ? roundTo(issued, 2) : null,
+    flowerG: any ? roundTo(flower, 2) : null,
+    varianceG: any ? roundTo(variance, 2) : null,
     payAmount: amounts.length > 0 ? sumMoney(amounts) : null,
   }
 }
