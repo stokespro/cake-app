@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-10-23",
+  "lastUpdated": "2026-10-24",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-10-23",
+    "lastVerified": "2026-10-24",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -75,6 +75,13 @@
       "urgency": "standard"
     },
     {
+      "id": "kd-synthetic-hemp-recriminalization-nov12-2026",
+      "label": "Federal Synthetic Cannabinoid Recriminalization — November 12, 2026 (NOT delayed by CR; 19 days away)",
+      "date": "November 12, 2026",
+      "urgency": "urgent",
+      "description": "ENACTED LAW: November 12, 2026 remains the operative federal effective date for the recriminalization of synthetic cannabinoids 'not capable of being naturally produced by a Cannabis sativa L. plant' under Section 781 of P.L. 119-37. This date was explicitly carved out of the September 3, 2026 Continuing Appropriations and Extensions Act, 2027 signed by President Trump — the CR extended the effective date to December 11 ONLY for naturally-derived hemp THC products. Synthetic cannabinoids including HHC, THC-O acetate, THC-B, and THCJD remain subject to recriminalization on November 12, 2026 as a matter of enacted federal law. The White House Director of Legislative Affairs confirmed no further extensions will be sought. Oklahoma operators handling any of these products must remove them from inventory before November 12. CAKE's OMMA-licensed medical marijuana products are unaffected — this applies to hemp-derived synthetic cannabinoid products only. Dispensaries carrying hemp-derived products in these categories must act now."
+    },
+    {
       "id": "kd-hemp-redefinition",
       "label": "Federal Hemp Redefinition — December 11, 2026 (CR SIGNED by Trump Sept. 3, 2026; Natural Hemp Extended; Synthetics Still Nov. 12)",
       "date": "December 11, 2026",
@@ -140,12 +147,35 @@
   ],
   "items": [
     {
+      "id": "va-sen-lucas-cannabis-racketeering-indictment-oct22-2026",
+      "headline": "Virginia State Sen. Louise Lucas Indicted on Federal Racketeering Charges Tied to Cannabis License Conspiracy — October 22, 2026",
+      "date": "2026-10-22",
+      "summary": "A federal grand jury unsealed an indictment on October 22, 2026 charging Virginia state Sen. Louise Lucas and six others with federal racketeering conspiracy and conspiracy to distribute and possess with intent to distribute marijuana, in an alleged scheme tied to cannabis licensing in Virginia. Sen. Lucas faces five of eight counts. Prosecutors alleged the scheme was connected to a future marijuana license. Multiple cannabis businesses tied to Lucas's associates closed on or around the day the indictment was unsealed. Lucas's attorneys have publicly disputed the charges. The indictment language explicitly states that the Schedule III rescheduling order 'does not affect the federal legality of marijuana' as the underlying substance. Sources: Virginia Mercury (October 22, 2026); Cardinal News (October 23, 2026).",
+      "whyItMatters": "For CAKE as an OMMA-licensed cultivator/processor and for all Oklahoma dispensary customers: the Lucas indictment is not an Oklahoma matter but carries important federal compliance context. First, it confirms that DOJ/FBI are actively pursuing federal racketeering charges against cannabis license holders and state elected officials in a state with a legal cannabis market — despite Schedule III rescheduling. The indictment language itself states the rescheduling order does not affect the federal illegality of marijuana as a controlled substance, reinforcing that Schedule III does NOT immunize cannabis businesses from federal prosecution for distribution, racketeering, or licensing fraud. Second, Oklahoma operates under continuing federal scrutiny: the OCTF (Oklahoma Statewide Drug Task Force) actively coordinates with federal agencies and the DEA Dallas Division. Oklahoma operators who have any irregularities in their licensing, ownership structures, or business relationships should consult counsel. This case does NOT change OBNDD enforcement grace period (January 1, 2027), DEA registration requirements, or any OMMA compliance obligations — but it is a reminder that federal criminal exposure for cannabis operators exists independent of the rescheduling framework.",
+      "tags": [
+        "federal"
+      ],
+      "source": {
+        "name": "Virginia Mercury — Va. Sen. Louise Lucas, six others indicted in federal cannabis corruption case (October 22, 2026)",
+        "url": "https://virginiamercury.com/2026/10/22/va-sen-louise-lucas-six-others-indicted-in-federal-cannabis-corruption-case/"
+      },
+      "secondarySource": {
+        "name": "Cardinal News — 10 things to know about the federal indictment of Louise Lucas (October 23, 2026)",
+        "url": "https://cardinalnews.org/2026/10/23/10-things-to-know-about-the-indictment-of-louise-lucas"
+      },
+      "pinned": false
+    },
+    {
       "id": "alj-julius-oct22-denies-reopening-nov5-final-briefing",
       "headline": "ALJ Julius October 22 Ruling: Denies Reopening Broader-Rescheduling Hearing; Admits GAO Report; Sets Oct 29 / Nov 5 Final Supplemental Briefing — Stay Expires November 5",
       "date": "2026-10-22",
       "summary": "Chief ALJ Derek Julius issued his ruling on October 22, 2026 on anti-rescheduling parties' motion to reopen the broader marijuana rescheduling hearing (DEA Docket No. 1362; Hearing Docket No. 26-96). Julius DENIED the request for supplemental document discovery and additional witness testimony, finding that opponents already had sufficient opportunities to examine the issues during the 2,500-page hearing record. He GRANTED admission of the GAO report (GAO-26-108623, 'Drug Scheduling: DEA and FDA Should Strengthen Policies and Procedures,' September 23, 2026) into the record as 'Finn Exhibit 126.' Julius authorized OPTIONAL, LIMITED supplemental briefs from all parties on the weight the GAO report should receive and whether the policy gaps it identifies affect the marijuana rescheduling proposal. Supplemental briefs are due October 29, 2026; replies are due November 5, 2026. The broader-rescheduling proceeding remains STAYED until November 5, when the stay 'expires by its own terms at the conclusion of this briefing schedule.' After November 5, ALJ Julius is free to proceed to issue his recommended decision on broader adult-use rescheduling — no timeline is set for when he will do so. Sources: Marijuana Moment (October 22, 2026); Cannabis Business Times (October 22, 2026); The Marijuana Herald (October 22, 2026); NORML (October 22, 2026).",
       "whyItMatters": "For CAKE as an OMMA-licensed cultivator/processor and for all dispensary customers: the October 22 ruling resolves the two-month uncertainty about whether the broader-rescheduling hearing would be reopened. Reopening was denied — the 2,500-page hearing record stands closed. The stay expires November 5 when optional supplemental briefs close, and after that date ALJ Julius can issue his recommended decision without further procedural barriers. CRITICAL DISTINCTION: this broader-rescheduling proceeding covers adult-use/recreational marijuana rescheduling — the April 28 Schedule III order for OMMA-licensed medical marijuana is a SEPARATE, fully operative order and is NOT affected by this proceeding's outcome or timeline. Oklahoma operators' OBNDD registration obligations (enforcement grace period: January 1, 2027), DEA registration requirements, and 280E treatment are unchanged. The recommended decision — whenever issued after November 5 — is itself only a recommendation to the DEA Administrator; a full NPRM and public comment period follow before any adult-use rescheduling change takes effect. The two most pressing near-term compliance deadlines remain: OBNDD annual registration renewal (October 31, 2026 — 8 days away) and HB 4454 edibles packaging enforcement (November 1, 2026 — 9 days away). No compliance action is needed in response to the October 22 ruling — monitor dea.gov for ALJ Julius's recommended decision after November 5.",
-      "tags": ["federal", "cultivation", "dispensary"],
+      "tags": [
+        "federal",
+        "cultivation",
+        "dispensary"
+      ],
       "source": {
         "name": "Marijuana Moment — DEA Judge Denies Marijuana Rescheduling Opponents' Request To Reopen Hearing For More Testimony, But Allows New Briefs (October 22, 2026)",
         "url": "https://www.marijuanamoment.net/dea-judge-denies-marijuana-rescheduling-opponents-request-to-reopen-hearing-for-more-testimony-but-allows-new-briefs/"
@@ -2270,44 +2300,6 @@
       "pinned": true
     },
     {
-      "id": "dea-alj-testimony-schedule-june24",
-      "headline": "ALJ Issues Detailed Testimony Schedule for June 29–July 15 Hearing — All 7 Anti-Rescheduling Parties Scheduled; States Testify July 14",
-      "date": "2026-06-24",
-      "summary": "Chief Administrative Law Judge Derek Julius issued a detailed testimony schedule on June 24, 2026, confirming the broader-rescheduling ALJ hearing proceeds as planned. The full schedule: Government (DOJ) testifies June 29; NDASA July 2; Smart Approaches to Marijuana (SAM) July 6; DUID Victim Voices July 7; Kenneth Finn MD July 8; Tennessee Bureau of Investigation July 10; Phillip A. Drum PharmD July 13; States of Nebraska, Idaho, Indiana, and Louisiana July 14. The hearing runs June 29 through July 15 with a July 3 recess reconvening July 6, at DEA's facility at 700 Army Navy Drive, Arlington, VA. Marijuana Moment sent a letter to Chief ALJ Julius requesting public livestream access; the ALJ has not responded as of June 25, 2026. No emergency injunction or stay motion has been granted and the hearing remains on schedule.",
-      "whyItMatters": "The detailed testimony schedule confirms the June 29 hearing is proceeding — dispelling social media claims that the hearing was cancelled or that MMJ International obtained an injunction to stop it. For Oklahoma operators, the hearing covers ONLY adult-use/recreational marijuana; Chief ALJ Julius explicitly confirmed in his June 19 scheduling order that state-licensed medical marijuana rescheduling 'has already occurred' and is NOT at issue. OMMA-licensed cultivators' and dispensaries' Schedule III status, 280E relief, and registration obligation are unaffected by the hearing's outcome. The testimony schedule also shows the anti-rescheduling state coalition (Nebraska, Idaho, Indiana, Louisiana) presents July 14 — the same briefs are also pending in the D.C. Circuit, where the court challenge remains the more consequential threat to the April 28 order.",
-      "tags": [
-        "federal"
-      ],
-      "source": {
-        "name": "Marijuana Moment — DEA Judge Sets Testimony Schedule for Marijuana Rescheduling Hearing",
-        "url": "https://www.marijuanamoment.net/dea-judge-sets-testimony-schedule-for-marijuana-rescheduling-hearing-starting-next-week"
-      },
-      "secondarySource": {
-        "name": "Marijuana Herald — DEA Judge Sets Schedule for Hearing Beginning June 29",
-        "url": "https://themarijuanaherald.com/2026/06/dea-judge-sets-schedule-for-marijuana-rescheduling-hearing-begins-june-29/"
-      },
-      "pinned": false
-    },
-    {
-      "id": "dea-alj-hearing-no-livestream-dea-resists-testimony-june25",
-      "headline": "ALJ Bars Livestream from June 29 Hearing; DEA Resists Testimony from Its Own Official on Marijuana Harms",
-      "date": "2026-06-25",
-      "summary": "Chief Administrative Law Judge Derek Julius's June 18, 2026 Preliminary Order bars all recording devices from the hearing room and lobby — the June 29 broader-rescheduling ALJ hearing will not be livestreamed. In-person attendance at DEA's 700 Army Navy Drive, Arlington, VA facility is the only way to observe the proceedings. Marijuana Moment counsel formally requested reconsideration on June 23, arguing the DEA had allowed livestreaming of the prior (Biden-era) cancelled hearing; Americans for Safe Access and partner advocates sent a separate letter; as of June 25-26 no reversal had been issued by Chief ALJ Julius. In a separate procedural development reported by Marijuana Moment on June 25, DEA resisted testimony from a DEA agency official linked to a report on marijuana's harms — an unusual stance given the agency presents as the first witness on June 29 as proponent of the rescheduling rule.",
-      "whyItMatters": "Oklahoma cultivators and dispensaries monitoring the June 29–July 15 hearing — which addresses only adult-use rescheduling and does not affect the already-effective Schedule III status of state-licensed medical marijuana — cannot follow proceedings remotely. The DEA's resistance to its own official's testimony on marijuana's harms is a notable procedural signal: the agency is managing what enters the administrative record even on the government's own side. Chief ALJ Julius's scope language (June 19) already confirms the hearing does not touch OMMA operators' current Schedule III status, 280E relief, or registration obligation; these procedural developments reinforce that the hearing is likely to produce a selective administrative record, which will matter more for D.C. Circuit litigation risk than for Oklahoma operators' immediate compliance choices.",
-      "tags": [
-        "federal"
-      ],
-      "source": {
-        "name": "Marijuana Moment — DEA Resists Testimony From Agency Official on Marijuana Harms",
-        "url": "https://www.marijuanamoment.net/dea-resists-testimony-from-agency-official-linked-to-report-on-marijuanas-harms-during-rescheduling-hearing/"
-      },
-      "secondarySource": {
-        "name": "Marijuana Moment — DEA Judge Pressed to Allow Livestream Access",
-        "url": "https://www.marijuanamoment.net/marijuana-moment-asks-dea-judge-to-allow-livestreaming-of-rescheduling-hearing-for-transparent-public-access/"
-      },
-      "pinned": false
-    },
-    {
       "id": "dea-medical-benefits-testimony-june29-hearing",
       "headline": "DEA's Own Witnesses Will Testify About Marijuana's Medical Benefits at June 29 Hearing",
       "date": "2026-06-27",
@@ -2319,26 +2311,6 @@
       "source": {
         "name": "Marijuana Moment — DEA Will Highlight Testimony On Marijuana's Medical Benefits In Rescheduling Hearing",
         "url": "https://www.marijuanamoment.net/dea-will-highlight-testimony-on-marijuanas-medical-benefits-in-rescheduling-hearing-new-filing-shows/"
-      },
-      "pinned": false
-    },
-    {
-      "id": "safer-banking-act-reintroduced-june25-2026",
-      "headline": "SAFER Banking Act Reintroduced with Bipartisan Support in Senate and House — June 25, 2026",
-      "date": "2026-06-25",
-      "summary": "Bipartisan lawmakers reintroduced the SAFER Banking Act in both chambers on June 25, 2026, the eve of the DEA registration deadline. Senate sponsors: Sens. Jeff Merkley (D-OR), Lisa Murkowski (R-AK), Elizabeth Warren (D-MA), and Steve Daines (R-MT). House sponsors: Reps. Jim Himes (D-CT), Warren Davidson (R-OH), Nydia Velázquez (D-NY), Brian Mast (R-FL), Lou Correa (D-CA), Guy Reschenthaler (R-PA), and Dina Titus (D-NV). The 2026 version would bar federal regulators from penalizing financial institutions for banking state-legal cannabis businesses, and explicitly extends safe harbor to ancillary businesses including landlords, technology vendors, accounting firms, and security providers.",
-      "whyItMatters": "Oklahoma dispensaries and cultivators continue to face banking access challenges — accounts closed without warning, cash-only operations, and limited payment processing. The SAFER Banking Act has passed the House multiple times but has stalled in the Senate. Reintroduction is not enactment; operators should not change banking arrangements based on a bill filing alone. However, the bipartisan co-sponsors and timing alongside Schedule III rescheduling may give the bill better prospects than prior sessions.",
-      "tags": [
-        "federal",
-        "dispensary"
-      ],
-      "source": {
-        "name": "MJBizDaily — Marijuana banking protections reintroduced in Congress",
-        "url": "https://mjbizdaily.com/news/bipartisan-lawmakers-reintroduce-safer-banking-on-eve-of-marijuana-rescheduling-hearings/616660/"
-      },
-      "secondarySource": {
-        "name": "Cannabis Business Times — 8 Bipartisan House Lawmakers Reintroduce SAFE Banking Act",
-        "url": "https://www.cannabisbusinesstimes.com/safe-banking-act/news/15828654/8-bipartisan-us-house-lawmakers-reintroduce-safe-banking-act"
       },
       "pinned": false
     },
@@ -2561,27 +2533,6 @@
       "secondarySource": {
         "name": "Marijuana Moment — Inside DEA's Cannabis Rescheduling Hearing (Newsletter July 6, 2026)",
         "url": "https://www.marijuanamoment.net/inside-deas-cannabis-rescheduling-hearing-newsletter-july-6-2026/"
-      },
-      "pinned": false
-    },
-    {
-      "id": "white-house-hemp-ban-delay-request-june24",
-      "headline": "White House Asks Congress to Delay or Revise November 2026 Hemp THC Ban — House Farm Bill Passed Without Delay; Hemp Planting Predictability Act Pending",
-      "date": "2026-06-24",
-      "summary": "OMB Director Russell Vought sent a letter to House Speaker Mike Johnson on June 24, 2026 formally requesting that Congress either revise the hemp definition in Section 781 of P.L. 119-37 or delay the November 12, 2026 effective date that will ban hemp-derived products exceeding 0.3% total THC. The House Farm Bill (H.R. 8646) passed 224–200 on April 30, 2026 WITHOUT including a hemp ban delay or definition revision. The Hemp Planting Predictability Act (S.3686 / H.R.7024) — which would extend the implementation deadline to November 12, 2028 — has bipartisan sponsors in both chambers (Senate: Klobuchar D-MN, Paul R-KY, Merkley D-OR; House: Rep. Baird R-IN) but has received no committee hearing as of July 2026. The White House OMB request is a legislative communication, not a regulatory action, enforcement moratorium, or amendment to P.L. 119-37.",
-      "whyItMatters": "Oklahoma dispensaries and hemp operators: Plan for November 12, 2026 compliance. The White House OMB letter signals executive-branch concern about the hemp ban's impact but does not delay or suspend the effective date of Section 781. The House already declined to include a delay in the Farm Bill. Standalone delay legislation exists (Hemp Planting Predictability Act) but has no committee hearing. A delay is politically possible — bipartisan sponsors, White House support — but not assured. The Senate Farm Bill markup is the most likely vehicle; monitor Senate Agriculture Committee activity. Until Congress acts or a federal court enjoins the provision, the November 12, 2026 effective date stands. Oklahoma hemp operators should begin reformulation, product transition, and inventory planning now.",
-      "tags": [
-        "federal",
-        "dispensary",
-        "deadline"
-      ],
-      "source": {
-        "name": "Cannabis Business Times — White House Asks Congress to Revise Hemp Definition, Delay THC Product Ban",
-        "url": "https://www.cannabisbusinesstimes.com/hemp/news/15828617/white-house-asks-congress-to-revise-hemp-definition-delay-thc-product-ban"
-      },
-      "secondarySource": {
-        "name": "Marijuana Moment — House Passes Farm Bill Without Hemp Ban Delay",
-        "url": "https://www.marijuanamoment.net/house-passes-farm-bill-including-hemp-provisions-but-without-delaying-thc-product-ban-scheduled-for-this-year/"
       },
       "pinned": false
     },
@@ -3100,6 +3051,17 @@
   ],
   "discourse": [
     {
+      "id": "watch-mmj-intl-dea-burden-proof-narrative-oct23",
+      "headline": "MMJ International Holdings: 'DEA's Own Scientists Exposed Burden-of-Proof Failure; Missing Rulebooks Threaten Rescheduling'",
+      "claim": "MMJ International Holdings (a petitioner in the D.C. Circuit challenge to the April 28 Schedule III order) issued an October 23, 2026 advocacy press release arguing that DEA bears the burden of proving marijuana meets Schedule III criteria, that 'missing rulebooks' (DEA's failure to produce written scheduling procedures during the hearing) create an APA violation, and that testimony from DEA's own expert witnesses 'exposed the agency's hypocrisy' by acknowledging evidentiary gaps. The press release argues these issues threaten the rescheduling order's legal validity.",
+      "caution": "This is advocacy from MMJ International Holdings, a party actively seeking to defeat rescheduling in the D.C. Circuit. The 'burden of proof' and 'missing rulebooks' arguments are litigation positions being advanced by anti-rescheduling petitioners — not neutral legal analysis or a court ruling. The April 28 Schedule III order for state-licensed medical marijuana remains fully operative; ALJ Julius issued no ruling on these arguments; the D.C. Circuit has not ruled on the merits of any APA challenge. Oklahoma OMMA operators should not conclude from this press release that rescheduling is at legal risk of reversal before the OBNDD enforcement grace period (January 1, 2027). MMJ International was excluded from the June 29 DEA hearing (denied party status) and is pursuing its claims through the D.C. Circuit separately from the ALJ track. Treat this as one petitioner's advocacy narrative, not a neutral legal assessment.",
+      "source": {
+        "name": "ACCESS Newswire / Financial Content — DEA Burden of Proof, Missing Rulebooks, and Expert Witness Admissions Threaten Marijuana Rescheduling (October 23, 2026)",
+        "url": "https://www.financialcontent.com/article/accwirecq-2026-10-23-dea-burden-of-proof-missing-rulebooks-and-expert-witness-admissions-threaten-marijuana-rescheduling"
+      },
+      "date": "2026-10"
+    },
+    {
       "id": "watch-alj-julius-ruling-imminent-speculation-oct22",
       "headline": "Circulating: 'ALJ Will Immediately Deny the Motion' / 'Ruling Is Days Away' — Not Confirmed",
       "claim": "Consultants, vendors, and social media posts are circulating claims that ALJ Julius will 'immediately' or 'within days' deny the anti-rescheduling parties' motion to reopen the broader-rescheduling hearing for discovery and testimony, now that DEA has filed its October 20 opposition brief. Some posts describe the ruling as 'imminent' or already effectively decided by the DEA's forceful opposition.",
@@ -3357,17 +3319,6 @@
       "source": {
         "name": "MMJDaily — Oklahoma MMJ Producers Flag Confusion Over Child-Appeal Packaging Rules",
         "url": "https://www.mmjdaily.com/article/9859771/oklahoma-mmj-producers-flag-confusion-over-child-appeal-packaging-rules/"
-      },
-      "date": "2026-10"
-    },
-    {
-      "id": "watch-280e-oct16-extended-return-deadline-urgency-marketing",
-      "headline": "'Your 2022 280E Refund Expires October 16 — Act Now' Urgency Marketing Active from Multiple Vendors",
-      "claim": "Multiple cannabis tax service vendors (StrikeTax.com and FreemanLaw/JDSupra) are actively marketing October 16, 2026 as a hard deadline to file refund claims for 2022 §280E taxes, framing the three-year statute of limitations on extended 2022 returns as a 'window closing' event. Marketing often omits the IRS's active opposition to retroactive refund claims and the ongoing DOJ clawback litigation against TerrAscend.",
-      "caution": "The October 16 date is a real technical threshold — the extended filing deadline for 2022 returns, beyond which the statute of limitations may bar certain refund claims. However, vendor framing as a guaranteed or low-risk opportunity is misleading. The IRS's stated position is that §280E retroactive refund claims are not valid under the April 2026 rescheduling order. The DOJ is actively litigating to claw back an already-paid refund in TerrAscend. No Treasury/IRS guidance authorizing retroactive §280E relief has been issued. Filing a 'protective' placeholder claim is lower-risk than an amended return claiming the money immediately, but vendors often do not distinguish the two. Oklahoma operators must consult qualified tax counsel before any October 16 action — this is not a routine refund opportunity.",
-      "source": {
-        "name": "StrikeTax — Medical Cannabis Operators: The Deadline to Get Your 2022 Taxes Back Is October 16",
-        "url": "https://www.striketax.com/journal/medical-cannabis-operators-the-deadline-to-get-your-2022-taxes-back-is-october-16"
       },
       "date": "2026-10"
     },
