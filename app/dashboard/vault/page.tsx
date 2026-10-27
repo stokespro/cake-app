@@ -22,20 +22,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
-import { cn } from '@/lib/utils'
-import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -55,8 +41,6 @@ import {
   Pencil,
   X,
   Package,
-  Check,
-  ChevronsUpDown,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -72,6 +56,7 @@ import {
   getUniqueBatches,
   getBatches,
 } from '@/actions/vault'
+import { BatchCombobox } from '@/components/vault/batch-combobox'
 import type { VaultPackage, Transaction, Strain, ProductType, Batch } from '@/types/vault'
 import { GRAMS_PER_LB } from '@/lib/units'
 
@@ -109,7 +94,6 @@ export default function VaultPage() {
   const [newPackageDialogOpen, setNewPackageDialogOpen] = useState(false)
   const [newTagId, setNewTagId] = useState('')
   const [newBatchId, setNewBatchId] = useState('')
-  const [newBatchOpen, setNewBatchOpen] = useState(false)
   const [newTypeId, setNewTypeId] = useState('')
   const [newWeight, setNewWeight] = useState('')
   const [creating, setCreating] = useState(false)
@@ -393,7 +377,6 @@ export default function VaultPage() {
   const resetNewPackageForm = () => {
     setNewTagId('')
     setNewBatchId('')
-    setNewBatchOpen(false)
     setNewTypeId('')
     setNewWeight('')
   }
@@ -884,18 +867,7 @@ export default function VaultPage() {
           <div className="space-y-4">
             <div>
               <Label>Batch</Label>
-              <Select value={editBatchId} onValueChange={setEditBatchId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select batch..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {batches.map((batch) => (
-                    <SelectItem key={batch.id} value={batch.id}>
-                      {batch.name} ({batch.strain?.name || 'No strain'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <BatchCombobox batches={batches} value={editBatchId} onChange={setEditBatchId} />
             </div>
 
             <div>
@@ -962,52 +934,7 @@ export default function VaultPage() {
 
             <div>
               <Label>Batch</Label>
-              <Popover open={newBatchOpen} onOpenChange={setNewBatchOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={newBatchOpen}
-                    className="w-full justify-between font-normal"
-                  >
-                    {newBatchId
-                      ? (() => {
-                          const batch = batches.find((b) => b.id === newBatchId)
-                          return batch ? `${batch.name} (${batch.strain?.name || 'No strain'})` : 'Select batch...'
-                        })()
-                      : 'Select batch...'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Search batches..." />
-                    <CommandList>
-                      <CommandEmpty>No batch found.</CommandEmpty>
-                      <CommandGroup>
-                        {batches.map((batch) => (
-                          <CommandItem
-                            key={batch.id}
-                            value={`${batch.name} ${batch.strain?.name || ''}`}
-                            onSelect={() => {
-                              setNewBatchId(batch.id)
-                              setNewBatchOpen(false)
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                newBatchId === batch.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {batch.name} ({batch.strain?.name || 'No strain'})
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <BatchCombobox batches={batches} value={newBatchId} onChange={setNewBatchId} />
             </div>
 
             <div>
