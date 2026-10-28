@@ -3,6 +3,7 @@
 import { requireRole } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { BRAND_ASSETS_BUCKET } from '@/lib/storage-buckets'
+import { derivePackageStrain, type PackageStrainResult } from '@/lib/vault/package-strain'
 import type { VaultPackage, Transaction, PackageFilters, ProductType, Strain, Batch } from '@/types/vault'
 
 // Roles that can read vault data (matches canViewSection 'vault')
@@ -309,12 +310,34 @@ export async function adjustWeight(
   return { success: true, package: updatedPackage as VaultPackage }
 }
 
+// Looks up the batch by name and derives the package strain from it (SPRO-234)
+async function resolveBatchStrain(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  batchName: string
+): Promise<PackageStrainResult> {
+  const { data: batchRow } = await db
+    .from('batches')
+    .select('name, strain_id')
+    .eq('name', batchName)
+    .maybeSingle()
+
+  let strainRow: { id: string; name: string } | null = null
+  if (batchRow?.strain_id) {
+    const { data } = await db
+      .from('strains')
+      .select('id, name')
+      .eq('id', batchRow.strain_id)
+      .maybeSingle()
+    strainRow = data
+  }
+
+  return derivePackageStrain(batchRow, strainRow, batchName)
+}
+
 // Create a new package
 export async function createPackage(
   tagId: string,
   batch: string,
-  strain: string,
-  strainId: string,
   typeId: string,
   startingWeight: number,
   userId: string
@@ -330,10 +353,6 @@ export async function createPackage(
 
   if (!batch.trim()) {
     return { success: false, error: 'Batch is required' }
-  }
-
-  if (!strainId) {
-    return { success: false, error: 'Strain is required' }
   }
 
   if (!typeId) {
@@ -355,14 +374,20 @@ export async function createPackage(
     return { success: false, error: 'Tag ID already exists' }
   }
 
+  // Strain is always derived from the batch (SPRO-234)
+  const derived = await resolveBatchStrain(db, batch.trim())
+  if (!derived.ok) {
+    return { success: false, error: derived.error }
+  }
+
   // Create the package
   const { data: packageData, error: packageError } = await db
     .from('packages')
     .insert({
       tag_id: tagId.trim(),
       batch: batch.trim(),
-      strain: strain.trim(),
-      strain_id: strainId,
+      strain: derived.strainName,
+      strain_id: derived.strainId,
       type_id: typeId,
       current_weight: startingWeight,
       created_by: userId,
@@ -427,8 +452,6 @@ export async function updatePackage(
   tagId: string,
   updates: {
     batch?: string
-    strain?: string
-    strainId?: string
     typeId?: string
   }
 ): Promise<{ success: boolean; package?: VaultPackage; error?: string }> {
@@ -444,17 +467,14 @@ export async function updatePackage(
       return { success: false, error: 'Batch cannot be empty' }
     }
     updateData.batch = updates.batch.trim()
-  }
 
-  if (updates.strain !== undefined) {
-    updateData.strain = updates.strain.trim()
-  }
-
-  if (updates.strainId !== undefined) {
-    if (!updates.strainId) {
-      return { success: false, error: 'Strain is required' }
+    // Strain follows the batch (SPRO-234); client-supplied strain is not accepted
+    const derived = await resolveBatchStrain(db, updates.batch.trim())
+    if (!derived.ok) {
+      return { success: false, error: derived.error }
     }
-    updateData.strain_id = updates.strainId
+    updateData.strain = derived.strainName
+    updateData.strain_id = derived.strainId
   }
 
   if (updates.typeId !== undefined) {
