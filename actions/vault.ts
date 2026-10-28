@@ -310,15 +310,18 @@ export async function adjustWeight(
   return { success: true, package: updatedPackage as VaultPackage }
 }
 
-// Looks up the batch by name and derives the package strain from it (SPRO-234)
+// Looks up the batch by id and derives the package batch name + strain from it (SPRO-234/235)
 async function resolveBatchStrain(
   db: Awaited<ReturnType<typeof createServiceClient>>,
-  batchName: string
-): Promise<PackageStrainResult> {
+  batchId: string
+): Promise<
+  | { ok: true; strainId: string; strainName: string; batchName: string }
+  | { ok: false; error: string }
+> {
   const { data: batchRow } = await db
     .from('batches')
     .select('name, strain_id')
-    .eq('name', batchName)
+    .eq('id', batchId)
     .maybeSingle()
 
   let strainRow: { id: string; name: string } | null = null
@@ -331,13 +334,16 @@ async function resolveBatchStrain(
     strainRow = data
   }
 
-  return derivePackageStrain(batchRow, strainRow, batchName)
+  if (!batchRow) return { ok: false, error: 'Batch not found' }
+  const derived: PackageStrainResult = derivePackageStrain(batchRow, strainRow, batchRow.name)
+  if (!derived.ok) return derived
+  return { ...derived, batchName: batchRow.name }
 }
 
 // Create a new package
 export async function createPackage(
   tagId: string,
-  batch: string,
+  batchId: string,
   typeId: string,
   startingWeight: number,
   userId: string
@@ -351,7 +357,7 @@ export async function createPackage(
     return { success: false, error: 'Tag ID is required' }
   }
 
-  if (!batch.trim()) {
+  if (!batchId?.trim()) {
     return { success: false, error: 'Batch is required' }
   }
 
@@ -375,7 +381,7 @@ export async function createPackage(
   }
 
   // Strain is always derived from the batch (SPRO-234)
-  const derived = await resolveBatchStrain(db, batch.trim())
+  const derived = await resolveBatchStrain(db, batchId.trim())
   if (!derived.ok) {
     return { success: false, error: derived.error }
   }
@@ -385,7 +391,8 @@ export async function createPackage(
     .from('packages')
     .insert({
       tag_id: tagId.trim(),
-      batch: batch.trim(),
+      batch_id: batchId.trim(),
+      batch: derived.batchName,
       strain: derived.strainName,
       strain_id: derived.strainId,
       type_id: typeId,
@@ -451,7 +458,7 @@ export async function togglePackageActive(
 export async function updatePackage(
   tagId: string,
   updates: {
-    batch?: string
+    batchId?: string
     typeId?: string
   }
 ): Promise<{ success: boolean; package?: VaultPackage; error?: string }> {
@@ -462,17 +469,18 @@ export async function updatePackage(
 
   const updateData: Record<string, unknown> = {}
 
-  if (updates.batch !== undefined) {
-    if (!updates.batch.trim()) {
+  if (updates.batchId !== undefined) {
+    if (!updates.batchId.trim()) {
       return { success: false, error: 'Batch cannot be empty' }
     }
-    updateData.batch = updates.batch.trim()
 
     // Strain follows the batch (SPRO-234); client-supplied strain is not accepted
-    const derived = await resolveBatchStrain(db, updates.batch.trim())
+    const derived = await resolveBatchStrain(db, updates.batchId.trim())
     if (!derived.ok) {
       return { success: false, error: derived.error }
     }
+    updateData.batch_id = updates.batchId.trim()
+    updateData.batch = derived.batchName
     updateData.strain = derived.strainName
     updateData.strain_id = derived.strainId
   }
@@ -765,6 +773,10 @@ export async function deleteStrain(id: string): Promise<{ success: boolean; erro
     .eq('id', id)
 
   if (error) {
+    // FK violation: a package was added after the check above
+    if (error.code === '23503') {
+      return { success: false, error: 'Cannot delete batch that is in use by packages' }
+    }
     return { success: false, error: error.message }
   }
 
@@ -1238,10 +1250,9 @@ export async function deleteBatch(id: string): Promise<{ success: boolean; error
 
   const db = await createServiceClient()
 
-  // First get the batch name to check packages
   const { data: batch } = await db
     .from('batches')
-    .select('name')
+    .select('id')
     .eq('id', id)
     .single()
 
@@ -1249,11 +1260,11 @@ export async function deleteBatch(id: string): Promise<{ success: boolean; error
     return { success: false, error: 'Batch not found' }
   }
 
-  // Check if any packages use this batch (by name, since packages.batch is a text field)
+  // Check if any packages use this batch (packages.batch_id FK, SPRO-235)
   const { data: packages } = await db
     .from('packages')
     .select('tag_id')
-    .eq('batch', batch.name)
+    .eq('batch_id', id)
     .limit(1)
 
   if (packages && packages.length > 0) {
@@ -1266,6 +1277,10 @@ export async function deleteBatch(id: string): Promise<{ success: boolean; error
     .eq('id', id)
 
   if (error) {
+    // FK violation: a package was added after the check above
+    if (error.code === '23503') {
+      return { success: false, error: 'Cannot delete batch that is in use by packages' }
+    }
     return { success: false, error: error.message }
   }
 

@@ -1813,6 +1813,7 @@ export type Database = {
       packages: {
         Row: {
           batch: string
+          batch_id: string | null
           created_at: string | null
           created_by: string
           current_weight: number
@@ -1825,6 +1826,7 @@ export type Database = {
         }
         Insert: {
           batch: string
+          batch_id?: string | null
           created_at?: string | null
           created_by: string
           current_weight?: number
@@ -1837,6 +1839,7 @@ export type Database = {
         }
         Update: {
           batch?: string
+          batch_id?: string | null
           created_at?: string | null
           created_by?: string
           current_weight?: number
@@ -1848,6 +1851,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "packages_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packages_created_by_fkey"
             columns: ["created_by"]

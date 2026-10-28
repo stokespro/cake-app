@@ -48,6 +48,7 @@ export interface Batch {
 export interface VaultPackage {
   tag_id: string
   batch: string
+  batch_id: string | null
   strain: string
   strain_id?: string
   type_id: string

@@ -281,7 +281,7 @@ export default function VaultPage() {
     if (!selectedPackage) return
 
     // Find the batch that matches
-    const matchingBatch = batches.find(b => b.name === selectedPackage.batch)
+    const matchingBatch = batches.find(b => b.id === selectedPackage.batch_id)
     setEditBatchId(matchingBatch?.id || '')
     setEditTypeId(selectedPackage.type_id)
     setEditDialogOpen(true)
@@ -304,7 +304,7 @@ export default function VaultPage() {
 
     setUpdating(true)
     const result = await updatePackage(selectedPackage.tag_id, {
-      batch: batch.name,
+      batchId: batch.id,
       typeId: editTypeId,
     })
 
@@ -344,7 +344,7 @@ export default function VaultPage() {
     setCreating(true)
     const result = await createPackage(
       newTagId,
-      batch.name,
+      batch.id,
       newTypeId,
       weight,
       user.id
