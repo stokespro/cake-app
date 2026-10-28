@@ -80,6 +80,11 @@ DECLARE
   v_sname text;
 BEGIN
   IF NEW.strain_id IS NULL THEN
+    -- packages.strain is NOT NULL and the sync trigger refuses strainless batches, so a batch
+    -- that has packages must keep a strain.
+    IF EXISTS (SELECT 1 FROM public.packages WHERE batch_id = NEW.id) THEN
+      RAISE EXCEPTION 'Batch "%" has packages and must keep a strain', NEW.name;
+    END IF;
     RETURN NEW;
   END IF;
 

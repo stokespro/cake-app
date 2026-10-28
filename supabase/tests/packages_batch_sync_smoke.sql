@@ -58,6 +58,14 @@ BEGIN
     IF v_bad <> 1 THEN RAISE EXCEPTION 'SMOKE FAIL: text-only batch write did not resolve batch_id'; END IF;
   END IF;
 
+  -- 4b) clearing the strain of a batch that has packages is blocked
+  BEGIN
+    UPDATE batches SET strain_id = NULL WHERE id = v_batch;
+    RAISE EXCEPTION 'SMOKE FAIL: cleared strain on a batch with packages';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM NOT LIKE '%must keep a strain%' THEN RAISE; END IF;
+  END;
+
   -- 5) bogus batch_id is rejected
   BEGIN
     INSERT INTO packages (tag_id, batch, strain, type_id, created_by, batch_id)
