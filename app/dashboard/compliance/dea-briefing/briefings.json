@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-10-27",
+  "lastUpdated": "2026-10-28",
   "deaRegistrationStatus": {
     "lastVerified": "2026-10-24",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -146,6 +146,27 @@
     }
   ],
   "items": [
+    {
+      "id": "omma-bcc-recall-mold-yeast-oct20-2026",
+      "headline": "OMMA Recalls Blue Collar Criminals Collective Flower Batches for Mold/Yeast Failures; Expands to Mixed Batch October 26 — Introduces Metrc Recall Alert System",
+      "date": "2026-10-20",
+      "summary": "Oklahoma Medical Marijuana Authority issued a recall on approximately October 20, 2026 for two flower production batches from Blue Collar Criminals Collective LLC, an Oklahoma City grow facility, after the company self-reported that its Biscotti and Smores Gelato flower batches (sold under the BCC Legacy brand) had failed required yeast and mold testing after distribution to dispensaries. OMMA identified 31 affected package entries associated with the recalled batches. On October 26, 2026, OMMA expanded the recall to include mixed products from batch BIS091326-2 — a batch that had initially passed lab testing but was later combined with a failed batch, making the mixed products unsafe for patients. Alongside the recall action, OMMA introduced a new Metrc inventory-tracking alert: affected production batches and downstream packages now display a warning symbol and a blue administrative recall alert in Metrc, providing real-time visibility across the supply chain. Patients who purchased affected products are advised not to consume them and should check their batch information against OMMA's published recall list at the OMMA embargoed-and-recalled-products page.",
+      "whyItMatters": "For CAKE as an OMMA-licensed cultivator/processor and for all dispensary customers: two compliance-critical takeaways from this recall. First, OMMA's new Metrc recall alert system — introduced as part of this action — is a NEW interface feature that dispensary staff and inventory managers may not recognize. Affected packages now show a warning symbol and blue 'administrative recall alert' in Metrc. Dispensary staff who are not trained to identify and respond to these Metrc flags risk selling recalled product in violation of OMMA rules. CAKE should brief dispensary customers immediately on how to identify and respond to Metrc recall flags. Second, the October 26 expansion for mixed batches raises a direct cultivation compliance question: what batch-segregation documentation does CAKE maintain to verify that passed and failed batches are never commingled post-testing? Any commingling of passing and failing batches creates downstream recall liability for cultivators and processors. Operators should audit batch-handling procedures to confirm batch integrity is preserved after lab results are returned. This recall occurs at a particularly sensitive time — OMMA is operating under interim leadership starting October 30 (Jason Yingling replacing Adria Berry) and HB 4454 enforcement begins November 1 — meaning OMMA compliance staff are managing multiple simultaneous priorities. OMMA's enforcement posture on product testing has been escalating (300+ enforcement cases tracked in July 2026; secret shopper program active). Self-reporting did not protect BCC from a public recall action.",
+      "tags": [
+        "oklahoma",
+        "cultivation",
+        "dispensary"
+      ],
+      "source": {
+        "name": "Marijuana Herald — Oklahoma Recalls Medical Marijuana Flower Over Mold and Yeast Testing Failures, Introduces New Tracking Alerts (October 2026)",
+        "url": "https://themarijuanaherald.com/2026/10/oklahoma-recalls-medical-marijuana-flower-over-mold-and-yeast-testing-failures-introduces-new-tracking-alerts/"
+      },
+      "secondarySource": {
+        "name": "OKCFox — OMMA expands medical marijuana recall for mixed batch (October 26, 2026)",
+        "url": "https://okcfox.com/news/local/omma-expands-medical-marijuana-recall-for-mixed-batch"
+      },
+      "pinned": false
+    },
     {
       "id": "va-sen-lucas-cannabis-racketeering-indictment-oct22-2026",
       "headline": "Virginia State Sen. Louise Lucas Indicted on Federal Racketeering Charges Tied to Cannabis License Conspiracy — October 22, 2026",
@@ -2300,28 +2321,6 @@
       "pinned": true
     },
     {
-      "id": "dea-registration-window-closed-hearing-opens-june29",
-      "headline": "DEA 60-Day Expedited Registration Window Officially Closes June 29; Broader-Rescheduling ALJ Hearing Opens as Scheduled — No Stay Granted",
-      "date": "2026-06-29",
-      "summary": "The DEA's 60-day expedited registration window for Schedule III medical marijuana operators officially closes June 29, 2026 — the effective final day under the Saturday-rule shift (60th calendar day was June 27; confirmed by Manatt, Phelps & Phillips). Operators who filed Form 225 with drug codes 7362/7353/7386 by today hold safe-harbor operating authority during DEA's six-month review. The dedicated dispensary portal had closed June 22; no dedicated manufacturer/cultivator/lab/distributor portal launched before the window closed — Form 225 was the only available pathway. Simultaneously, the broader-rescheduling ALJ hearing opened as scheduled at 9:00 a.m. ET at DEA's 700 Army Navy Drive Arlington VA facility; no emergency injunction or stay was granted by any federal court as of June 29. The government (DOJ/DEA) is testifying first on Day 1 per Chief ALJ Julius's June 24 testimony schedule. Operators who applied may still expect an on-site DEA inspection as part of the review process — consistent with the June 19 Mississippi dispensary visits.",
-      "whyItMatters": "Oklahoma cultivators, processors, labs, and distributors who did not file Form 225 by June 29 have MISSED the 60-day expedited window and have no safe-harbor operating authority while a late application is reviewed. OBNDD's January 1, 2027 enforcement grace period is not a substitute — it only delays when OBNDD begins active enforcement, not whether DEA's safe-harbor applies during review. Operators can still apply outside the expedited window at deadiversion.usdoj.gov — late filing is better than not filing, but carries no safe-harbor guarantee. For Oklahoma dispensaries, OMMA registration remains optional (no OBNDD mandate applies to dispensaries). The ALJ hearing is confirmed underway; its scope is ONLY adult-use/recreational marijuana — the April 28 Schedule III order for state-licensed medical marijuana is not at issue per Chief ALJ Julius's June 19 scope order.",
-      "tags": [
-        "federal",
-        "deadline",
-        "cultivation",
-        "dispensary"
-      ],
-      "source": {
-        "name": "DEA — Press Release: Hearing on Proposed Marijuana Rescheduling Begins June 29",
-        "url": "https://www.dea.gov/press-releases/2026/06/25/dea-hearing-proposed-marijuana-rescheduling-begins-june-29"
-      },
-      "secondarySource": {
-        "name": "Manatt, Phelps & Phillips — confirms Saturday-rule shift to June 29 (effective final day)",
-        "url": "https://www.manatt.com/insights/newsletters/client-alert/doj-reclassifies-medical-marijuana-launches-broader-rescheduling-and-federal-registration-process"
-      },
-      "pinned": false
-    },
-    {
       "id": "dea-hearing-confirmed-proceeding-june29-no-stay-transcript-planned",
       "headline": "DEA ALJ Hearing Confirmed Proceeding Monday June 29 — No Stay Granted; DEA Will Release Transcript Post-Hearing; Advocates Excluded Hold Outside Press Conference",
       "date": "2026-06-28",
@@ -2340,25 +2339,6 @@
         "url": "https://greatreporter.com/2026/06/27/before-the-dea-decides-cannabis-future-those-harmed-by-prohibition-but-denied-participation-will-share-their-stories-in-a-press-conference-in-front-of-the-courthouse/"
       },
       "pinned": true
-    },
-    {
-      "id": "dea-alj-hearing-day1-fda-safer-than-alcohol",
-      "headline": "ALJ Hearing Day 1 (June 29): Government's FDA Witness Testifies Marijuana Safer Than Alcohol and Opioids — SAM Calls Rescheduling 'Solely Political'",
-      "date": "2026-06-29",
-      "summary": "The broader-rescheduling ALJ hearing opened June 29 at 9:00 a.m. ET at DEA headquarters in Arlington, VA, with the government (DOJ/DEA) presenting as the proponent of the rule. FDA's Dominic Chiapperino — Director of the Controlled Substance Staff at the Center for Drug Evaluation and Research — testified to the eight-factor scheduling analysis, finding marijuana's abuse potential 'less than Schedule I/II substances.' He compared cannabis withdrawal (irritability-level) favorably to alcohol (which carries seizure risk and death-level withdrawal syndrome) and opioids — the government's own affirmative scientific case for Schedule III classification. Dr. Corey Burchman (board-certified pain management physician, NH) began his testimony on Day 2 (June 30), describing how he has transitioned patients from opioids to marijuana. SAM CEO Kevin Sabet (a designated participant scheduled to testify July 6) issued a press statement at an event outside the hearing calling rescheduling 'solely political,' citing cannabis industry campaign donations to Trump. Pro-reform advocates denied participation held a press conference outside the facility. No emergency stay or injunction was granted. The hearing has no livestream; DEA.gov transcript publishes only after proceedings conclude post-July 15.",
-      "whyItMatters": "The government's own FDA scientific witness presented affirmative evidence for Schedule III classification — this is the medical case the government will defend in the D.C. Circuit. Sabet's 'solely political' framing will circulate heavily through July 15 as designated anti-rescheduling participants testify one by one. The hearing information blackout (no livestream, no daily transcript) means any social media or newsletter claims about 'what was revealed today' between July 1 and July 15 are unverifiable until DEA releases the official transcript. Oklahoma operators should not adjust compliance posture based on unverified hearing-day claims. Chief ALJ Julius's June 19 scope order confirmed the hearing addresses only adult-use marijuana — it does not affect Oklahoma state-licensed medical marijuana's Schedule III status or OBNDD registration obligation.",
-      "tags": [
-        "federal"
-      ],
-      "source": {
-        "name": "Marijuana Moment — DEA and FDA Highlight How Marijuana Is Safer Than Alcohol and Opioids During Rescheduling Hearing's Opening Day",
-        "url": "https://www.marijuanamoment.net/dea-and-fda-highlight-how-marijuana-is-safer-than-alcohol-and-opioids-during-rescheduling-hearings-opening-day/"
-      },
-      "secondarySource": {
-        "name": "MJBizDaily — Cannabis Rescheduling 'Solely Political,' Opponent Claims as Hearings Begin",
-        "url": "https://mjbizdaily.com/news/trump-marijuana-rescheduling-is-solely-political-opponent-claims-as-dea-hearings-begin/616719/"
-      },
-      "pinned": false
     },
     {
       "id": "glass-house-brands-nyse-second-us-cannabis-june30",
@@ -2415,22 +2395,6 @@
       "pinned": false
     },
     {
-      "id": "omma-quality-assurance-lab-webpage-june2026",
-      "headline": "OMMA Launches Quality Assurance Lab Webpage — In-House State Testing Capacity Operational; Authorized by SB 813 (2023)",
-      "date": "2026-06-29",
-      "summary": "The Oklahoma Medical Marijuana Authority launched a dedicated Quality Assurance Laboratory (QA Lab) webpage on June 29, 2026, signaling that OMMA's in-house QA Lab — authorized by Senate Bill 813 (2023) — is operational. The lab integrates advanced testing capabilities directly into Oklahoma's regulatory framework, reducing reliance on third-party testing data and increasing OMMA's capacity to detect improper testing practices, reporting errors, and product safety risks. OMMA recently hosted the Cannabis Regulators Association (CANNRA) for a lab tour. OMMA will update the webpage as pending accreditations are finalized.",
-      "whyItMatters": "OMMA's in-house QA Lab changes the enforcement calculus for Oklahoma operators: OMMA can now independently re-test products and cross-check third-party lab results rather than relying solely on licensed labs' reported data. This directly addresses the testing integrity failures that drove the Greenleaf Labs recall (approximately 19,000 samples, April 2023–July 2025) and signals elevated OMMA enforcement capability on testing fraud. Cultivators and processors should expect OMMA to use QA Lab results to identify discrepancies and initiate enforcement actions against operators whose products carry inaccurate certifications. The lab's June 29 launch was overshadowed by the simultaneous opening of the ALJ broader-rescheduling hearing.",
-      "tags": [
-        "oklahoma",
-        "cultivation"
-      ],
-      "source": {
-        "name": "OMMA — Launches New Webpage Highlighting Quality Assurance Laboratory (June 29, 2026)",
-        "url": "https://oklahoma.gov/omma/about/news/2026/omma-launches-new-webpage-highlighting-quality-assurance-laboratory.html"
-      },
-      "pinned": false
-    },
-    {
       "id": "dea-alj-hearing-day4-ndasa-dot-drug-testing-july2",
       "headline": "ALJ Hearing Day 4 (July 2): NDASA Testifies Rescheduling Eliminates Federal DOT Drug-Testing Authority for Safety-Sensitive Workers — Seeks Congressional 'Safety Carveout'",
       "date": "2026-07-02",
@@ -2442,25 +2406,6 @@
       "source": {
         "name": "InOut Labs — NDASA Press Conference on Marijuana Rescheduling and DOT Drug Testing",
         "url": "https://inoutlabs.com/blog/ndasa-press-conference-marijuana-rescheduling/"
-      },
-      "pinned": false
-    },
-    {
-      "id": "cannabis-operators-intervene-dc-circuit-defense",
-      "headline": "State-Licensed Cannabis Operators Intervene in D.C. Circuit to Defend Rescheduling — First Industry Voices on Government's Side in Cases 26-1106/1130/1136",
-      "date": "2026-06-29",
-      "summary": "MedPharm Iowa, LLC (d/b/a Bud & Mary's, Iowa) and Tri-Mountain Pure, LLC (Pennsylvania) filed a motion on June 29, 2026 seeking leave to intervene as respondents on the government's side in consolidated D.C. Circuit rescheduling challenges (Cases 26-1106/1130/1136). Both companies had already applied for DEA registrations under the expedited pathway. Their motion argues the federal government could not 'adequately represent' their interests and that they would suffer at least five distinct harms if the litigation blocks rescheduling — including loss of 280E tax relief, loss of federal registration benefits, and operational and competitive harm. The filing was made the same day the broader-rescheduling ALJ hearing opened at DEA headquarters in Arlington, VA; it was first reported in Marijuana Moment's July 2, 2026 newsletter.",
-      "whyItMatters": "This is the first time state-licensed cannabis operators have entered the D.C. Circuit consolidated challenges as active legal defenders of the April 28 order — joining DOJ on the respondent side. Oklahoma cultivators and dispensaries who filed DEA registrations under the expedited window have the same economic and regulatory stake as these Iowa and Pennsylvania operators: loss of 280E relief, loss of safe-harbor registration status, and operational disruption if the order is stayed or vacated. The D.C. Circuit must decide whether to grant the motion; if granted, it would add harm evidence and commercial-impact arguments to the legal defense beyond what DOJ alone presents. The April 28 order remains in effect — no stay has been granted as of July 4, 2026. The intervention filing and the DOJ's strong July 2 response brief (arguing challengers 'come nowhere near' the stay standard) together signal the legal defense of the order is broadening on multiple fronts.",
-      "tags": [
-        "federal"
-      ],
-      "source": {
-        "name": "Marijuana Moment — Marijuana Companies Seek To Defend Trump's Rescheduling Move By Intervening In Opponents' Lawsuits",
-        "url": "https://www.marijuanamoment.net/marijuana-companies-seek-to-defend-trumps-rescheduling-move-by-intervening-in-opponents-lawsuits/"
-      },
-      "secondarySource": {
-        "name": "Yahoo Finance — State Licensed Cannabis Companies Move To Intervene In MMJ's D.C. Circuit Litigation",
-        "url": "https://finance.yahoo.com/healthcare/articles/state-licensed-cannabis-companies-move-055500351.html"
       },
       "pinned": false
     },
