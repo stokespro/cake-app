@@ -305,8 +305,6 @@ export default function VaultPage() {
     setUpdating(true)
     const result = await updatePackage(selectedPackage.tag_id, {
       batch: batch.name,
-      strain: batch.strain?.name || '',
-      strainId: batch.strain_id,
       typeId: editTypeId,
     })
 
@@ -347,8 +345,6 @@ export default function VaultPage() {
     const result = await createPackage(
       newTagId,
       batch.name,
-      batch.strain?.name || '',
-      batch.strain_id,
       newTypeId,
       weight,
       user.id
