@@ -34,6 +34,7 @@ interface FormData {
   email: string
   omma_license: string
   ob_license: string
+  dea_number: string
   is_active: boolean
   commission_exempt: boolean
 }
@@ -55,6 +56,7 @@ export function EditDispensarySheet({
     email: dispensary?.email || '',
     omma_license: dispensary?.omma_license || '',
     ob_license: dispensary?.ob_license || '',
+    dea_number: dispensary?.dea_number || '',
     is_active: dispensary?.is_active !== false,
     commission_exempt: dispensary?.commission_exempt === true
   })
@@ -71,6 +73,7 @@ export function EditDispensarySheet({
       email: dispensary?.email || '',
       omma_license: dispensary?.omma_license || '',
       ob_license: dispensary?.ob_license || '',
+      dea_number: dispensary?.dea_number || '',
       is_active: dispensary?.is_active !== false,
       commission_exempt: dispensary?.commission_exempt === true
     })
@@ -94,6 +97,7 @@ export function EditDispensarySheet({
       email: dispensary?.email || '',
       omma_license: dispensary?.omma_license || '',
       ob_license: dispensary?.ob_license || '',
+      dea_number: dispensary?.dea_number || '',
       is_active: dispensary?.is_active !== false,
       commission_exempt: dispensary?.commission_exempt === true
     })
@@ -158,6 +162,7 @@ export function EditDispensarySheet({
       email: formData.email,
       omma_license: formData.omma_license,
       ob_license: formData.ob_license,
+      dea_number: formData.dea_number,
       is_active: formData.is_active,
       commission_exempt: formData.commission_exempt,
     })
@@ -289,6 +294,18 @@ export function EditDispensarySheet({
                 placeholder="OB-XXXX-XXXX"
                 value={formData.ob_license}
                 onChange={(e) => handleInputChange('ob_license', e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            {/* DEA # */}
+            <div className="space-y-2">
+              <Label htmlFor="dea_number">DEA #</Label>
+              <Input
+                id="dea_number"
+                placeholder="AB1234567"
+                value={formData.dea_number}
+                onChange={(e) => handleInputChange('dea_number', e.target.value)}
                 disabled={loading}
               />
             </div>

@@ -77,6 +77,7 @@ interface DispensaryProfileWithStats {
   email?: string | null
   omma_license?: string | null
   ob_license?: string | null
+  dea_number?: string | null
   is_active?: boolean | null
   last_communication_date?: string | null
   last_order_date?: string | null
@@ -420,6 +421,11 @@ export default function DispensaryDetailPage() {
                   {dispensary.ob_license && (
                     <Badge variant="outline" className="text-xs">
                       OB: {dispensary.ob_license}
+                    </Badge>
+                  )}
+                  {dispensary.dea_number && (
+                    <Badge variant="outline" className="text-xs">
+                      DEA: {dispensary.dea_number}
                     </Badge>
                   )}
                 </div>

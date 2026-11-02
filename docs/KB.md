@@ -123,7 +123,7 @@ Two auth mechanisms coexist:
 
 | Table | Description | Key Columns |
 |-------|-------------|-------------|
-| `customers` | Dispensary profiles | `id`, `business_name`, `license_name`, `address`, `city`, `omma_license`, `ob_license`, `assigned_sales_id` (FK), `has_orders`, `order_count`, `first_order_date`, `last_order_date` |
+| `customers` | Dispensary profiles | `id`, `business_name`, `license_name`, `address`, `city`, `omma_license`, `ob_license`, `dea_number`, `assigned_sales_id` (FK), `has_orders`, `order_count`, `first_order_date`, `last_order_date` |
 | `orders` | Order records | `id`, `order_number` (auto ORD-XXXX), `customer_id` (FK), `agent_id` (FK), `status` (pending/confirmed/packed/delivered/cancelled), `packed_at`, `delivered_at`, `total_price`, `approved_by`, `approved_at` |
 | `order_items` | Line items per order | `id`, `order_id` (FK, CASCADE), `sku_id` (FK), `quantity`, `unit_price`, `line_total` (GENERATED) |
 | `contacts` | Per-dispensary contacts | `id`, `dispensary_id` (FK), `name`, `email`, `phone`, `role` (owner/manager/inventory_manager/buyer/other), `is_primary` |
