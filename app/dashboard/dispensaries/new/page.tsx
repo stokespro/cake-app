@@ -19,6 +19,7 @@ export default function NewDispensaryPage() {
   const [email, setEmail] = useState('')
   const [ommaLicense, setOmmaLicense] = useState('')
   const [obLicense, setObLicense] = useState('')
+  const [deaNumber, setDeaNumber] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -44,6 +45,7 @@ export default function NewDispensaryPage() {
       email: email || undefined,
       omma_license: ommaLicense || undefined,
       ob_license: obLicense || undefined,
+      dea_number: deaNumber || undefined,
       assigned_sales_id: assignedSalesId,
     })
 
@@ -184,6 +186,18 @@ export default function NewDispensaryPage() {
                   className="h-12"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="deaNumber">DEA #</Label>
+              <Input
+                id="deaNumber"
+                placeholder="AB1234567"
+                value={deaNumber}
+                onChange={(e) => setDeaNumber(e.target.value)}
+                disabled={loading}
+                className="h-12"
+              />
             </div>
           </CardContent>
 

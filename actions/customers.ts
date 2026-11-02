@@ -55,6 +55,7 @@ export interface CustomerRecord {
   email?: string | null
   omma_license?: string | null
   ob_license?: string | null
+  dea_number?: string | null
   is_active?: boolean | null
   has_orders?: boolean | null
   order_count?: number | null
@@ -77,6 +78,7 @@ export interface CustomerDetail {
   email?: string | null
   omma_license?: string | null
   ob_license?: string | null
+  dea_number?: string | null
   is_active?: boolean | null
   has_orders?: boolean | null
   order_count?: number | null
@@ -729,6 +731,7 @@ export interface CreateCustomerInput {
   email?: string
   omma_license?: string
   ob_license?: string
+  dea_number?: string
   assigned_sales_id?: string | null
 }
 
@@ -752,6 +755,7 @@ export async function createCustomer(input: CreateCustomerInput): Promise<Custom
     email: input.email?.trim() || null,
     omma_license: input.omma_license?.trim() || null,
     ob_license: input.ob_license?.trim() || null,
+    dea_number: input.dea_number?.trim() || null,
     assigned_sales_id: input.assigned_sales_id ?? null,
   })
 
@@ -778,6 +782,7 @@ export interface UpdateCustomerInput {
   email?: string
   omma_license?: string
   ob_license?: string
+  dea_number?: string
   is_active?: boolean
   commission_exempt?: boolean
 }
@@ -805,6 +810,7 @@ export async function updateCustomer(
     email: input.email?.trim() || null,
     omma_license: input.omma_license?.trim() || null,
     ob_license: input.ob_license?.trim() || null,
+    dea_number: input.dea_number?.trim() || null,
     is_active: input.is_active,
     updated_at: new Date().toISOString(),
   }
