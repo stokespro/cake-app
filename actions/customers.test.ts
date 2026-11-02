@@ -10,6 +10,8 @@
 // This locks the query's shape: anything the sheet round-trips is selected,
 // and the line items arrive with the SKU details needed to price them.
 //
+// SPRO-265: also covers dea_number being trimmed (or nulled) on create/update.
+//
 // '@/lib/supabase/server' and '@/lib/auth/session' are mocked wholesale so this
 // stays hermetic — same style as actions/packaging.test.ts.
 
@@ -25,7 +27,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: (...args: unknown[]) => mockCreateServiceClient(...args),
 }));
 
-const { getCustomerOrders } = await import('./customers');
+const { getCustomerOrders, createCustomer, updateCustomer } = await import('./customers');
 
 const CUSTOMER_ID = 'cust-1';
 
@@ -143,5 +145,75 @@ describe('getCustomerOrders', () => {
 
     expect(result).toEqual({ error: 'No valid session' });
     expect(mockCreateServiceClient).not.toHaveBeenCalled();
+  });
+});
+
+/** Captures the payload handed to insert()/update(); both resolve without error. */
+function createWriteDb() {
+  const captured: { insert?: Record<string, unknown>; update?: Record<string, unknown> } = {};
+  const client = {
+    from() {
+      return {
+        insert(payload: Record<string, unknown>) {
+          captured.insert = payload;
+          return Promise.resolve({ error: null });
+        },
+        update(payload: Record<string, unknown>) {
+          captured.update = payload;
+          return { eq: () => Promise.resolve({ error: null }) };
+        },
+      };
+    },
+  };
+  return { client, captured };
+}
+
+describe('dea_number persistence (SPRO-265)', () => {
+  it('updateCustomer writes a trimmed dea_number', async () => {
+    const { client, captured } = createWriteDb();
+    mockCreateServiceClient.mockResolvedValue(client);
+
+    const result = await updateCustomer('cust-1', { business_name: 'X', dea_number: '  AB1234567  ' });
+
+    expect(result.error).toBeUndefined();
+    expect(captured.update?.dea_number).toBe('AB1234567');
+  });
+
+  it('updateCustomer writes null for blank or omitted dea_number', async () => {
+    for (const input of [
+      { business_name: 'X', dea_number: '   ' },
+      { business_name: 'X' },
+    ]) {
+      const { client, captured } = createWriteDb();
+      mockCreateServiceClient.mockResolvedValue(client);
+
+      await updateCustomer('cust-1', input);
+
+      expect(captured.update).toHaveProperty('dea_number', null);
+    }
+  });
+
+  it('createCustomer writes a trimmed dea_number', async () => {
+    const { client, captured } = createWriteDb();
+    mockCreateServiceClient.mockResolvedValue(client);
+
+    const result = await createCustomer({ business_name: 'X', dea_number: '  AB1234567  ' });
+
+    expect(result.error).toBeUndefined();
+    expect(captured.insert?.dea_number).toBe('AB1234567');
+  });
+
+  it('createCustomer writes null for blank or omitted dea_number', async () => {
+    for (const input of [
+      { business_name: 'X', dea_number: '   ' },
+      { business_name: 'X' },
+    ]) {
+      const { client, captured } = createWriteDb();
+      mockCreateServiceClient.mockResolvedValue(client);
+
+      await createCustomer(input);
+
+      expect(captured.insert).toHaveProperty('dea_number', null);
+    }
   });
 });
