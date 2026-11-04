@@ -816,6 +816,7 @@ export type Database = {
           city: string | null
           commission_exempt: boolean | null
           created_at: string | null
+          dea_number: string | null
           email: string | null
           first_order_date: string | null
           has_orders: boolean | null
@@ -837,6 +838,7 @@ export type Database = {
           city?: string | null
           commission_exempt?: boolean | null
           created_at?: string | null
+          dea_number?: string | null
           email?: string | null
           first_order_date?: string | null
           has_orders?: boolean | null
@@ -858,6 +860,7 @@ export type Database = {
           city?: string | null
           commission_exempt?: boolean | null
           created_at?: string | null
+          dea_number?: string | null
           email?: string | null
           first_order_date?: string | null
           has_orders?: boolean | null
@@ -3377,6 +3380,7 @@ export interface Customer {
   email?: string
   omma_license?: string
   ob_license?: string
+  dea_number?: string
   is_active?: boolean
   commission_exempt?: boolean | null
   assigned_sales_id?: string
