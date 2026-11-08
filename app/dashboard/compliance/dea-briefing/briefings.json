@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-11-07",
+  "lastUpdated": "2026-11-08",
   "deaRegistrationStatus": {
     "lastVerified": "2026-11-07",
     "headline": "DEA Registration Status — Oklahoma Operators",
@@ -2477,26 +2477,6 @@
       "pinned": false
     },
     {
-      "id": "octf-woodward-illegal-grow-raid-july2026",
-      "headline": "Oklahoma AG Organized Crime Task Force Shuts Down 5 Illegal Grow Operations in Woodward County — 30,000+ Plants Seized, Six Deported",
-      "date": "2026-07-10",
-      "summary": "Oklahoma Attorney General Gentner Drummond's Organized Crime Task Force (OCTF) conducted an enforcement operation in Woodward County in early July 2026, shutting down five illegal marijuana grow operations. Investigators seized more than 30,000 cannabis plants and over 200 pounds of processed marijuana. Six individuals without legal authorization to remain in the country were turned over to Immigration and Customs Enforcement and deported; one individual was arrested on state criminal charges. The Woodward operation followed a separate OCTF action in northeast Oklahoma on July 9, 2026 (Dank Dispensary in Bristow, Ontrac Express convenience store, and Black Purple Kush Dispensary in Tulsa), where investigators seized fentanyl, heroin, and marijuana sold without valid OMMA patient verification — a distinct enforcement action targeting nominally licensed locations.",
-      "whyItMatters": "The Woodward and Bristow/Tulsa raids illustrate a two-front OCTF enforcement posture in July 2026: criminal prosecution of unlicensed grow operations flooding the market with untaxed, untracked supply, and enforcement action at licensed but non-compliant dispensaries. For CAKE as an OMMA-licensed cultivator and processor, both fronts matter: (1) removal of illegal supply reduces oversupply pressure on wholesale prices (currently approximately $1,100/lb, down 63% from peak); (2) OMMA embedded investigators participating in criminal raids confirms that a business's licensed status does not insulate it from criminal-law scrutiny if inventory discrepancies arise. Full Metrc seed-to-sale compliance and supply-chain due diligence with wholesale dispensary customers remain the primary risk-management tools.",
-      "tags": [
-        "oklahoma",
-        "cultivation"
-      ],
-      "source": {
-        "name": "Oklahoma Office of the Attorney General — OCTF Shuts Down 5 Illegal Marijuana Operations in Woodward (July 2026)",
-        "url": "https://oklahoma.gov/oag/news/newsroom/2026/july/organized-crime-task-force-shuts-down-5-illegal-marijuana-operations-in-woodward.html"
-      },
-      "secondarySource": {
-        "name": "News9 — Organized Crime Task Force Shuts Down Illegal Grows in Woodward (July 2026)",
-        "url": "https://www.news9.com/crime/woodward-illegal-marijuana-grow-raids-july-2026"
-      },
-      "pinned": false
-    },
-    {
       "id": "lawful-hemp-protection-act-barr-craig-july22",
       "headline": "Bipartisan Lawful Hemp Protection Act Introduced July 22 — White House Backs Bill to Replace November Hemp Ban with Regulatory Framework",
       "date": "2026-07-22",
@@ -2736,21 +2716,6 @@
       "source": {
         "name": "Cannabis Business Times — White House Asks Congress to Revise Hemp Definition, Delay THC Product Ban",
         "url": "https://www.cannabisbusinesstimes.com/hemp/news/15828617/white-house-asks-congress-to-revise-hemp-definition-delay-thc-product-ban"
-      },
-      "pinned": false
-    },
-    {
-      "id": "dea-alj-hearing-day8-tbi-stephens-july10",
-      "headline": "ALJ Hearing Day 8 (July 10): TBI's Erica Stephens Argues Rescheduling Proposal is 'Deficient' — Eight-Factor Analysis 'Overlooks or Ignores Substantial Evidence'; Hearing Recesses Through July 12",
-      "date": "2026-07-10",
-      "summary": "Erica Stephens, assistant special agent in charge of the Tennessee Dangerous Drugs Task Force, testified for the Tennessee Bureau of Investigation (TBI) on Day 8 (July 10, 2026) of the broader-rescheduling ALJ hearing at DEA headquarters in Arlington, VA. Stephens argued the government's marijuana rescheduling proposal is 'deficient' and 'overlooks or ignores substantial evidence relevant to the required eight-factor analysis that weighs strongly against rescheduling marijuana to Schedule III.' Her testimony focused on how deregulation of marijuana — including the legalization of hemp — makes TBI's law enforcement mission more difficult, encourages involvement of criminal organizations in marijuana production and distribution, and negatively impacts the health and safety of Tennesseans. The hearing is now on weekend recess through July 12; it reconvenes Monday July 13 with Phillip A. Drum PharmD, then the state coalition (Nebraska, Idaho, Indiana) on July 14, before concluding July 15. Official DEA.gov transcript releases post-July 15 only — no verified detailed testimony content available until then.",
-      "whyItMatters": "TBI's eight-factor adequacy challenge is the most procedurally direct attack on the rescheduling methodology entered into the administrative record so far: the argument is not simply that marijuana is harmful (a policy position) but that the government's formal CSA eight-factor scheduling analysis omitted or ignored substantial evidence — an administrative record challenge that, if credited by the ALJ, could form the basis for a recommended denial of Schedule III classification for adult-use marijuana. This is structurally similar to Day 2's CAMU methodology attack. For Oklahoma OMMA-licensed operators, the hearing scope is exclusively adult-use/recreational marijuana per Chief ALJ Julius's June 19 scope order; state-licensed medical marijuana's Schedule III status, OBNDD registration obligations, and 280E relief are not subject to the hearing and remain in effect. The remaining hearing schedule (Drum PharmD July 13, States July 14, conclusion July 15) will complete the opposition's evidentiary record; the ALJ's recommended decision on adult-use rescheduling will follow on an indeterminate timeline — historically, ALJ recommended decisions have taken two or more years. No stay of the April 28 order has been granted as of July 12, 2026.",
-      "tags": [
-        "federal"
-      ],
-      "source": {
-        "name": "Marijuana Herald — DEA Marijuana Rescheduling Hearing Pauses for Day After Moving Ahead of Schedule",
-        "url": "https://themarijuanaherald.com/2026/07/dea-marijuana-rescheduling-hearing-pauses-for-day-after-moving-ahead-of-schedule/"
       },
       "pinned": false
     },
@@ -3238,19 +3203,6 @@
         {
           "label": "The Marijuana Herald — Court Grants DOJ Extension in TerrAscend §280E Clawback Suit (October 2026)",
           "url": "https://themarijuanaherald.com/2026/10/court-doj-terrascend/"
-        }
-      ]
-    },
-    {
-      "id": "watch-oklahoma-sq837-adult-use-withdrawal-doom-claims-2026",
-      "claim": "Oklahoma's adult-use legalization initiative (SQ 837) withdrawal means dispensaries/cultivators lose protection, or that adult-use is effectively imminent by another route.",
-      "risk": "Operators may misread the SQ 837 withdrawal as a signal to pivot business models, reduce medical compliance investment, or expect adult-use framework imminently. Others may interpret it as increasing regulatory risk for medical operators.",
-      "fact": "ORCA Campaign Director Jed Green withdrew the SQ 837 petition before the deadline — Oklahoma's 2026 adult-use ballot initiative will NOT appear on the November 2026 ballot. Oklahoma remains medical-only under OMMA. No adult-use regulatory framework is imminent or in development. Medical OMMA licenses remain the operative commercial framework. No change to OMMA compliance obligations, DEA registration requirements, or OBNDD enforcement dates.",
-      "date": "2026-09-23",
-      "sources": [
-        {
-          "name": "Cannabis Business Times — Oklahoma's 2026 Cannabis Legalization Hopes End Short",
-          "url": "https://www.cannabisbusinesstimes.com/us-states/oklahoma/news/15770993/oklahomas-2026-cannabis-legalization-hopes-end-short"
         }
       ]
     },
