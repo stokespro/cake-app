@@ -91,3 +91,24 @@ export function mapOrderItemsToForm(
     }
   })
 }
+
+/** Enough of a SKU to decide whether a new line may default to it. */
+export interface OrderableSku {
+  id: string
+  in_stock?: boolean | null
+}
+
+/**
+ * The first SKU a brand-new order line may default to, or null if there is none.
+ *
+ * SPRO-151: the order pickers deliberately LIST out-of-stock SKUs — greyed out,
+ * labelled "Out of Stock" and unselectable — so the first entry of the picker
+ * list is not necessarily orderable, and a line defaulted to it would only be
+ * rejected by the server availability gate in actions/orders.ts. Every default
+ * and every "Add Item" enablement decision goes through this instead.
+ */
+export function firstOrderableSku<T extends OrderableSku>(
+  skus: readonly T[] | null | undefined
+): T | null {
+  return (skus ?? []).find(sku => sku.in_stock === true) ?? null
+}

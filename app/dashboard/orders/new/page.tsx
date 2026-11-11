@@ -30,6 +30,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { SkuCombobox } from '@/components/orders/sku-combobox'
+import { firstOrderableSku } from '@/lib/orders/line-items'
 import {
   EMPTY_ORDER_DEDUCTIONS,
   OrderDeductions,
@@ -190,10 +191,20 @@ export default function NewOrderPage() {
     }
   }, [customerPricing, skus])
 
-  const addOrderItem = () => {
-    if (skus.length === 0) return
+  // SPRO-151: this picker deliberately lists out-of-stock SKUs so the user can
+  // see they exist (greyed out, labelled "Out of Stock" and unselectable), so
+  // skus[0] is NOT necessarily orderable. Every default and every enablement
+  // decision below has to go through the in-stock subset instead — same shared
+  // rule <OrderSheet> applies.
+  const firstInStockSku = firstOrderableSku(skus)
+  const hasInStockSku = firstInStockSku !== null
 
-    const firstSku = skus[0]
+  const addOrderItem = () => {
+    // No orderable SKU — the Add Item buttons are disabled for this, and
+    // defaulting a line to an out-of-stock SKU would only be rejected later.
+    if (!firstInStockSku) return
+
+    const firstSku = firstInStockSku
     const unitsPerCase = firstSku.units_per_case || 32
     const cases = 1
     const quantity = cases * unitsPerCase
@@ -445,7 +456,7 @@ export default function NewOrderPage() {
                 type="button"
                 size="sm"
                 onClick={addOrderItem}
-                disabled={skus.length === 0}
+                disabled={!hasInStockSku}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Item
@@ -530,7 +541,7 @@ export default function NewOrderPage() {
                     variant="outline"
                     size="sm"
                     onClick={addOrderItem}
-                    disabled={skus.length === 0}
+                    disabled={!hasInStockSku}
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Item

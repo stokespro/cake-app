@@ -101,12 +101,25 @@ function writes(calls: RecordedCall[]) {
 const ORDER_ID = 'order-1';
 const CUSTOMER_ID = 'cust-1';
 
-// Two SKUs with DIFFERENT units_per_case, so a test can tell a server-derived
-// amount from one that reused a client number or the 32 default.
-const SKU_A = { id: 'sku-a', units_per_case: 32 };
-const SKU_B = { id: 'sku-b', units_per_case: 10 };
+/**
+ * The columns the two `skus` reads need between them: units_per_case for
+ * priceLineItems, code/status/in_stock for the SPRO-151 availability gate.
+ */
+interface SkuFixture {
+  id: string;
+  code: string;
+  units_per_case: number;
+  status: string;
+  in_stock: boolean;
+}
 
-function responder(overrides: { skus?: Array<{ id: string; units_per_case: number }> } = {}): Responder {
+// Two SKUs with DIFFERENT units_per_case, so a test can tell a server-derived
+// amount from one that reused a client number or the 32 default. Both are
+// orderable — the unavailable variants live in the SPRO-151 block below.
+const SKU_A: SkuFixture = { id: 'sku-a', code: 'BB-B', units_per_case: 32, status: 'active', in_stock: true };
+const SKU_B: SkuFixture = { id: 'sku-b', code: 'MAC-B', units_per_case: 10, status: 'active', in_stock: true };
+
+function responder(overrides: { skus?: SkuFixture[] } = {}): Responder {
   const { skus = [SKU_A, SKU_B] } = overrides;
 
   return (call, terminal) => {
@@ -445,3 +458,110 @@ describe('updateOrderFromSheet deductions (dispensary Orders tab)', () => {
     expect(mockCreateServiceClient).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// SPRO-151 — an unorderable SKU is rejected server-side, before any insert
+//
+// The picker greys out and disables every out-of-stock SKU, but that is only
+// presentation. These tests pin the server half: both creation paths read
+// skus.status / skus.in_stock themselves and refuse the order, so a forged
+// POST or a stale tab cannot put an unorderable SKU on a new order. Editing is
+// deliberately NOT gated — an existing order may hold a SKU that has since gone
+// out of stock, and it still has to be editable.
+// ---------------------------------------------------------------------------
+
+type CreationPath = {
+  name: string;
+  run: (items: Array<{ sku_id: string; cases: number; unit_price: number }>) => Promise<{ error?: string }>;
+};
+
+const CREATION_PATHS: CreationPath[] = [
+  {
+    name: 'createOrder',
+    run: items => createOrder({ ...baseCreateInput(), items }),
+  },
+  {
+    name: 'createOrderFromSheet',
+    run: items =>
+      createOrderFromSheet({
+        customer_id: CUSTOMER_ID,
+        requested_delivery_date: '2026-09-26',
+        items,
+      }),
+  },
+];
+
+// Same id as SKU_B (MAC-B), in each of the three states that must be refused.
+const OUT_OF_STOCK_SKU: SkuFixture = { ...SKU_B, in_stock: false };
+const STAGED_SKU: SkuFixture = { ...SKU_B, status: 'staged' };
+const DISCONTINUED_SKU: SkuFixture = { ...SKU_B, status: 'discontinued' };
+
+for (const path of CREATION_PATHS) {
+  describe(`${path.name} SKU availability`, () => {
+    it('creates the order when every SKU is active and in stock', async () => {
+      const { client, calls } = createFakeDb(responder());
+      mockCreateServiceClient.mockResolvedValue(client);
+
+      const result = await path.run([{ sku_id: SKU_B.id, cases: 2, unit_price: 5 }]);
+
+      expect(result).toEqual({});
+      // 2 cases x 10 units x $5 = $100
+      expect(
+        (opFor(writeTo(calls, 'orders')!, 'insert')!.args[0] as Record<string, unknown>).total_price
+      ).toBe(100);
+      expect(
+        (opFor(writeTo(calls, 'order_items')!, 'insert')!.args[0] as Array<Record<string, unknown>>)
+      ).toHaveLength(1);
+    });
+
+    it('rejects an out-of-stock SKU without inserting the order', async () => {
+      const { client, calls } = createFakeDb(responder({ skus: [SKU_A, OUT_OF_STOCK_SKU] }));
+      mockCreateServiceClient.mockResolvedValue(client);
+
+      const result = await path.run([{ sku_id: OUT_OF_STOCK_SKU.id, cases: 1, unit_price: 5 }]);
+
+      expect(result.error).toMatch(/unavailable and cannot be ordered/i);
+      // Names the SKU the user has to remove, by code rather than uuid.
+      expect(result.error).toContain('MAC-B');
+      expect(writeTo(calls, 'orders')).toBeUndefined();
+      expect(writes(calls)).toHaveLength(0);
+    });
+
+    it('rejects an out-of-stock SKU even when other lines are fine', async () => {
+      const { client, calls } = createFakeDb(responder({ skus: [SKU_A, OUT_OF_STOCK_SKU] }));
+      mockCreateServiceClient.mockResolvedValue(client);
+
+      const result = await path.run([
+        { sku_id: SKU_A.id, cases: 1, unit_price: 10 },
+        { sku_id: OUT_OF_STOCK_SKU.id, cases: 1, unit_price: 5 },
+      ]);
+
+      expect(result.error).toMatch(/unavailable and cannot be ordered/i);
+      expect(writes(calls)).toHaveLength(0);
+    });
+
+    it('rejects a SKU that does not exist without inserting the order', async () => {
+      const { client, calls } = createFakeDb(responder({ skus: [SKU_A] }));
+      mockCreateServiceClient.mockResolvedValue(client);
+
+      const result = await path.run([{ sku_id: 'sku-gone', cases: 1, unit_price: 5 }]);
+
+      expect(result.error).toMatch(/SKU that no longer exists/i);
+      expect(writeTo(calls, 'orders')).toBeUndefined();
+      expect(writes(calls)).toHaveLength(0);
+    });
+
+    for (const sku of [STAGED_SKU, DISCONTINUED_SKU]) {
+      it(`rejects a '${sku.status}' SKU without inserting the order`, async () => {
+        const { client, calls } = createFakeDb(responder({ skus: [SKU_A, sku] }));
+        mockCreateServiceClient.mockResolvedValue(client);
+
+        const result = await path.run([{ sku_id: sku.id, cases: 1, unit_price: 5 }]);
+
+        expect(result.error).toMatch(/unavailable and cannot be ordered/i);
+        expect(writeTo(calls, 'orders')).toBeUndefined();
+        expect(writes(calls)).toHaveLength(0);
+      });
+    }
+  });
+}

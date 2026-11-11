@@ -37,7 +37,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { SkuCombobox } from '@/components/orders/sku-combobox'
-import { mapOrderItemsToForm, type OrderFormLineItem } from '@/lib/orders/line-items'
+import { firstOrderableSku, mapOrderItemsToForm, type OrderFormLineItem } from '@/lib/orders/line-items'
 import {
   EMPTY_ORDER_DEDUCTIONS,
   OrderDeductions,
@@ -222,13 +222,16 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
     setCustomers(result.data!)
   }
 
-  // Creating an order offers in-stock SKUs only. EDITING one has to resolve
-  // whatever the order already contains, which may have gone out of stock
-  // since — so it uses the same wider list the main orders edit sheet does
-  // (getOrderSkus, everything not discontinued). Anything still missing falls
-  // back to the SKU joined onto the order item (SPRO-148 review).
+  // Creating an order lists every ACTIVE SKU, in stock or not — SPRO-151 wants
+  // an out-of-stock SKU visible and obviously unavailable rather than silently
+  // absent, so the picker below renders them greyed out and unselectable.
+  // EDITING one has to resolve whatever the order already contains, which may
+  // have gone out of stock since — so it uses the same wider list the main
+  // orders edit sheet does (getOrderSkus, everything not discontinued).
+  // Anything still missing falls back to the SKU joined onto the order item
+  // (SPRO-148 review).
   const fetchSkus = async (forEdit: boolean) => {
-    const result = forEdit ? await getOrderSkus() : await getActiveSkus(true)
+    const result = forEdit ? await getOrderSkus() : await getActiveSkus(false)
     if (result.error) {
       console.error('Error fetching skus:', result.error)
       return
@@ -236,10 +239,18 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
     setSkus(result.data!)
   }
 
-  const addOrderItem = () => {
-    if (skus.length === 0) return
+  // SPRO-151: a new line never defaults to a SKU that cannot be ordered. In
+  // CREATE mode there is nothing to fall back to — an out-of-stock default
+  // would only be rejected by the server availability gate — so Add Item is
+  // disabled instead. An EDIT works off the wider getOrderSkus list and has to
+  // stay usable whatever stock says, so it falls back to the first SKU as
+  // before.
+  const defaultSku = firstOrderableSku(skus) ?? (order ? skus[0] ?? null : null)
 
-    const firstSku = skus[0]
+  const addOrderItem = () => {
+    if (!defaultSku) return
+
+    const firstSku = defaultSku
     const price = getPriceForSku(firstSku.id)
     const unitsPerCase = firstSku.units_per_case || 32
     const cases = 1
@@ -611,7 +622,7 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
                 type="button"
                 size="sm"
                 onClick={addOrderItem}
-                disabled={skus.length === 0 || loading}
+                disabled={!defaultSku || loading}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Item
@@ -633,6 +644,7 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
                         value={item.sku_id}
                         onChange={(value) => updateOrderItem(index, 'sku_id', value)}
                         disabled={loading}
+                        showOutOfStock={!order}
                         className="flex-1"
                       />
                       <Button
@@ -692,7 +704,7 @@ export function OrderSheet({ open, onClose, customerId, onSuccess, order }: Orde
                     variant="outline"
                     size="sm"
                     onClick={addOrderItem}
-                    disabled={skus.length === 0 || loading}
+                    disabled={!defaultSku || loading}
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Item
