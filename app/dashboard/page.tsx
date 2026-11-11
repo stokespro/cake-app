@@ -14,6 +14,7 @@ import {
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { parseLocalDate } from '@/lib/utils'
+import { formatDashboardGreeting } from '@/lib/dashboard-greeting'
 import type { Task, Order } from '@/types/database'
 
 function getPriorityBadge(priority: number) {
@@ -55,14 +56,14 @@ export default async function DashboardPage() {
 
   // result.error was checked above; data is guaranteed present
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const { stats, recentTasks, recentOrders } = result.data!
+  const { stats, recentTasks, recentOrders, userName } = result.data!
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back! Here&apos;s your overview.</p>
+        <p className="text-muted-foreground mt-1">{formatDashboardGreeting(userName)}</p>
       </div>
 
       {/* Stats Grid */}
