@@ -7,3 +7,7 @@
 // Public bucket for brand assets (strain logos/backgrounds, etc.) — writes
 // only via signed upload URLs.
 export const BRAND_ASSETS_BUCKET = 'brand-assets'
+
+// Private bucket for dispensary license documents (OMMA/OBN/DEA copies).
+// Not public — reads go through short-lived server-minted signed URLs.
+export const DISPENSARY_DOCUMENTS_BUCKET = 'dispensary-documents'

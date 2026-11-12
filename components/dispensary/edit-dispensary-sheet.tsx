@@ -18,12 +18,14 @@ import { Switch } from '@/components/ui/switch'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { updateCustomer } from '@/actions/customers'
+import { DispensaryDocumentsEditor } from '@/components/dispensary/dispensary-documents-editor'
 
 interface EditDispensarySheetProps {
   open: boolean
   onClose: () => void
   dispensary: DispensaryProfile | null
   onSuccess?: () => void
+  onDocumentsChange?: () => void
 }
 
 interface FormData {
@@ -43,7 +45,8 @@ export function EditDispensarySheet({
   open,
   onClose,
   dispensary,
-  onSuccess
+  onSuccess,
+  onDocumentsChange
 }: EditDispensarySheetProps) {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
@@ -309,6 +312,20 @@ export function EditDispensarySheet({
                 disabled={loading}
               />
             </div>
+
+            {/* License Documents */}
+            {dispensary && (
+              <div className="space-y-2">
+                <Label>License Documents</Label>
+                <p className="text-xs text-muted-foreground">
+                  Document changes save immediately and are independent of Update Dispensary.
+                </p>
+                <DispensaryDocumentsEditor
+                  dispensaryId={dispensary.id}
+                  onChange={onDocumentsChange}
+                />
+              </div>
+            )}
 
             {/* Active Status */}
             <div className="flex items-center justify-between rounded-lg border p-3">
