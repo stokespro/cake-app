@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Building2, Phone, Mail, MapPin, FileText, MessageSquare, ShoppingCart, BarChart3, Plus, Edit, MoreHorizontal, Trash2, Search, Users } from 'lucide-react'
+import { ArrowLeft, Building2, Phone, Mail, MapPin, FileText, MessageSquare, ShoppingCart, BarChart3, Plus, Edit, MoreHorizontal, Trash2, Search, Users, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { useAuth, canCreateOrder, canEditOrder, canDeleteOrder, canAssignSales, canApproveOrder } from '@/lib/auth-context'
 import {
@@ -54,6 +54,13 @@ import { DispensaryProfile, Order } from '@/types/database'
 import { parseLocalDate } from '@/lib/utils'
 import { StatusBadgeDropdown } from '@/components/orders/status-badge-dropdown'
 import { toast } from 'sonner'
+import { getDispensaryDocuments } from '@/actions/dispensary-documents'
+import {
+  DISPENSARY_DOCUMENT_LABELS,
+  REQUIRED_DISPENSARY_DOCUMENT_TYPES,
+  getMissingDocumentTypes,
+  type DispensaryDocument,
+} from '@/lib/dispensary-documents'
 import {
   getCustomer,
   getCustomerCommunications,
@@ -119,6 +126,9 @@ export default function DispensaryDetailPage() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [salesUsers, setSalesUsers] = useState<SalesUserRecord[]>([])
   const [updatingSales, setUpdatingSales] = useState(false)
+  const [documents, setDocuments] = useState<DispensaryDocument[]>([])
+  // stays false on load failure so we never show a false 'all missing' warning
+  const [documentsLoaded, setDocumentsLoaded] = useState(false)
   const { user } = useAuth()
 
   const dispensaryId = params.id as string
@@ -168,15 +178,26 @@ export default function DispensaryDetailPage() {
     if (result.data) setSalesUsers(result.data)
   }, [])
 
+  const fetchDocuments = useCallback(async () => {
+    const result = await getDispensaryDocuments(dispensaryId)
+    if (result.success && result.documents) {
+      setDocuments(result.documents)
+      setDocumentsLoaded(true)
+    } else {
+      console.error('Error fetching documents:', result.error)
+    }
+  }, [dispensaryId])
+
   useEffect(() => {
     const loadData = async () => {
       await fetchDispensary()
       await fetchCommunications()
       await fetchOrders()
       await fetchSalesUsersData()
+      await fetchDocuments()
     }
     loadData()
-  }, [fetchDispensary, fetchCommunications, fetchOrders, fetchSalesUsersData])
+  }, [fetchDispensary, fetchCommunications, fetchOrders, fetchSalesUsersData, fetchDocuments])
 
   useEffect(() => {
     filterOrders()
@@ -218,6 +239,7 @@ export default function DispensaryDetailPage() {
   }
 
   const canManageDispensaries = ['sales', 'agent', 'management', 'admin'].includes(userRole)
+  const missingDocs = documentsLoaded ? getMissingDocumentTypes(documents) : []
 
   // Permission checks
   const userCanCreateOrder = canCreateOrder(userRole)
@@ -350,6 +372,32 @@ export default function DispensaryDetailPage() {
         </div>
       </div>
 
+      {/* Missing license documents warning */}
+      {documentsLoaded && missingDocs.length > 0 && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-lg border border-amber-500 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100"
+        >
+          <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">
+              Missing license documents: {missingDocs.map(t => DISPENSARY_DOCUMENT_LABELS[t]).join(', ')}
+            </p>
+            {canManageDispensaries && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => setEditDispensaryOpen(true)}
+              >
+                Upload documents
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Dispensary Info Card */}
       <Card>
         <CardHeader>
@@ -467,6 +515,46 @@ export default function DispensaryDetailPage() {
       </Card>
 
       {/* Tabs */}
+      {/* License Documents Card */}
+      {documentsLoaded && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              License Documents
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {REQUIRED_DISPENSARY_DOCUMENT_TYPES.map(type => {
+              const doc = documents.find(d => d.document_type === type)
+              return (
+                <div key={type} className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{DISPENSARY_DOCUMENT_LABELS[type]}</span>
+                    <Badge variant={doc ? 'secondary' : 'destructive'}>
+                      {doc ? 'On file' : 'Missing'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    {doc?.expiration_date && <span>Expires {formatDate(doc.expiration_date)}</span>}
+                    {doc?.url && (
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Open
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="relative rounded-md overflow-x-auto h-10 bg-muted">
           <TabsList className="absolute flex flex-row justify-stretch w-max min-w-full">
@@ -988,8 +1076,10 @@ export default function DispensaryDetailPage() {
         dispensary={dispensary as DispensaryProfile | null}
         onSuccess={() => {
           fetchDispensary()
+          fetchDocuments()
           setEditDispensaryOpen(false)
         }}
+        onDocumentsChange={fetchDocuments}
       />
 
       <CommunicationSheet

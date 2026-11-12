@@ -127,6 +127,7 @@ Two auth mechanisms coexist:
 | `orders` | Order records | `id`, `order_number` (auto ORD-XXXX), `customer_id` (FK), `agent_id` (FK), `status` (pending/confirmed/packed/delivered/cancelled), `packed_at`, `delivered_at`, `total_price`, `approved_by`, `approved_at` |
 | `order_items` | Line items per order | `id`, `order_id` (FK, CASCADE), `sku_id` (FK), `quantity`, `unit_price`, `line_total` (GENERATED) |
 | `contacts` | Per-dispensary contacts | `id`, `dispensary_id` (FK), `name`, `email`, `phone`, `role` (owner/manager/inventory_manager/buyer/other), `is_primary` |
+| `dispensary_documents` | License document copies (OMMA/OBN/DEA), one active row per type; files in private `dispensary-documents` bucket (migration `20261112120000`, SPRO-279) | `id`, `dispensary_id` (FK, CASCADE), `document_type` (omma/obn/dea), `file_path`, `file_name`, `expiration_date` (not enforced), `uploaded_by`, `uploaded_at` |
 | `communications` | Interaction logs | `id`, `agent_id` (FK), `customer_id` (FK), `interaction_date`, `notes`, `contact_method` (phone/email/in-person/text), `follow_up_required` |
 | `sales_tasks` | General CRM tasks | `id`, `agent_id` (FK), `customer_id` (FK), `title`, `description`, `due_date`, `status` (pending/complete), `priority` (1-3) |
 
@@ -242,6 +243,8 @@ Order numbers use a PostgreSQL sequence (ORD-XXXX format).
 - Revert packed->pending: restore CASED amount
 
 ### Dispensaries (Customer Profiles)
+
+> **License documents (SPRO-279):** missing-documents helper is `getMissingDocumentTypes` in `lib/dispensary-documents.ts` (expiration ignored). The packing-hold follow-up should use it. Server actions in `actions/dispensary-documents.ts`.
 
 | Attribute | Detail |
 |-----------|--------|
