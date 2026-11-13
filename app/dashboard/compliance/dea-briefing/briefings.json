@@ -1,7 +1,7 @@
 {
-  "lastUpdated": "2026-11-12",
+  "lastUpdated": "2026-11-13",
   "deaRegistrationStatus": {
-    "lastVerified": "2026-11-12",
+    "lastVerified": "2026-11-13",
     "headline": "DEA Registration Status — Oklahoma Operators",
     "tracks": [
       {
@@ -107,7 +107,7 @@
       "label": "Fed Reserve / FDIC / OCC / NCUA — Comment Deadline: Third-Party Risk Guidance Flags Cannabis as Higher-Risk",
       "date": "November 16, 2026",
       "description": "Comment deadline for the joint Third-Party Risk Management Guidance proposed by the Federal Reserve, FDIC, OCC, and NCUA (Federal Register, September 15, 2026, FR Doc. 2026-18859). The proposed guidance explicitly classifies marijuana businesses as 'higher-risk bank customers' requiring more sophisticated AML monitoring. Directed at federally supervised banking organizations with assets under $30 billion (community banks). Nonbinding supervisory guidance, but may reinforce banking access obstacles for Oklahoma cannabis operators. Cannabis industry associations are expected to submit comments opposing the designation. Monitor federalregister.gov.",
-      "urgency": "standard"
+      "urgency": "urgent"
     },
     {
       "id": "kd-terrascend-280e-hearing-oct19",
@@ -139,6 +139,24 @@
     }
   ],
   "items": [
+    {
+      "id": "dea-multi-state-orders-to-show-cause-nov12-2026",
+      "headline": "DEA Issues Orders to Show Cause to Cannabis Businesses in Multiple States — CA, DE, D.C., IL, ND, OR, MN Targeted; Dual-Use Licensing, Self-Certification, and Artificial Cannabinoids Cited",
+      "date": "2026-11-12",
+      "summary": "The DEA issued Orders to Show Cause (OSCs) proposing to deny Schedule III medical cannabis registration applications to businesses in multiple states as of November 12, 2026. States targeted include California, Delaware, Washington D.C., Illinois, North Dakota, and Oregon — in addition to earlier OSCs in Minnesota. The DEA's stated grounds include: (1) state programs allowing dual adult-use/medical licenses at a single operator location; (2) patient self-certification for medical access without a written physician recommendation; and (3) state supply chains that include artificially derived cannabinoids (e.g., commercially converted delta-8). These are proposed denials — not final orders. Recipients have 30 days from receipt to request a hearing before a DEA administrative law judge or submit a corrective action plan. This contrasts with the October 30, 2026 wave of 900+ registrations granted exclusively to operators in medical-only markets (AL, FL, MS, SD, TX, VA, WV). No Oklahoma operators were among the November 12 OSC wave per available reporting.",
+      "whyItMatters": "For CAKE as an OMMA-licensed cultivator/processor and for all Oklahoma dispensary customers: Oklahoma is a medical-only state under OMMA with a written physician certification requirement — Oklahoma OMMA-licensed dispensaries are not at risk from the physician certification or self-certification grounds. However, any Oklahoma dispensary customer that holds a dual license (medical + other category) or that has artificially derived cannabinoids in its supply chain could face similar OSC grounds. CAKE must re-audit which of its dispensary customers have received OSCs before the November 29 supply chain compliance deadline — an operator under an active OSC is not a confirmed timely applicant in good standing. The multi-state wave confirms the DEA is reading the 'state-licensed medical marijuana' definition narrowly. Dispensary customers in dual-license states or states with self-certification standards should be treated as elevated-risk supply chain partners until their OSC status is confirmed resolved. Source: Marijuana Moment, November 12, 2026.",
+      "tags": [
+        "federal",
+        "dispensary",
+        "oklahoma",
+        "deadline"
+      ],
+      "source": {
+        "name": "Marijuana Moment — DEA Is Rejecting Medical Marijuana Businesses That Want Federal Rescheduling Protections In Multiple States (November 12, 2026)",
+        "url": "https://www.marijuanamoment.net/dea-is-rejecting-medical-marijuana-businesses-that-want-federal-rescheduling-protections-in-multiple-states/"
+      },
+      "pinned": false
+    },
     {
       "id": "hemp-synthetic-ban-nov12-takes-effect-2026",
       "headline": "Federal Synthetic Cannabinoid Recriminalization Takes Effect — HHC, THC-O Acetate, THC-B, THCJD Now Schedule I; No Congressional Rescue Enacted",
@@ -3450,6 +3468,17 @@
       "source": {
         "name": "National Law Review — 30 Days on the Clock: What the Federal Hemp 'Ban' Delay Really Means for the Industry (November 2026)",
         "url": "https://natlawreview.com/article/30-days-clock-what-federal-hemp-ban-delay-really-means-industry"
+      },
+      "date": "2026-11"
+    },
+    {
+      "id": "watch-osc-not-final-denial-30-day-hearing-right",
+      "headline": "'DEA Denied Registration' — Orders to Show Cause Are Proposed Denials, Not Final Orders; 30-Day Hearing Right Available",
+      "claim": "Following the November 12 multi-state OSC wave (CA, DE, D.C., IL, ND, OR, MN), cannabis media headlines and operator communications are using 'DEA denied registration' language to describe what are legally Orders to Show Cause — proposed denials that give the recipient 30 days to request a hearing before a DEA ALJ or submit a corrective action plan. Social media and consultant marketing are treating OSC recipients as permanently excluded from the supply chain.",
+      "caution": "An Order to Show Cause is NOT a final DEA denial — it is a proposed denial that initiates an administrative hearing process. Operators who receive an OSC retain the right to contest the proposed denial, present evidence, and potentially obtain registration with modifications. Treating an OSC as a final denial may cause operators to prematurely exit the registration process. Oklahoma operators should verify any OSC notices directly with counsel. Critically for supply chain compliance (November 29 deadline): an operator under an active OSC should be treated as not confirmed in good standing — do NOT assume an OSC recipient is excluded, but do NOT assume they are compliant until their status is clarified. Consult the DEA administrative actions page and counsel before the November 29 deadline.",
+      "source": {
+        "name": "Vicente LLP — DEA Registration Denials and Timely Applicant Compliance: Next Steps for Cannabis Operators (Webinar, November 2026)",
+        "url": "https://vicentellp.com/events/vicente-llp-webinar-dea-registration-denials-and-timely-applicant-compliance-next-steps-for-cannabis-operators/"
       },
       "date": "2026-11"
     }
